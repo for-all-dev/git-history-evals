@@ -18,3 +18,8 @@ Evals for at least the Nova hypervisor specs and proofs, SeL4, Compcert, and Fia
 
 - `./scaffold/`: the miner/scraper agent
 - `./data/`: containing the source repos like sel4, compcert, etc. as git submodules
+- `./artifacts/`: the output `.jsonl` files containing the benchmarks.
+
+### source data repos
+- https://github.com/seL4/l4v 
+- https://github.com/mit-plv/fiat-crypto

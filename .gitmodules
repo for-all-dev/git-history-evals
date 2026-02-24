@@ -1,0 +1,12 @@
+[submodule "data/CompCert"]
+	path = data/CompCert
+	url = https://github.com/AbsInt/CompCert.git
+[submodule "data/BRiCk"]
+	path = data/BRiCk
+	url = https://github.com/bluerock-io/BRiCk.git
+[submodule "data/l4v"]
+	path = data/l4v
+	url = https://github.com/seL4/l4v.git
+[submodule "data/fiat-crypto"]
+	path = data/fiat-crypto
+	url = https://github.com/mit-plv/fiat-crypto.git
