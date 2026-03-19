@@ -1,20 +1,17 @@
-"""Output module — writes eval challenges to JSONL format."""
+"""Output module — writes eval challenges and commit records to JSONL format."""
 
 from __future__ import annotations
 
 import logging
 from pathlib import Path
 
-from scaffold.models import EvalChallenge, MiningResult
+from scaffold.models import CommitRecord, EvalChallenge, MiningResult
 
 logger = logging.getLogger(__name__)
 
 
 def write_jsonl(challenges: list[EvalChallenge], output_path: str | Path) -> None:
-    """Write challenges to a JSONL file (one JSON object per line).
-
-    Compatible with HuggingFace datasets.Dataset.from_json().
-    """
+    """Write challenges to a JSONL file (one JSON object per line)."""
     output = Path(output_path)
     output.parent.mkdir(parents=True, exist_ok=True)
 
@@ -40,6 +37,30 @@ def read_jsonl(input_path: str | Path) -> list[EvalChallenge]:
             if line:
                 challenges.append(EvalChallenge.model_validate_json(line))
     return challenges
+
+
+def write_commit_records(
+    records: list[CommitRecord],
+    output_path: str | Path,
+) -> None:
+    """Write CommitRecords to a JSONL file (one JSON object per line)."""
+    output = Path(output_path)
+    output.parent.mkdir(parents=True, exist_ok=True)
+    with open(output, "w") as f:
+        for rec in records:
+            f.write(rec.model_dump_json() + "\n")
+    logger.info("Wrote %d commit records to %s", len(records), output)
+
+
+def read_commit_records(input_path: str | Path) -> list[CommitRecord]:
+    """Read CommitRecords from a JSONL file."""
+    records: list[CommitRecord] = []
+    with open(input_path) as f:
+        for line in f:
+            line = line.strip()
+            if line:
+                records.append(CommitRecord.model_validate_json(line))
+    return records
 
 
 def print_stats(challenges: list[EvalChallenge]) -> None:
