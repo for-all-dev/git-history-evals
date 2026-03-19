@@ -1,0 +1,13 @@
+INFO scaffold.output: Wrote 8289 commit records to ../artifacts/fiat-crypto-commits-all-labeled.jsonl
+
+Wrote 8289 records to ../artifacts/fiat-crypto-commits-all-labeled.jsonl
+
+Class distribution:
+  proof_add            5157  (62.2%)
+  other                1241  (15.0%)
+  infra                 872  (10.5%)
+  proof_new             361  (4.4%)
+  refactor              218  (2.6%)
+  spec_change           160  (1.9%)
+  fix                   154  (1.9%)
+  proof_complete        126  (1.5%)

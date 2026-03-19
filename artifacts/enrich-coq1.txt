@@ -1,0 +1,12 @@
+INFO scaffold.output: Wrote 5915 commit records to ../artifacts/fiat-crypto-commits-coq-labeled.jsonl
+
+Wrote 5915 records to ../artifacts/fiat-crypto-commits-coq-labeled.jsonl
+
+Class distribution:
+  proof_add            4249  (71.8%)
+  fix                   552  (9.3%)
+  proof_new             361  (6.1%)
+  refactor              356  (6.0%)
+  spec_change           160  (2.7%)
+  infra                 120  (2.0%)
+  proof_complete        117  (2.0%)
