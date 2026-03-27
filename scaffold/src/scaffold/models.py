@@ -217,3 +217,12 @@ class CommitRecord(BaseModel):
             "'ssreflect', 'mixed'. Derived from added lines of .v diffs."
         ),
     )
+    tactic_group_tags: list[str] = Field(
+        default_factory=list,
+        description=(
+            "Behavioural tactic groups derived from tactic_tags. "
+            "One of: 'rewrite_reduce', 'contradiction_solver', 'application', "
+            "'case_induction', 'hypothesis_management', 'arithmetic_algebra', "
+            "'meta_tactical'."
+        ),
+    )

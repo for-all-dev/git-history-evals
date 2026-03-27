@@ -308,6 +308,72 @@ def stratify_tactics(
 
 
 @app.command()
+def group_tactics(
+    input_path: Path = typer.Argument(..., help="Diff-enriched commits JSONL"),
+    output_path: Path = typer.Option(
+        None, "--output", "-o", help="Output path (default: overwrites input)"
+    ),
+    output_dir: Path = typer.Option(
+        None, "--output-dir", "-d",
+        help="Directory for per-group subdataset files (default: same dir as input)"
+    ),
+) -> None:
+    """Assign behavioural tactic groups to each record and write per-group subdatasets.
+
+    Reads tactic_tags already populated by diff-enrich, maps each tactic to one
+    of seven behavioural groups, and stores the result in tactic_group_tags.
+
+    Also writes one JSONL per group under --output-dir:
+      group-rewrite_reduce.jsonl
+      group-contradiction_solver.jsonl
+      group-application.jsonl
+      group-case_induction.jsonl
+      group-hypothesis_management.jsonl
+      group-arithmetic_algebra.jsonl
+      group-meta_tactical.jsonl
+    """
+    from collections import Counter, defaultdict
+
+    from scaffold.output import read_commit_records, write_commit_records
+    from scaffold.pattern_detector import assign_tactic_groups
+
+    records = read_commit_records(input_path)
+
+    enriched = [
+        r.model_copy(update={"tactic_group_tags": assign_tactic_groups(r.tactic_tags)})
+        for r in records
+    ]
+
+    dest = output_path or input_path
+    write_commit_records(enriched, dest)
+    typer.echo(f"Wrote {len(enriched)} records to {dest}")
+
+    # Group distribution
+    counts: Counter[str] = Counter()
+    for r in enriched:
+        for g in r.tactic_group_tags:
+            counts[g] += 1
+    typer.echo("\nTactic group distribution (proof_add commits may appear in multiple groups):")
+    for grp, n in sorted(counts.items(), key=lambda x: -x[1]):
+        typer.echo(f"  {grp:<28} {n:>5}")
+
+    # Per-group subdataset files
+    out_dir = output_dir or input_path.parent / "group-subdatasets"
+    out_dir.mkdir(parents=True, exist_ok=True)
+
+    buckets: dict[str, list] = defaultdict(list)
+    for r in enriched:
+        for g in r.tactic_group_tags:
+            buckets[g].append(r)
+
+    typer.echo(f"\nPer-group subdatasets -> {out_dir}/")
+    for grp, recs in sorted(buckets.items(), key=lambda x: -len(x[1])):
+        out_path = out_dir / f"group-{grp}.jsonl"
+        write_commit_records(recs, out_path)
+        typer.echo(f"  {grp:<28} {len(recs):>5} records -> {out_path.name}")
+
+
+@app.command()
 def stats(
     jsonl_path: Path = typer.Argument(..., help="Path to a .jsonl challenges file"),
 ) -> None:

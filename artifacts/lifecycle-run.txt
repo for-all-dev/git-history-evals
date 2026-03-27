@@ -1,0 +1,116 @@
+Loading challenges...
+Loading commit history...
+Unique proved declarations to analyse: 894
+  0/894 ...
+  100/894 ...
+  200/894 ...
+  300/894 ...
+  400/894 ...
+  500/894 ...
+  600/894 ...
+  700/894 ...
+  800/894 ...
+
+Writing 789 records to /Users/taibaabid/Desktop/spar/git-history-evals/artifacts/fiat-crypto-lifecycle.jsonl ...
+======================================================================
+PROOF LIFECYCLE REPORT — fiat-crypto
+======================================================================
+
+Declarations tracked (proved with ≥1 commit carrying a hole): 789
+Total commits-with-hole across all declarations: 4854
+
+COMMIT COUNT STATISTICS
+----------------------------------------
+  Median commits per declaration : 3
+  Mean   commits per declaration : 6.2
+  Max    commits                 : 75  (prime_modulus)
+  Min    commits                 : 1
+
+DISTRIBUTION
+----------------------------------------
+  1 commit          221  ( 28.0%)  ##############
+  2-3 commits       252  ( 31.9%)  ###############
+  4-5 commits        93  ( 11.8%)  #####
+  6-10 commits       95  ( 12.0%)  ######
+  11-20 commits      70  (  8.9%)  ####
+  21+ commits        58  (  7.4%)  ###
+
+TIME-TO-PROOF STATISTICS (days from first Admitted to Qed)
+----------------------------------------
+  Median : 3 days
+  Mean   : 18.5 days
+  Max    : 1149 days
+  Proved same day (0 days): 168
+
+TACTIC GROUP USAGE (how many declarations used each group)
+----------------------------------------
+  rewrite_reduce                 765  ( 97.0%)
+  hypothesis_management          754  ( 95.6%)
+  application                    753  ( 95.4%)
+  meta_tactical                  746  ( 94.6%)
+  case_induction                 743  ( 94.2%)
+  contradiction_solver           700  ( 88.7%)
+  arithmetic_algebra             351  ( 44.5%)
+
+TOP 30 HARDEST DECLARATIONS (most commits with hole present)
+----------------------------------------
+   1. prime_modulus                         75 commits   266d  [rewrite_reduce, hypothesis_management, application, contradiction_solver, meta_tactical, case_induction, arithmetic_algebra]
+   2. homomorphism_inv                      62 commits    92d  [hypothesis_management, meta_tactical, rewrite_reduce, application, case_induction, contradiction_solver, arithmetic_algebra]
+   3. permute_commutative                   60 commits    90d  [case_induction, application, hypothesis_management, meta_tactical, rewrite_reduce, contradiction_solver, arithmetic_algebra]
+   4. BoundsPipelineConst_correct           57 commits    32d  [rewrite_reduce, meta_tactical, application, hypothesis_management, case_induction, contradiction_solver, arithmetic_algebra]
+   5. indexof_none                          56 commits   146d  [case_induction, hypothesis_management, contradiction_solver, rewrite_reduce, meta_tactical, application]
+   6. indexof_Some                          56 commits   146d  [case_induction, hypothesis_management, contradiction_solver, rewrite_reduce, meta_tactical, application]
+   7. indexof_first                         56 commits   146d  [case_induction, hypothesis_management, contradiction_solver, rewrite_reduce, meta_tactical, application]
+   8. homomorphism_multiplicative_inverse   49 commits    29d  [hypothesis_management, meta_tactical, rewrite_reduce, application, case_induction, contradiction_solver, arithmetic_algebra]
+   9. eval_bound_expr                       47 commits    19d  [rewrite_reduce, hypothesis_management, application, contradiction_solver, case_induction, meta_tactical, arithmetic_algebra]
+  10. adjust_bounds                         46 commits    12d  [hypothesis_management, rewrite_reduce, meta_tactical, case_induction, application, contradiction_solver, arithmetic_algebra]
+  11. reveal_exists_enough_fuel             45 commits    84d  [case_induction, application, hypothesis_management, meta_tactical, rewrite_reduce, contradiction_solver]
+  12. node_beq_sound                        45 commits    84d  [case_induction, application, hypothesis_management, meta_tactical, rewrite_reduce, contradiction_solver]
+  13. isCst                                 41 commits    62d  [case_induction, hypothesis_management, meta_tactical, rewrite_reduce, application, contradiction_solver]
+  14. resize                                41 commits    11d  [hypothesis_management, rewrite_reduce, meta_tactical, case_induction, application, contradiction_solver, arithmetic_algebra]
+  15. default                               41 commits    11d  [hypothesis_management, rewrite_reduce, meta_tactical, case_induction, application, contradiction_solver, arithmetic_algebra]
+  16. to_bounds                             37 commits     9d  [meta_tactical, hypothesis_management, rewrite_reduce, application, contradiction_solver, case_induction]
+  17. convert_spec                          37 commits   178d  [hypothesis_management, meta_tactical, case_induction, rewrite_reduce, contradiction_solver, application, arithmetic_algebra]
+  18. eval_div                              35 commits    14d  [meta_tactical, case_induction, rewrite_reduce, contradiction_solver, application, hypothesis_management, arithmetic_algebra]
+  19. eval_mod                              35 commits    14d  [meta_tactical, case_induction, rewrite_reduce, contradiction_solver, application, hypothesis_management, arithmetic_algebra]
+  20. le_land                               33 commits    55d  [hypothesis_management, application, rewrite_reduce, case_induction, contradiction_solver, meta_tactical]
+  21. land_ones_le                          33 commits    55d  [hypothesis_management, application, rewrite_reduce, case_induction, contradiction_solver, meta_tactical]
+  22. eval_simplify_expr                    33 commits    61d  [case_induction, hypothesis_management, meta_tactical, rewrite_reduce, application, contradiction_solver]
+  23. BoundsPipeline_correct                33 commits    10d  [rewrite_reduce, case_induction, hypothesis_management, meta_tactical, application, contradiction_solver, arithmetic_algebra]
+  24. Proper_feEnc                          33 commits    14d  [rewrite_reduce, arithmetic_algebra, case_induction, application, meta_tactical, hypothesis_management, contradiction_solver]
+  25. consts_commutative                    30 commits     8d  [rewrite_reduce, hypothesis_management, meta_tactical, application, contradiction_solver, case_induction, arithmetic_algebra]
+  26. value_add                             29 commits     6d  [hypothesis_management, application, rewrite_reduce, meta_tactical, contradiction_solver, case_induction]
+  27. related_Z_op                          28 commits     5d  [hypothesis_management, application, rewrite_reduce, meta_tactical, contradiction_solver, case_induction]
+  28. related_bounds_op                     28 commits     5d  [hypothesis_management, application, rewrite_reduce, meta_tactical, contradiction_solver, case_induction]
+  29. related_word64_op                     28 commits     5d  [hypothesis_management, application, rewrite_reduce, meta_tactical, contradiction_solver, case_induction]
+  30. feEnc_correct                         28 commits    13d  [rewrite_reduce, arithmetic_algebra, case_induction, application, meta_tactical, hypothesis_management, contradiction_solver]
+
+DECLARATIONS PROVED IN A SINGLE COMMIT
+----------------------------------------
+  Count: 221
+    from_Q_to_Z_and_back  (DettmanMultiplication.v)
+    something  (DettmanMultiplication.v)
+    truncate_word_word  (ChaChaWrapped.v)
+    mul2_correct  (SolinasReduction.v)
+    reduce_second_bounds  (SolinasReduction.v)
+    skipn_firstn_decomp  (SolinasReduction.v)
+    square_no_reduce_correct  (SolinasReduction.v)
+    canonical_eval_bounded  (SolinasReduction.v)
+    canonical_app  (SolinasReduction.v)
+    canonical_bounded  (SolinasReduction.v)
+    eval_mod_eq  (SolinasReduction.v)
+    reduce_valid_number  (SolinasReduction.v)
+    compiler_emitted_valid_instructions  (GarageDoor.v)
+    loop  (GarageDoor.v)
+    loop_ok  (GarageDoor.v)
+
+COMMIT COUNT vs TACTIC GROUPS (mean groups per commit-bucket)
+----------------------------------------
+  1 commit         avg tactic groups: 5.5
+  2-3 commits      avg tactic groups: 6.2
+  4-5 commits      avg tactic groups: 6.3
+  6-10 commits     avg tactic groups: 6.5
+  11-20 commits    avg tactic groups: 6.5
+  21+ commits      avg tactic groups: 6.7
+
+Wrote report to /Users/taibaabid/Desktop/spar/git-history-evals/artifacts/fiat-crypto-lifecycle-report.txt

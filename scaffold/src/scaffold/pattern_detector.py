@@ -150,6 +150,151 @@ _FIX_SIGNALS = [
 ]
 
 # ---------------------------------------------------------------------------
+# Tactic groups — behavioural classification of individual tactics
+# ---------------------------------------------------------------------------
+
+# Maps every tracked tactic name (lowercase) to its behavioural group.
+# A tactic that could belong to multiple groups is assigned to its primary role.
+_TACTIC_GROUPS: dict[str, str] = {
+    # --- rewrite_reduce: transform the goal syntactically -------------------
+    "rewrite":            "rewrite_reduce",
+    "erewrite":           "rewrite_reduce",
+    "setoid_rewrite":     "rewrite_reduce",
+    "rewrite_strat":      "rewrite_reduce",
+    "replace":            "rewrite_reduce",
+    "symmetry":           "rewrite_reduce",
+    "transitivity":       "rewrite_reduce",
+    "etransitivity":      "rewrite_reduce",
+    "subst":              "rewrite_reduce",
+    "simpl":              "rewrite_reduce",
+    "cbn":                "rewrite_reduce",
+    "cbv":                "rewrite_reduce",
+    "lazy":               "rewrite_reduce",
+    "vm_compute":         "rewrite_reduce",
+    "native_compute":     "rewrite_reduce",
+    "compute":            "rewrite_reduce",
+    "unfold":             "rewrite_reduce",
+    "fold":               "rewrite_reduce",
+    "red":                "rewrite_reduce",
+    "hnf":                "rewrite_reduce",
+    "delta":              "rewrite_reduce",
+    "beta":               "rewrite_reduce",
+    "iota":               "rewrite_reduce",
+    "zeta":               "rewrite_reduce",
+    "change":             "rewrite_reduce",
+    "convert":            "rewrite_reduce",
+    "simp":               "rewrite_reduce",
+    "ring_nf":            "rewrite_reduce",
+    "ring_simplify":      "rewrite_reduce",
+    "field_simplify":     "rewrite_reduce",
+    "norm_cast":          "rewrite_reduce",
+    "push_cast":          "rewrite_reduce",
+    "pull_cast":          "rewrite_reduce",
+    "push_neg":           "rewrite_reduce",
+    "pull_neg":           "rewrite_reduce",
+    "pattern":            "rewrite_reduce",
+    # --- arithmetic_algebra: decide algebraic/numeric equalities ------------
+    "ring":               "arithmetic_algebra",
+    "field":              "arithmetic_algebra",
+    "norm_num":           "arithmetic_algebra",
+    "zify":               "arithmetic_algebra",
+    # --- contradiction_solver: close goals by inconsistency or decision -----
+    "omega":              "contradiction_solver",
+    "lia":                "contradiction_solver",
+    "lra":                "contradiction_solver",
+    "nia":                "contradiction_solver",
+    "nra":                "contradiction_solver",
+    "psatz":              "contradiction_solver",
+    "contradiction":      "contradiction_solver",
+    "absurd":             "contradiction_solver",
+    "discriminate":       "contradiction_solver",
+    "exfalso":            "contradiction_solver",
+    "tauto":              "contradiction_solver",
+    "btauto":             "contradiction_solver",
+    "intuition":          "contradiction_solver",
+    "firstorder":         "contradiction_solver",
+    "decide":             "contradiction_solver",
+    "congruence":         "contradiction_solver",
+    # --- application: backward reasoning — unify goal with lemma ------------
+    "apply":              "application",
+    "eapply":             "application",
+    "rapply":             "application",
+    "lapply":             "application",
+    "exact":              "application",
+    "exact_no_check":     "application",
+    "refine":             "application",
+    "assumption":         "application",
+    "auto":               "application",
+    "eauto":              "application",
+    "trivial":            "application",
+    "easy":               "application",
+    "specialize":         "application",
+    # --- case_induction: structural decomposition — splits into subgoals ----
+    "induction":          "case_induction",
+    "destruct":           "case_induction",
+    "case":               "case_induction",
+    "case_eq":            "case_induction",
+    "elim":               "case_induction",
+    "elimtype":           "case_induction",
+    "inversion":          "case_induction",
+    "inversion_clear":    "case_induction",
+    "injection":          "case_induction",
+    "split":              "case_induction",
+    "constructor":        "case_induction",
+    "econstructor":       "case_induction",
+    "left":               "case_induction",
+    "right":              "case_induction",
+    "exists":             "case_induction",
+    "eexists":            "case_induction",
+    # --- hypothesis_management: manipulate the proof context ----------------
+    "intro":              "hypothesis_management",
+    "intros":             "hypothesis_management",
+    "revert":             "hypothesis_management",
+    "clear":              "hypothesis_management",
+    "clearbody":          "hypothesis_management",
+    "rename":             "hypothesis_management",
+    "move":               "hypothesis_management",
+    "generalize":         "hypothesis_management",
+    "instantiate":        "hypothesis_management",
+    "pose":               "hypothesis_management",
+    "remember":           "hypothesis_management",
+    "set":                "hypothesis_management",
+    "assert":             "hypothesis_management",
+    "cut":                "hypothesis_management",
+    "enough":             "hypothesis_management",
+    "have":               "hypothesis_management",
+    "suff":               "hypothesis_management",
+    "suffices":           "hypothesis_management",
+    # --- meta_tactical: orchestrate other tactics ---------------------------
+    "repeat":             "meta_tactical",
+    "try":                "meta_tactical",
+    "first":              "meta_tactical",
+    "do":                 "meta_tactical",
+    "progress":           "meta_tactical",
+    "timeout":            "meta_tactical",
+    "once":               "meta_tactical",
+    "solve":              "meta_tactical",
+    "fail":               "meta_tactical",
+    "idtac":              "meta_tactical",
+    "by":                 "meta_tactical",
+    "done":               "meta_tactical",
+    "abstract":           "meta_tactical",
+}
+
+
+def assign_tactic_groups(tactic_tags: list[str]) -> list[str]:
+    """Map a list of tactic names to their unique behavioural groups."""
+    seen: set[str] = set()
+    groups: list[str] = []
+    for t in tactic_tags:
+        g = _TACTIC_GROUPS.get(t.lower())
+        if g and g not in seen:
+            seen.add(g)
+            groups.append(g)
+    return groups
+
+
+# ---------------------------------------------------------------------------
 # Keyword extraction — proof-relevant terms to store per commit
 # ---------------------------------------------------------------------------
 

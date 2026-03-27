@@ -1,0 +1,19 @@
+Wrote 5915 records to ../artifacts/fiat-crypto-commits-coq-grouped.jsonl
+
+Tactic group distribution (proof_add commits may appear in multiple groups):
+  rewrite_reduce                3533
+  meta_tactical                 3013
+  application                   2904
+  hypothesis_management         2896
+  case_induction                2527
+  contradiction_solver          1929
+  arithmetic_algebra             475
+
+Per-group subdatasets -> ../artifacts/group-subdatasets/
+  rewrite_reduce                3533 records -> group-rewrite_reduce.jsonl
+  meta_tactical                 3013 records -> group-meta_tactical.jsonl
+  application                   2904 records -> group-application.jsonl
+  hypothesis_management         2896 records -> group-hypothesis_management.jsonl
+  case_induction                2527 records -> group-case_induction.jsonl
+  contradiction_solver          1929 records -> group-contradiction_solver.jsonl
+  arithmetic_algebra             475 records -> group-arithmetic_algebra.jsonl

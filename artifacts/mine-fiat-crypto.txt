@@ -1,0 +1,671 @@
+INFO scaffold.pattern_detector: Analyzed fiat-crypto: assistant=coq, extensions=['.v']
+INFO scaffold.git_walker: Scanning 8289 commits in fiat-crypto
+INFO scaffold.git_walker: Progress: 0/8289 commits
+INFO scaffold.git_walker:   71d6c520: 1 challenges found
+INFO scaffold.git_walker: Progress: 100/8289 commits
+INFO scaffold.git_walker: Progress: 200/8289 commits
+INFO scaffold.git_walker: Progress: 300/8289 commits
+INFO scaffold.git_walker: Progress: 400/8289 commits
+INFO scaffold.git_walker: Progress: 500/8289 commits
+INFO scaffold.git_walker:   f6a230f5: 1 challenges found
+INFO scaffold.git_walker: Progress: 600/8289 commits
+INFO scaffold.git_walker:   383842d1: 1 challenges found
+INFO scaffold.git_walker:   a0448b4f: 1 challenges found
+INFO scaffold.git_walker:   36db466a: 1 challenges found
+INFO scaffold.git_walker:   2ec98950: 1 challenges found
+INFO scaffold.git_walker:   5a84060c: 1 challenges found
+INFO scaffold.git_walker:   ba042cfa: 1 challenges found
+INFO scaffold.git_walker:   fd4ee40c: 1 challenges found
+INFO scaffold.git_walker: Progress: 700/8289 commits
+INFO scaffold.git_walker:   bc7db663: 1 challenges found
+INFO scaffold.git_walker:   9b94f779: 1 challenges found
+INFO scaffold.git_walker:   e3c5e49a: 1 challenges found
+INFO scaffold.git_walker:   8eb06b53: 1 challenges found
+INFO scaffold.git_walker:   a9fcea88: 1 challenges found
+INFO scaffold.git_walker:   101b3fb4: 1 challenges found
+INFO scaffold.git_walker:   7c6a8fbe: 1 challenges found
+INFO scaffold.git_walker:   b1ed3850: 1 challenges found
+INFO scaffold.git_walker:   7aa435e7: 1 challenges found
+INFO scaffold.git_walker:   542deee7: 1 challenges found
+INFO scaffold.git_walker: Progress: 800/8289 commits
+INFO scaffold.git_walker:   27fb217b: 1 challenges found
+INFO scaffold.git_walker:   c276d1af: 1 challenges found
+INFO scaffold.git_walker:   20eb7c13: 1 challenges found
+INFO scaffold.git_walker:   ca90e736: 1 challenges found
+INFO scaffold.git_walker:   82239e6c: 1 challenges found
+INFO scaffold.git_walker:   9cf42e0b: 1 challenges found
+INFO scaffold.git_walker:   03a7e18d: 1 challenges found
+INFO scaffold.git_walker:   621bae46: 1 challenges found
+INFO scaffold.git_walker:   38778967: 1 challenges found
+INFO scaffold.git_walker:   c52d554b: 1 challenges found
+INFO scaffold.git_walker:   d529bfcc: 1 challenges found
+INFO scaffold.git_walker:   6fdf8888: 1 challenges found
+INFO scaffold.git_walker:   4534d72f: 1 challenges found
+INFO scaffold.git_walker:   71c706ea: 1 challenges found
+INFO scaffold.git_walker:   961d682b: 1 challenges found
+INFO scaffold.git_walker:   0b629b44: 1 challenges found
+INFO scaffold.git_walker:   6e301f6a: 1 challenges found
+INFO scaffold.git_walker: Progress: 900/8289 commits
+INFO scaffold.git_walker:   da013d0e: 1 challenges found
+INFO scaffold.git_walker:   bb772976: 1 challenges found
+INFO scaffold.git_walker:   5d114357: 1 challenges found
+INFO scaffold.git_walker:   a0610245: 1 challenges found
+INFO scaffold.git_walker:   dd17b7e8: 1 challenges found
+INFO scaffold.git_walker: Progress: 1000/8289 commits
+INFO scaffold.git_walker: Progress: 1100/8289 commits
+INFO scaffold.git_walker:   c12db2ef: 1 challenges found
+INFO scaffold.git_walker:   4a6cade0: 4 challenges found
+INFO scaffold.git_walker:   b1593ac2: 1 challenges found
+INFO scaffold.git_walker:   a4513740: 1 challenges found
+INFO scaffold.git_walker: Progress: 1200/8289 commits
+INFO scaffold.git_walker:   0a1e7eea: 1 challenges found
+INFO scaffold.git_walker:   9382faa6: 1 challenges found
+INFO scaffold.git_walker:   959e1c3f: 1 challenges found
+INFO scaffold.git_walker:   cb6a5f76: 1 challenges found
+INFO scaffold.git_walker: Progress: 1300/8289 commits
+INFO scaffold.git_walker:   8a5865ba: 1 challenges found
+INFO scaffold.git_walker:   6327fdd8: 1 challenges found
+INFO scaffold.git_walker:   eea7a776: 1 challenges found
+INFO scaffold.git_walker:   f01aa320: 1 challenges found
+INFO scaffold.git_walker:   db8ecccd: 1 challenges found
+INFO scaffold.git_walker: Progress: 1400/8289 commits
+INFO scaffold.git_walker:   168bcc95: 1 challenges found
+INFO scaffold.git_walker: Progress: 1500/8289 commits
+INFO scaffold.git_walker:   e47a33e7: 1 challenges found
+INFO scaffold.git_walker:   5f4145ad: 1 challenges found
+INFO scaffold.git_walker:   3ee879b5: 1 challenges found
+INFO scaffold.git_walker:   31f4ed0b: 1 challenges found
+INFO scaffold.git_walker:   a2fc36b2: 1 challenges found
+INFO scaffold.git_walker: Progress: 1600/8289 commits
+INFO scaffold.git_walker:   686663ef: 1 challenges found
+INFO scaffold.git_walker:   f3fe7a9d: 1 challenges found
+INFO scaffold.git_walker:   c6f1d0fa: 1 challenges found
+INFO scaffold.git_walker:   a3f86f21: 1 challenges found
+INFO scaffold.git_walker:   3eb4a728: 1 challenges found
+INFO scaffold.git_walker: Progress: 1700/8289 commits
+INFO scaffold.git_walker:   42eeb35b: 1 challenges found
+INFO scaffold.git_walker:   f7393ae6: 1 challenges found
+INFO scaffold.git_walker:   708998d8: 1 challenges found
+INFO scaffold.git_walker:   1a4e8db6: 1 challenges found
+INFO scaffold.git_walker:   0211e0da: 1 challenges found
+INFO scaffold.git_walker:   ce7f0162: 1 challenges found
+INFO scaffold.git_walker:   0366eab0: 1 challenges found
+INFO scaffold.git_walker:   bf7031db: 1 challenges found
+INFO scaffold.git_walker:   f37616d2: 1 challenges found
+INFO scaffold.git_walker:   e0e0e782: 1 challenges found
+INFO scaffold.git_walker:   c6f0757a: 1 challenges found
+INFO scaffold.git_walker:   bcac2e48: 1 challenges found
+INFO scaffold.git_walker:   cffc76eb: 2 challenges found
+INFO scaffold.git_walker:   087348e4: 1 challenges found
+INFO scaffold.git_walker:   672cbd3a: 1 challenges found
+INFO scaffold.git_walker:   5a1f7f10: 1 challenges found
+INFO scaffold.git_walker:   1553400e: 1 challenges found
+INFO scaffold.git_walker:   bc8ab712: 1 challenges found
+INFO scaffold.git_walker:   92263751: 2 challenges found
+INFO scaffold.git_walker:   8313486a: 1 challenges found
+INFO scaffold.git_walker:   7a7f1881: 1 challenges found
+INFO scaffold.git_walker:   c5ee50ae: 1 challenges found
+INFO scaffold.git_walker:   0fe34ea3: 1 challenges found
+INFO scaffold.git_walker:   181fb2c0: 1 challenges found
+INFO scaffold.git_walker:   35293c4a: 1 challenges found
+INFO scaffold.git_walker:   2994c1e9: 1 challenges found
+INFO scaffold.git_walker:   2e6533ca: 1 challenges found
+INFO scaffold.git_walker:   ed7f280e: 1 challenges found
+INFO scaffold.git_walker:   d7c866aa: 1 challenges found
+INFO scaffold.git_walker:   e52f8fd0: 1 challenges found
+INFO scaffold.git_walker:   37c4d501: 1 challenges found
+INFO scaffold.git_walker: Progress: 1800/8289 commits
+INFO scaffold.git_walker:   56e29522: 1 challenges found
+INFO scaffold.git_walker:   ae8d45d3: 1 challenges found
+INFO scaffold.git_walker:   4407b63a: 1 challenges found
+INFO scaffold.git_walker:   79fe353a: 1 challenges found
+INFO scaffold.git_walker:   3e629f7d: 1 challenges found
+INFO scaffold.git_walker:   91391f37: 1 challenges found
+INFO scaffold.git_walker:   3917b4d6: 1 challenges found
+INFO scaffold.git_walker:   9b58fc6d: 1 challenges found
+INFO scaffold.git_walker:   d85cf2eb: 1 challenges found
+INFO scaffold.git_walker: Progress: 1900/8289 commits
+INFO scaffold.git_walker:   3e81b290: 1 challenges found
+INFO scaffold.git_walker: Progress: 2000/8289 commits
+INFO scaffold.git_walker: Progress: 2100/8289 commits
+INFO scaffold.git_walker:   e8a519a0: 1 challenges found
+INFO scaffold.git_walker: Progress: 2200/8289 commits
+INFO scaffold.git_walker:   f22a429a: 1 challenges found
+INFO scaffold.git_walker:   792119a2: 2 challenges found
+INFO scaffold.git_walker:   f632bf36: 1 challenges found
+INFO scaffold.git_walker:   b751269f: 1 challenges found
+INFO scaffold.git_walker:   8b334e66: 1 challenges found
+INFO scaffold.git_walker: Progress: 2300/8289 commits
+INFO scaffold.git_walker:   aaa359f2: 1 challenges found
+INFO scaffold.git_walker: Progress: 2400/8289 commits
+INFO scaffold.git_walker:   6361ab72: 1 challenges found
+INFO scaffold.git_walker:   72ef67b9: 1 challenges found
+INFO scaffold.git_walker:   a115243c: 1 challenges found
+INFO scaffold.git_walker:   fc8f4f74: 1 challenges found
+INFO scaffold.git_walker:   9477cd60: 1 challenges found
+INFO scaffold.git_walker:   ad08ae2a: 1 challenges found
+INFO scaffold.git_walker: Progress: 2500/8289 commits
+INFO scaffold.git_walker:   22012696: 1 challenges found
+INFO scaffold.git_walker:   ddf91dc2: 1 challenges found
+INFO scaffold.git_walker:   3b24ae0a: 1 challenges found
+INFO scaffold.git_walker:   3a1cfb1f: 1 challenges found
+INFO scaffold.git_walker:   1cb33d71: 1 challenges found
+INFO scaffold.git_walker:   61310cb2: 1 challenges found
+INFO scaffold.git_walker: Progress: 2600/8289 commits
+INFO scaffold.git_walker:   c02f8b6a: 1 challenges found
+INFO scaffold.git_walker:   52368550: 2 challenges found
+INFO scaffold.git_walker:   4f8a3fab: 1 challenges found
+INFO scaffold.git_walker: Progress: 2700/8289 commits
+INFO scaffold.git_walker:   cba4171a: 1 challenges found
+INFO scaffold.git_walker:   72375e13: 1 challenges found
+INFO scaffold.git_walker:   80dac678: 1 challenges found
+INFO scaffold.git_walker:   759c5384: 1 challenges found
+INFO scaffold.git_walker:   c11b36f8: 1 challenges found
+INFO scaffold.git_walker:   c7cdbe56: 2 challenges found
+INFO scaffold.git_walker:   19eeef17: 1 challenges found
+INFO scaffold.git_walker:   6afdb278: 1 challenges found
+INFO scaffold.git_walker:   81312558: 1 challenges found
+INFO scaffold.git_walker:   5c7f70ae: 1 challenges found
+INFO scaffold.git_walker:   ad36103b: 1 challenges found
+INFO scaffold.git_walker:   d0e91e1d: 1 challenges found
+INFO scaffold.git_walker:   e6c29ba0: 1 challenges found
+INFO scaffold.git_walker:   12dea4f1: 2 challenges found
+INFO scaffold.git_walker:   ce990349: 1 challenges found
+INFO scaffold.git_walker: Progress: 2800/8289 commits
+INFO scaffold.git_walker:   785de68f: 1 challenges found
+INFO scaffold.git_walker:   63163308: 1 challenges found
+INFO scaffold.git_walker:   a8b8059d: 2 challenges found
+INFO scaffold.git_walker:   a75ec3c6: 1 challenges found
+INFO scaffold.git_walker:   05a58da6: 1 challenges found
+INFO scaffold.git_walker:   e5362d45: 4 challenges found
+INFO scaffold.git_walker: Progress: 2900/8289 commits
+INFO scaffold.git_walker:   53a63c5e: 1 challenges found
+INFO scaffold.git_walker:   c6774659: 1 challenges found
+INFO scaffold.git_walker:   8e267284: 1 challenges found
+INFO scaffold.git_walker:   9f55b6be: 1 challenges found
+INFO scaffold.git_walker:   da7746bb: 1 challenges found
+INFO scaffold.git_walker:   2d72813c: 1 challenges found
+INFO scaffold.git_walker:   a8cef057: 1 challenges found
+INFO scaffold.git_walker:   154348eb: 1 challenges found
+INFO scaffold.git_walker:   ee956df7: 1 challenges found
+INFO scaffold.git_walker:   eb88c3a8: 1 challenges found
+INFO scaffold.git_walker: Progress: 3000/8289 commits
+INFO scaffold.git_walker:   81e05fba: 1 challenges found
+INFO scaffold.git_walker:   533c8943: 1 challenges found
+INFO scaffold.git_walker: Progress: 3100/8289 commits
+INFO scaffold.git_walker: Progress: 3200/8289 commits
+INFO scaffold.git_walker:   14bd0770: 1 challenges found
+INFO scaffold.git_walker:   684d356b: 1 challenges found
+INFO scaffold.git_walker:   3e4edb9a: 1 challenges found
+INFO scaffold.git_walker: Progress: 3300/8289 commits
+INFO scaffold.git_walker:   9025014c: 1 challenges found
+INFO scaffold.git_walker:   a7bc3fde: 2 challenges found
+INFO scaffold.git_walker:   5ada7bb4: 1 challenges found
+INFO scaffold.git_walker:   8643f5c4: 1 challenges found
+INFO scaffold.git_walker:   0235c25d: 1 challenges found
+INFO scaffold.git_walker:   59d5e5fd: 1 challenges found
+INFO scaffold.git_walker:   e1d0b882: 1 challenges found
+INFO scaffold.git_walker:   456e2988: 1 challenges found
+INFO scaffold.git_walker: Progress: 3400/8289 commits
+INFO scaffold.git_walker:   2c078dba: 1 challenges found
+INFO scaffold.git_walker:   0f420be4: 1 challenges found
+INFO scaffold.git_walker:   b9f28afe: 1 challenges found
+INFO scaffold.git_walker:   07e016ed: 1 challenges found
+INFO scaffold.git_walker:   c2ada77d: 1 challenges found
+INFO scaffold.git_walker:   a58a68cf: 1 challenges found
+INFO scaffold.git_walker:   578ed97d: 1 challenges found
+INFO scaffold.git_walker:   d2bc8716: 1 challenges found
+INFO scaffold.git_walker:   2688eef1: 1 challenges found
+INFO scaffold.git_walker: Progress: 3500/8289 commits
+INFO scaffold.git_walker:   db992170: 1 challenges found
+INFO scaffold.git_walker:   56c498de: 1 challenges found
+INFO scaffold.git_walker:   d4169297: 1 challenges found
+INFO scaffold.git_walker:   57c8f2b3: 1 challenges found
+INFO scaffold.git_walker: Progress: 3600/8289 commits
+INFO scaffold.git_walker:   9f3a018b: 1 challenges found
+INFO scaffold.git_walker:   6d22687d: 1 challenges found
+INFO scaffold.git_walker:   c0606696: 1 challenges found
+INFO scaffold.git_walker:   cbe68953: 1 challenges found
+INFO scaffold.git_walker:   a3a07704: 1 challenges found
+INFO scaffold.git_walker:   6b7d2c90: 1 challenges found
+INFO scaffold.git_walker:   19604a7e: 1 challenges found
+INFO scaffold.git_walker:   f8f1b283: 1 challenges found
+INFO scaffold.git_walker:   ae994ad0: 1 challenges found
+INFO scaffold.git_walker:   04080abe: 1 challenges found
+INFO scaffold.git_walker:   50feb09b: 1 challenges found
+INFO scaffold.git_walker:   093d72f2: 1 challenges found
+INFO scaffold.git_walker: Progress: 3700/8289 commits
+INFO scaffold.git_walker:   385166b4: 1 challenges found
+INFO scaffold.git_walker:   a8015c7f: 1 challenges found
+INFO scaffold.git_walker:   016035f9: 1 challenges found
+INFO scaffold.git_walker:   fedf83bf: 2 challenges found
+INFO scaffold.git_walker: Progress: 3800/8289 commits
+INFO scaffold.git_walker:   ed123c37: 1 challenges found
+INFO scaffold.git_walker:   43194948: 1 challenges found
+INFO scaffold.git_walker:   c81119b5: 1 challenges found
+INFO scaffold.git_walker:   86136b96: 1 challenges found
+INFO scaffold.git_walker:   04071984: 1 challenges found
+INFO scaffold.git_walker:   6f2493f7: 1 challenges found
+INFO scaffold.git_walker: Progress: 3900/8289 commits
+INFO scaffold.git_walker:   fbe0d0cb: 1 challenges found
+INFO scaffold.git_walker:   b9c2dfef: 1 challenges found
+INFO scaffold.git_walker:   93503d63: 1 challenges found
+INFO scaffold.git_walker:   0fc77cb8: 1 challenges found
+INFO scaffold.git_walker:   8e17c3d7: 1 challenges found
+INFO scaffold.git_walker:   c900290d: 1 challenges found
+INFO scaffold.git_walker: Progress: 4000/8289 commits
+INFO scaffold.git_walker:   e07980af: 1 challenges found
+INFO scaffold.git_walker:   9cfd648b: 1 challenges found
+INFO scaffold.git_walker:   2913cd01: 1 challenges found
+INFO scaffold.git_walker:   3f0b93c0: 1 challenges found
+INFO scaffold.git_walker:   6d64b068: 1 challenges found
+INFO scaffold.git_walker:   0e4e1965: 1 challenges found
+INFO scaffold.git_walker:   b0e16bf8: 1 challenges found
+INFO scaffold.git_walker:   8998ef42: 1 challenges found
+INFO scaffold.git_walker:   a25cdeeb: 1 challenges found
+INFO scaffold.git_walker:   e865bf2f: 1 challenges found
+INFO scaffold.git_walker:   98ab4858: 1 challenges found
+INFO scaffold.git_walker:   2c926ed4: 1 challenges found
+INFO scaffold.git_walker:   2430411f: 1 challenges found
+INFO scaffold.git_walker:   fcee392d: 1 challenges found
+INFO scaffold.git_walker: Progress: 4100/8289 commits
+INFO scaffold.git_walker:   9e27a38f: 1 challenges found
+INFO scaffold.git_walker:   2e972b36: 1 challenges found
+INFO scaffold.git_walker:   6f662907: 1 challenges found
+INFO scaffold.git_walker:   d6cc8eec: 1 challenges found
+INFO scaffold.git_walker:   ac58c07d: 1 challenges found
+INFO scaffold.git_walker:   64b036f9: 1 challenges found
+INFO scaffold.git_walker:   a5ef5f1a: 1 challenges found
+INFO scaffold.git_walker: Progress: 4200/8289 commits
+INFO scaffold.git_walker:   cfab3f42: 1 challenges found
+INFO scaffold.git_walker:   fc61ab5b: 1 challenges found
+INFO scaffold.git_walker:   c3ee4f53: 1 challenges found
+INFO scaffold.git_walker: Progress: 4300/8289 commits
+INFO scaffold.git_walker: Progress: 4400/8289 commits
+INFO scaffold.git_walker: Progress: 4500/8289 commits
+INFO scaffold.git_walker: Progress: 4600/8289 commits
+INFO scaffold.git_walker: Progress: 4700/8289 commits
+INFO scaffold.git_walker:   b9b71594: 1 challenges found
+INFO scaffold.git_walker: Progress: 4800/8289 commits
+INFO scaffold.git_walker: Progress: 4900/8289 commits
+INFO scaffold.git_walker:   ab6583f5: 2 challenges found
+INFO scaffold.git_walker:   bf8572ea: 1 challenges found
+INFO scaffold.git_walker:   18cb9525: 1 challenges found
+INFO scaffold.git_walker:   3c713dfa: 1 challenges found
+INFO scaffold.git_walker:   6e55d0f4: 2 challenges found
+INFO scaffold.git_walker:   3d68aed2: 2 challenges found
+INFO scaffold.git_walker:   20d9c29b: 1 challenges found
+INFO scaffold.git_walker:   2662a806: 1 challenges found
+INFO scaffold.git_walker:   c9c0b723: 1 challenges found
+INFO scaffold.git_walker: Progress: 5000/8289 commits
+INFO scaffold.git_walker:   5ee86c87: 1 challenges found
+INFO scaffold.git_walker:   56d7eec6: 1 challenges found
+INFO scaffold.git_walker:   3b0113a9: 1 challenges found
+INFO scaffold.git_walker:   2876f7c6: 1 challenges found
+INFO scaffold.git_walker:   163567bf: 1 challenges found
+INFO scaffold.git_walker:   d977553f: 1 challenges found
+INFO scaffold.git_walker:   c54f08a1: 1 challenges found
+INFO scaffold.git_walker:   ac478e7d: 1 challenges found
+INFO scaffold.git_walker:   edef48b5: 1 challenges found
+INFO scaffold.git_walker: Progress: 5100/8289 commits
+INFO scaffold.git_walker:   e3097338: 1 challenges found
+INFO scaffold.git_walker:   989f6a49: 1 challenges found
+INFO scaffold.git_walker:   d0c486b9: 1 challenges found
+INFO scaffold.git_walker: Progress: 5200/8289 commits
+INFO scaffold.git_walker:   90ab3b5a: 1 challenges found
+INFO scaffold.git_walker:   bf86eb3b: 1 challenges found
+INFO scaffold.git_walker:   fb1ea0af: 1 challenges found
+INFO scaffold.git_walker:   0eb8eeff: 1 challenges found
+INFO scaffold.git_walker:   af91e66e: 1 challenges found
+INFO scaffold.git_walker:   3b1d3856: 1 challenges found
+INFO scaffold.git_walker:   8b505bf0: 1 challenges found
+INFO scaffold.git_walker: Progress: 5300/8289 commits
+INFO scaffold.git_walker:   639f4119: 1 challenges found
+INFO scaffold.git_walker:   54c89602: 1 challenges found
+INFO scaffold.git_walker:   2311a022: 1 challenges found
+INFO scaffold.git_walker:   8ac6a738: 1 challenges found
+INFO scaffold.git_walker:   af22c75a: 1 challenges found
+INFO scaffold.git_walker: Progress: 5400/8289 commits
+INFO scaffold.git_walker:   f5043a0a: 1 challenges found
+INFO scaffold.git_walker: Progress: 5500/8289 commits
+INFO scaffold.git_walker:   2e03b814: 1 challenges found
+INFO scaffold.git_walker:   f2814cf2: 1 challenges found
+INFO scaffold.git_walker:   4d334608: 1 challenges found
+INFO scaffold.git_walker:   411934ed: 1 challenges found
+INFO scaffold.git_walker:   126b18c2: 1 challenges found
+INFO scaffold.git_walker: Progress: 5600/8289 commits
+INFO scaffold.git_walker:   41813d41: 1 challenges found
+INFO scaffold.git_walker:   2bd018b4: 1 challenges found
+INFO scaffold.git_walker:   81f191b8: 1 challenges found
+INFO scaffold.git_walker: Progress: 5700/8289 commits
+INFO scaffold.git_walker:   7e44ebcf: 1 challenges found
+INFO scaffold.git_walker:   276a7621: 1 challenges found
+INFO scaffold.git_walker:   eebd184a: 1 challenges found
+INFO scaffold.git_walker: Progress: 5800/8289 commits
+INFO scaffold.git_walker:   8974f067: 1 challenges found
+INFO scaffold.git_walker:   e8a6a2fa: 1 challenges found
+INFO scaffold.git_walker: Progress: 5900/8289 commits
+INFO scaffold.git_walker:   c00de429: 1 challenges found
+INFO scaffold.git_walker:   83be64b2: 1 challenges found
+INFO scaffold.git_walker:   2a321d84: 1 challenges found
+INFO scaffold.git_walker:   f5c6a57c: 3 challenges found
+INFO scaffold.git_walker:   c1c764ea: 1 challenges found
+INFO scaffold.git_walker:   0a9ea9df: 2 challenges found
+INFO scaffold.git_walker:   e8fab6b8: 1 challenges found
+INFO scaffold.git_walker:   6b3048c3: 4 challenges found
+INFO scaffold.git_walker: Progress: 6000/8289 commits
+INFO scaffold.git_walker:   ceb59f8b: 1 challenges found
+INFO scaffold.git_walker:   98ae0a7e: 1 challenges found
+INFO scaffold.git_walker:   81364d20: 1 challenges found
+INFO scaffold.git_walker:   5cbd80e9: 1 challenges found
+INFO scaffold.git_walker: Progress: 6100/8289 commits
+INFO scaffold.git_walker: Progress: 6200/8289 commits
+INFO scaffold.git_walker:   e2678354: 1 challenges found
+INFO scaffold.git_walker:   92f64f82: 1 challenges found
+INFO scaffold.git_walker:   16148637: 1 challenges found
+INFO scaffold.git_walker:   f6133814: 1 challenges found
+INFO scaffold.git_walker: Progress: 6300/8289 commits
+INFO scaffold.git_walker:   3049b95b: 1 challenges found
+INFO scaffold.git_walker:   b86dd182: 1 challenges found
+INFO scaffold.git_walker:   4e418c9f: 1 challenges found
+INFO scaffold.git_walker:   e9c5dda7: 1 challenges found
+INFO scaffold.git_walker:   b2e85f8b: 1 challenges found
+INFO scaffold.git_walker:   3bd1f401: 1 challenges found
+INFO scaffold.git_walker:   37167250: 1 challenges found
+INFO scaffold.git_walker:   9c8f8c4e: 1 challenges found
+INFO scaffold.git_walker:   3552e1b5: 2 challenges found
+INFO scaffold.git_walker:   9abd09a2: 1 challenges found
+INFO scaffold.git_walker:   9e32f842: 2 challenges found
+INFO scaffold.git_walker:   2ce7543e: 1 challenges found
+INFO scaffold.git_walker:   759b1b8b: 1 challenges found
+INFO scaffold.git_walker:   6dbb0711: 4 challenges found
+INFO scaffold.git_walker:   d2b87ee9: 1 challenges found
+INFO scaffold.git_walker:   b103fcc6: 1 challenges found
+INFO scaffold.git_walker:   80216fb6: 1 challenges found
+INFO scaffold.git_walker: Progress: 6400/8289 commits
+INFO scaffold.git_walker:   228da13f: 1 challenges found
+INFO scaffold.git_walker:   f8eab3da: 2 challenges found
+INFO scaffold.git_walker:   c33e8e95: 1 challenges found
+INFO scaffold.git_walker:   e8f45735: 1 challenges found
+INFO scaffold.git_walker:   7ae22444: 2 challenges found
+INFO scaffold.git_walker:   3dfd82f6: 1 challenges found
+INFO scaffold.git_walker:   64535b60: 2 challenges found
+INFO scaffold.git_walker:   54bb7895: 1 challenges found
+INFO scaffold.git_walker:   705e4c24: 1 challenges found
+INFO scaffold.git_walker:   d4a15836: 1 challenges found
+INFO scaffold.git_walker:   e0e24406: 2 challenges found
+INFO scaffold.git_walker:   dcc55ed8: 1 challenges found
+INFO scaffold.git_walker:   f64de72d: 1 challenges found
+INFO scaffold.git_walker:   768714f7: 1 challenges found
+INFO scaffold.git_walker:   2fc3ff8a: 1 challenges found
+INFO scaffold.git_walker:   2a60b05e: 1 challenges found
+INFO scaffold.git_walker:   60123bf4: 1 challenges found
+INFO scaffold.git_walker: Progress: 6500/8289 commits
+INFO scaffold.git_walker:   13834f70: 1 challenges found
+INFO scaffold.git_walker:   254aa1f3: 1 challenges found
+INFO scaffold.git_walker:   f670e48c: 1 challenges found
+INFO scaffold.git_walker:   06e05ebb: 1 challenges found
+INFO scaffold.git_walker:   ea549915: 1 challenges found
+INFO scaffold.git_walker:   6a4f573d: 1 challenges found
+INFO scaffold.git_walker:   c9dc1e35: 2 challenges found
+INFO scaffold.git_walker:   bef02d29: 1 challenges found
+INFO scaffold.git_walker:   98551928: 1 challenges found
+INFO scaffold.git_walker:   a0bf587c: 1 challenges found
+INFO scaffold.git_walker:   7361ecd4: 2 challenges found
+INFO scaffold.git_walker:   abd5931c: 1 challenges found
+INFO scaffold.git_walker: Progress: 6600/8289 commits
+INFO scaffold.git_walker:   426f04e9: 1 challenges found
+INFO scaffold.git_walker:   22db367d: 1 challenges found
+INFO scaffold.git_walker:   549d05f1: 1 challenges found
+INFO scaffold.git_walker:   995f56b1: 1 challenges found
+INFO scaffold.git_walker:   7481ea89: 1 challenges found
+INFO scaffold.git_walker:   d351d4b2: 3 challenges found
+INFO scaffold.git_walker:   ecf1d8a8: 1 challenges found
+INFO scaffold.git_walker:   b0c64e3f: 1 challenges found
+INFO scaffold.git_walker:   bbd4cc11: 1 challenges found
+INFO scaffold.git_walker:   aaf0f505: 1 challenges found
+INFO scaffold.git_walker: Progress: 6700/8289 commits
+INFO scaffold.git_walker:   eed4e2ee: 1 challenges found
+INFO scaffold.git_walker:   4225439a: 2 challenges found
+INFO scaffold.git_walker:   cd5c85c0: 2 challenges found
+INFO scaffold.git_walker:   5120db33: 2 challenges found
+INFO scaffold.git_walker:   cc0c302b: 2 challenges found
+INFO scaffold.git_walker:   6b0876b5: 1 challenges found
+INFO scaffold.git_walker:   ce564c50: 1 challenges found
+INFO scaffold.git_walker:   4a2f9ce0: 1 challenges found
+INFO scaffold.git_walker:   384c1684: 1 challenges found
+INFO scaffold.git_walker:   f8680ec8: 1 challenges found
+INFO scaffold.git_walker:   075347c1: 1 challenges found
+INFO scaffold.git_walker:   b04a5017: 1 challenges found
+INFO scaffold.git_walker:   80c7c997: 1 challenges found
+INFO scaffold.git_walker:   34e3e8da: 1 challenges found
+INFO scaffold.git_walker:   d9d0cdd7: 1 challenges found
+INFO scaffold.git_walker: Progress: 6800/8289 commits
+INFO scaffold.git_walker:   7c28d4f8: 1 challenges found
+INFO scaffold.git_walker:   6a316e99: 1 challenges found
+INFO scaffold.git_walker:   fdc9457e: 2 challenges found
+INFO scaffold.git_walker:   b3cb6d4d: 1 challenges found
+INFO scaffold.git_walker:   5ac4ceb2: 1 challenges found
+INFO scaffold.git_walker:   5050064f: 2 challenges found
+INFO scaffold.git_walker:   a4d5dfeb: 1 challenges found
+INFO scaffold.git_walker: Progress: 6900/8289 commits
+INFO scaffold.git_walker:   34823338: 1 challenges found
+INFO scaffold.git_walker:   1bacc083: 1 challenges found
+INFO scaffold.git_walker:   3959bc99: 1 challenges found
+INFO scaffold.git_walker:   08b7ea3d: 1 challenges found
+INFO scaffold.git_walker:   7d139ded: 1 challenges found
+INFO scaffold.git_walker:   25ca3abc: 1 challenges found
+INFO scaffold.git_walker:   271cac4f: 1 challenges found
+INFO scaffold.git_walker:   3fa088b7: 1 challenges found
+INFO scaffold.git_walker: Progress: 7000/8289 commits
+INFO scaffold.git_walker:   e0a9db83: 1 challenges found
+INFO scaffold.git_walker:   027764b7: 1 challenges found
+INFO scaffold.git_walker:   7fdf8a3a: 1 challenges found
+INFO scaffold.git_walker:   6897a4f4: 1 challenges found
+INFO scaffold.git_walker:   07b18ae2: 1 challenges found
+INFO scaffold.git_walker:   92cebb5b: 1 challenges found
+INFO scaffold.git_walker:   6633dc43: 1 challenges found
+INFO scaffold.git_walker: Progress: 7100/8289 commits
+INFO scaffold.git_walker:   5f1a4003: 1 challenges found
+INFO scaffold.git_walker:   071ef883: 1 challenges found
+INFO scaffold.git_walker:   6ddf0ba3: 1 challenges found
+INFO scaffold.git_walker:   7a2154ab: 1 challenges found
+INFO scaffold.git_walker:   5509d81d: 1 challenges found
+INFO scaffold.git_walker:   3170c524: 1 challenges found
+INFO scaffold.git_walker:   208fae03: 1 challenges found
+INFO scaffold.git_walker:   2b5518d4: 1 challenges found
+INFO scaffold.git_walker: Progress: 7200/8289 commits
+INFO scaffold.git_walker:   d6770f63: 1 challenges found
+INFO scaffold.git_walker:   333f867f: 1 challenges found
+INFO scaffold.git_walker: Progress: 7300/8289 commits
+INFO scaffold.git_walker:   06d5397b: 1 challenges found
+INFO scaffold.git_walker:   918d8707: 1 challenges found
+INFO scaffold.git_walker:   c2df47be: 1 challenges found
+INFO scaffold.git_walker:   8a3f080c: 1 challenges found
+INFO scaffold.git_walker:   29579220: 1 challenges found
+INFO scaffold.git_walker:   bb383445: 1 challenges found
+INFO scaffold.git_walker:   9a7c5b2a: 1 challenges found
+INFO scaffold.git_walker:   762f2a27: 1 challenges found
+INFO scaffold.git_walker:   0cdb6bb7: 1 challenges found
+INFO scaffold.git_walker: Progress: 7400/8289 commits
+INFO scaffold.git_walker:   ab70b1b3: 1 challenges found
+INFO scaffold.git_walker:   bc4db823: 1 challenges found
+INFO scaffold.git_walker:   00e6932c: 1 challenges found
+INFO scaffold.git_walker:   e4bbfc3b: 1 challenges found
+INFO scaffold.git_walker: Progress: 7500/8289 commits
+INFO scaffold.git_walker:   e3adf7c5: 1 challenges found
+INFO scaffold.git_walker:   1da660b3: 2 challenges found
+INFO scaffold.git_walker:   9a5ae612: 1 challenges found
+INFO scaffold.git_walker:   9fed6f52: 1 challenges found
+INFO scaffold.git_walker:   65c3c384: 1 challenges found
+INFO scaffold.git_walker:   4c727f5b: 1 challenges found
+INFO scaffold.git_walker:   9523198c: 1 challenges found
+INFO scaffold.git_walker:   2f44fe53: 1 challenges found
+INFO scaffold.git_walker: Progress: 7600/8289 commits
+INFO scaffold.git_walker:   1481b88f: 1 challenges found
+INFO scaffold.git_walker:   2c4a10de: 1 challenges found
+INFO scaffold.git_walker:   86fd596f: 1 challenges found
+INFO scaffold.git_walker:   abc8b6fc: 1 challenges found
+INFO scaffold.git_walker:   dc10c238: 1 challenges found
+INFO scaffold.git_walker:   9878f1bc: 1 challenges found
+INFO scaffold.git_walker:   89282a16: 1 challenges found
+INFO scaffold.git_walker:   c6152ba2: 1 challenges found
+INFO scaffold.git_walker:   ddb2d8ad: 1 challenges found
+INFO scaffold.git_walker:   c1366e80: 1 challenges found
+INFO scaffold.git_walker:   13fae1a2: 1 challenges found
+INFO scaffold.git_walker:   d000eb14: 1 challenges found
+INFO scaffold.git_walker:   ce88dd18: 1 challenges found
+INFO scaffold.git_walker:   9afb046f: 1 challenges found
+INFO scaffold.git_walker:   565ff8ce: 1 challenges found
+INFO scaffold.git_walker:   913bab5f: 1 challenges found
+INFO scaffold.git_walker:   e7a4c650: 1 challenges found
+INFO scaffold.git_walker:   63744c51: 1 challenges found
+INFO scaffold.git_walker:   a2633612: 1 challenges found
+INFO scaffold.git_walker:   26e4d927: 1 challenges found
+INFO scaffold.git_walker: Progress: 7700/8289 commits
+INFO scaffold.git_walker:   e47ac2ce: 1 challenges found
+INFO scaffold.git_walker:   df340739: 1 challenges found
+INFO scaffold.git_walker:   ac694189: 1 challenges found
+INFO scaffold.git_walker:   928d08f9: 1 challenges found
+INFO scaffold.git_walker:   7ca35a36: 1 challenges found
+INFO scaffold.git_walker:   d2f2c75f: 1 challenges found
+INFO scaffold.git_walker:   9d07dcec: 1 challenges found
+INFO scaffold.git_walker:   49099d2a: 1 challenges found
+INFO scaffold.git_walker:   38dc784e: 1 challenges found
+INFO scaffold.git_walker:   49697854: 1 challenges found
+INFO scaffold.git_walker:   5667d1a8: 1 challenges found
+INFO scaffold.git_walker:   bca928f0: 2 challenges found
+INFO scaffold.git_walker:   3c3eb83d: 1 challenges found
+INFO scaffold.git_walker:   6439b8ac: 1 challenges found
+INFO scaffold.git_walker:   f23c4e95: 1 challenges found
+INFO scaffold.git_walker:   a6e8284b: 1 challenges found
+INFO scaffold.git_walker:   fb160947: 1 challenges found
+INFO scaffold.git_walker:   2fc67956: 2 challenges found
+INFO scaffold.git_walker:   9e1ddef6: 1 challenges found
+INFO scaffold.git_walker:   00e16db7: 1 challenges found
+INFO scaffold.git_walker:   d0416b9b: 1 challenges found
+INFO scaffold.git_walker:   c27952cd: 1 challenges found
+INFO scaffold.git_walker: Progress: 7800/8289 commits
+INFO scaffold.git_walker:   ba8a112b: 1 challenges found
+INFO scaffold.git_walker:   e72cc12f: 1 challenges found
+INFO scaffold.git_walker:   4a3ef560: 2 challenges found
+INFO scaffold.git_walker:   b3f932ed: 1 challenges found
+INFO scaffold.git_walker:   81884333: 1 challenges found
+INFO scaffold.git_walker:   b526f5c6: 1 challenges found
+INFO scaffold.git_walker:   44a9f78b: 1 challenges found
+INFO scaffold.git_walker:   7def727b: 1 challenges found
+INFO scaffold.git_walker:   a86f8004: 1 challenges found
+INFO scaffold.git_walker:   a37eb79f: 1 challenges found
+INFO scaffold.git_walker:   c73dda7a: 1 challenges found
+INFO scaffold.git_walker:   3c8a22e8: 1 challenges found
+INFO scaffold.git_walker:   9b64d119: 2 challenges found
+INFO scaffold.git_walker:   c255dd3d: 1 challenges found
+INFO scaffold.git_walker:   3d62b9ac: 1 challenges found
+INFO scaffold.git_walker:   5395b601: 1 challenges found
+INFO scaffold.git_walker:   10531c82: 1 challenges found
+INFO scaffold.git_walker:   3bb08d5c: 1 challenges found
+INFO scaffold.git_walker: Progress: 7900/8289 commits
+INFO scaffold.git_walker:   2e566c32: 1 challenges found
+INFO scaffold.git_walker:   b9e60f74: 1 challenges found
+INFO scaffold.git_walker:   324e99b1: 1 challenges found
+INFO scaffold.git_walker:   5cf9cff3: 1 challenges found
+INFO scaffold.git_walker:   e935a6ec: 1 challenges found
+INFO scaffold.git_walker:   e4cffa7f: 1 challenges found
+INFO scaffold.git_walker:   39a15c4f: 1 challenges found
+INFO scaffold.git_walker:   24828284: 1 challenges found
+INFO scaffold.git_walker:   163c4e43: 1 challenges found
+INFO scaffold.git_walker:   f1ef056a: 1 challenges found
+INFO scaffold.git_walker:   7de4975f: 1 challenges found
+INFO scaffold.git_walker:   593691bb: 1 challenges found
+INFO scaffold.git_walker:   30ef733d: 1 challenges found
+INFO scaffold.git_walker:   fb73172e: 1 challenges found
+INFO scaffold.git_walker:   50c72878: 1 challenges found
+INFO scaffold.git_walker:   544ac151: 1 challenges found
+INFO scaffold.git_walker:   ccd934fb: 1 challenges found
+INFO scaffold.git_walker:   48e1a0a0: 1 challenges found
+INFO scaffold.git_walker:   fcd2fcd7: 1 challenges found
+INFO scaffold.git_walker:   4ca19f34: 1 challenges found
+INFO scaffold.git_walker: Progress: 8000/8289 commits
+INFO scaffold.git_walker:   8a606978: 1 challenges found
+INFO scaffold.git_walker:   892b2a9f: 1 challenges found
+INFO scaffold.git_walker:   fcf3cd7c: 1 challenges found
+INFO scaffold.git_walker:   11dde869: 1 challenges found
+INFO scaffold.git_walker:   a5696b01: 1 challenges found
+INFO scaffold.git_walker:   ce1a0e85: 2 challenges found
+INFO scaffold.git_walker:   e3211f7a: 1 challenges found
+INFO scaffold.git_walker:   186e6a87: 2 challenges found
+INFO scaffold.git_walker:   5f3561d6: 1 challenges found
+INFO scaffold.git_walker:   003f348b: 1 challenges found
+INFO scaffold.git_walker:   71ed1596: 1 challenges found
+INFO scaffold.git_walker:   711187d4: 1 challenges found
+INFO scaffold.git_walker:   d61ebb34: 2 challenges found
+INFO scaffold.git_walker:   a46dbbec: 1 challenges found
+INFO scaffold.git_walker:   a04a1567: 2 challenges found
+INFO scaffold.git_walker:   7efd1bd2: 1 challenges found
+INFO scaffold.git_walker:   b7aa0385: 1 challenges found
+INFO scaffold.git_walker:   45a6a17c: 1 challenges found
+INFO scaffold.git_walker:   7f5205a9: 1 challenges found
+INFO scaffold.git_walker:   ce4dba4f: 1 challenges found
+INFO scaffold.git_walker:   0c523508: 1 challenges found
+INFO scaffold.git_walker:   193d2185: 2 challenges found
+INFO scaffold.git_walker:   5b6bdc6f: 1 challenges found
+INFO scaffold.git_walker:   c85f7283: 1 challenges found
+INFO scaffold.git_walker:   06a7e0e0: 1 challenges found
+INFO scaffold.git_walker: Progress: 8100/8289 commits
+INFO scaffold.git_walker:   41b48a78: 1 challenges found
+INFO scaffold.git_walker:   0fe6fb9b: 1 challenges found
+INFO scaffold.git_walker:   7ce9586d: 1 challenges found
+INFO scaffold.git_walker:   0e86e4db: 1 challenges found
+INFO scaffold.git_walker:   7987ddbb: 2 challenges found
+INFO scaffold.git_walker:   66fb5594: 1 challenges found
+INFO scaffold.git_walker:   95542cc2: 1 challenges found
+INFO scaffold.git_walker:   75fd95e8: 1 challenges found
+INFO scaffold.git_walker:   9cd94e81: 1 challenges found
+INFO scaffold.git_walker:   8b3728b6: 1 challenges found
+INFO scaffold.git_walker:   96cec159: 1 challenges found
+INFO scaffold.git_walker:   2bcfdaa9: 1 challenges found
+INFO scaffold.git_walker:   78618797: 2 challenges found
+INFO scaffold.git_walker:   f89db16a: 1 challenges found
+INFO scaffold.git_walker:   088a1b2b: 1 challenges found
+INFO scaffold.git_walker:   97cd9a34: 1 challenges found
+INFO scaffold.git_walker:   3c26bc73: 1 challenges found
+INFO scaffold.git_walker:   6784302c: 1 challenges found
+INFO scaffold.git_walker:   bb4c8e7d: 1 challenges found
+INFO scaffold.git_walker:   533f5480: 1 challenges found
+INFO scaffold.git_walker:   cd6479fa: 1 challenges found
+INFO scaffold.git_walker:   4d194264: 1 challenges found
+INFO scaffold.git_walker:   981e874c: 1 challenges found
+INFO scaffold.git_walker:   13c4509d: 2 challenges found
+INFO scaffold.git_walker:   2d8546f6: 1 challenges found
+INFO scaffold.git_walker:   a0aee348: 1 challenges found
+INFO scaffold.git_walker:   b0d22421: 1 challenges found
+INFO scaffold.git_walker:   dc562d8b: 1 challenges found
+INFO scaffold.git_walker:   545e5217: 1 challenges found
+INFO scaffold.git_walker:   6828a40f: 1 challenges found
+INFO scaffold.git_walker:   764fad99: 1 challenges found
+INFO scaffold.git_walker:   f5b35696: 1 challenges found
+INFO scaffold.git_walker: Progress: 8200/8289 commits
+INFO scaffold.git_walker:   8fd2a093: 1 challenges found
+INFO scaffold.git_walker:   b953c040: 1 challenges found
+INFO scaffold.git_walker:   9e767c9b: 1 challenges found
+INFO scaffold.git_walker:   5fa717aa: 1 challenges found
+INFO scaffold.git_walker:   6b7ec790: 1 challenges found
+INFO scaffold.git_walker:   42ba6772: 1 challenges found
+INFO scaffold.git_walker:   3f5ba5e4: 1 challenges found
+INFO scaffold.git_walker:   6db9640e: 1 challenges found
+INFO scaffold.git_walker:   bff143ca: 1 challenges found
+INFO scaffold.git_walker:   a4cb5c05: 1 challenges found
+INFO scaffold.git_walker:   2dbf88ad: 1 challenges found
+INFO scaffold.git_walker:   612d7242: 1 challenges found
+INFO scaffold.git_walker:   d0a8f3e1: 1 challenges found
+INFO scaffold.git_walker:   c15762f4: 1 challenges found
+INFO scaffold.git_walker:   d655b907: 1 challenges found
+INFO scaffold.git_walker:   277fbcc2: 1 challenges found
+INFO scaffold.git_walker:   57f2c406: 1 challenges found
+INFO scaffold.git_walker:   0157831f: 1 challenges found
+INFO scaffold.git_walker:   cf9d1330: 1 challenges found
+INFO scaffold.git_walker:   06c3554e: 1 challenges found
+INFO scaffold.git_walker:   4c1d299e: 1 challenges found
+INFO scaffold.git_walker:   bef57ecf: 1 challenges found
+INFO scaffold.output: Wrote 640 challenges to ../artifacts/fiat-crypto-challenges.jsonl
+Wrote 640 challenges to ../artifacts/fiat-crypto-challenges.jsonl

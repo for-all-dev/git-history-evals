@@ -1,0 +1,765 @@
+
+========================================================================
+PROOF LIFECYCLE REPORT — fiat-crypto  (DETAILED)
+========================================================================
+  Generated from: fiat-crypto-lifecycle.jsonl
+  Declarations tracked: 789
+  Total lifecycle commits (across all declarations): 4854
+
+1. COMMIT COUNT STATISTICS
+------------------------------------------------------------
+  Total declarations tracked                 789
+  Total lifecycle commits                    4854
+  Median commits per declaration             3
+  Mean   commits per declaration             6.2
+  Std dev                                    9.2
+  Min                                        1
+  Max                                        75  (prime_modulus)
+  p25 percentile                             1
+  p50 percentile                             3
+  p75 percentile                             6
+  p90 percentile                             16
+  p95 percentile                             24
+  p99 percentile                             49
+
+2. DISTRIBUTION OF COMMITS PER DECLARATION
+------------------------------------------------------------
+  Bucket      Count      Pct  Bar
+  1             221  ( 28.0%)  ██████████████
+  2-3           252  ( 31.9%)  ███████████████
+  4-5            93  ( 11.8%)  █████
+  6-10           95  ( 12.0%)  ██████
+  11-20          70  (  8.9%)  ████
+  21-50          51  (  6.5%)  ███
+  51+             7  (  0.9%)  
+
+3. TIME-TO-PROOF STATISTICS  (days: first Admitted → Qed)
+------------------------------------------------------------
+  Declarations with timing data              789
+  Proved same day (0 days)                   168  (21.3%)
+  Proved within 1 week (≤7 days)             550  (69.7%)
+  Proved within 1 month (≤30 days)           676  (85.7%)
+  Median days                                3
+  Mean days                                  18.5
+  Max days                                   1149  (isomorphism_to_subfield_field)
+
+4. TOP 30 HARDEST DECLARATIONS  (most commits with hole present)
+------------------------------------------------------------
+  #   Declaration                              Commits   Days  Groups used
+  --- ---------------------------------------- ------- ------  ----------------------------------------
+  1   prime_modulus                                 75    266  rewrite_reduce, hypothesis_management, application, contradiction_solver, meta_tactical, case_induction, arithmetic_algebra
+  2   homomorphism_inv                              62     92  hypothesis_management, meta_tactical, rewrite_reduce, application, case_induction, contradiction_solver, arithmetic_algebra
+  3   permute_commutative                           60     90  case_induction, application, hypothesis_management, meta_tactical, rewrite_reduce, contradiction_solver, arithmetic_algebra
+  4   BoundsPipelineConst_correct                   57     32  rewrite_reduce, meta_tactical, application, hypothesis_management, case_induction, contradiction_solver, arithmetic_algebra
+  5   indexof_none                                  56    146  case_induction, hypothesis_management, contradiction_solver, rewrite_reduce, meta_tactical, application
+  6   indexof_Some                                  56    146  case_induction, hypothesis_management, contradiction_solver, rewrite_reduce, meta_tactical, application
+  7   indexof_first                                 56    146  case_induction, hypothesis_management, contradiction_solver, rewrite_reduce, meta_tactical, application
+  8   homomorphism_multiplicative_inverse           49     29  hypothesis_management, meta_tactical, rewrite_reduce, application, case_induction, contradiction_solver, arithmetic_algebra
+  9   eval_bound_expr                               47     19  rewrite_reduce, hypothesis_management, application, contradiction_solver, case_induction, meta_tactical, arithmetic_algebra
+  10  adjust_bounds                                 46     12  hypothesis_management, rewrite_reduce, meta_tactical, case_induction, application, contradiction_solver, arithmetic_algebra
+  11  reveal_exists_enough_fuel                     45     84  case_induction, application, hypothesis_management, meta_tactical, rewrite_reduce, contradiction_solver
+  12  node_beq_sound                                45     84  case_induction, application, hypothesis_management, meta_tactical, rewrite_reduce, contradiction_solver
+  13  isCst                                         41     62  case_induction, hypothesis_management, meta_tactical, rewrite_reduce, application, contradiction_solver
+  14  resize                                        41     11  hypothesis_management, rewrite_reduce, meta_tactical, case_induction, application, contradiction_solver, arithmetic_algebra
+  15  default                                       41     11  hypothesis_management, rewrite_reduce, meta_tactical, case_induction, application, contradiction_solver, arithmetic_algebra
+  16  to_bounds                                     37      9  meta_tactical, hypothesis_management, rewrite_reduce, application, contradiction_solver, case_induction
+  17  convert_spec                                  37    178  hypothesis_management, meta_tactical, case_induction, rewrite_reduce, contradiction_solver, application, arithmetic_algebra
+  18  eval_div                                      35     14  meta_tactical, case_induction, rewrite_reduce, contradiction_solver, application, hypothesis_management, arithmetic_algebra
+  19  eval_mod                                      35     14  meta_tactical, case_induction, rewrite_reduce, contradiction_solver, application, hypothesis_management, arithmetic_algebra
+  20  le_land                                       33     55  hypothesis_management, application, rewrite_reduce, case_induction, contradiction_solver, meta_tactical
+  21  land_ones_le                                  33     55  hypothesis_management, application, rewrite_reduce, case_induction, contradiction_solver, meta_tactical
+  22  eval_simplify_expr                            33     61  case_induction, hypothesis_management, meta_tactical, rewrite_reduce, application, contradiction_solver
+  23  BoundsPipeline_correct                        33     10  rewrite_reduce, case_induction, hypothesis_management, meta_tactical, application, contradiction_solver, arithmetic_algebra
+  24  Proper_feEnc                                  33     14  rewrite_reduce, arithmetic_algebra, case_induction, application, meta_tactical, hypothesis_management, contradiction_solver
+  25  consts_commutative                            30      8  rewrite_reduce, hypothesis_management, meta_tactical, application, contradiction_solver, case_induction, arithmetic_algebra
+  26  value_add                                     29      6  hypothesis_management, application, rewrite_reduce, meta_tactical, contradiction_solver, case_induction
+  27  related_Z_op                                  28      5  hypothesis_management, application, rewrite_reduce, meta_tactical, contradiction_solver, case_induction
+  28  related_bounds_op                             28      5  hypothesis_management, application, rewrite_reduce, meta_tactical, contradiction_solver, case_induction
+  29  related_word64_op                             28      5  hypothesis_management, application, rewrite_reduce, meta_tactical, contradiction_solver, case_induction
+  30  feEnc_correct                                 28     13  rewrite_reduce, arithmetic_algebra, case_induction, application, meta_tactical, hypothesis_management, contradiction_solver
+
+5. PER-FILE BREAKDOWN  (files with ≥3 proved declarations)
+------------------------------------------------------------
+
+  Symbolic.v
+    declarations: 38  |  total commits: 794  |  avg: 20.9  |  max: 60
+    permute_commutative                     60 commits  ▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪
+    indexof_none                            56 commits  ▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪
+    indexof_Some                            56 commits  ▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪
+    indexof_first                           56 commits  ▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪
+    eval_bound_expr                         47 commits  ▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪
+    reveal_exists_enough_fuel               45 commits  ▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪
+    node_beq_sound                          45 commits  ▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪
+    isCst                                   41 commits  ▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪
+
+  Ed25519.v
+    declarations: 41  |  total commits: 430  |  avg: 10.5  |  max: 33
+    Proper_feEnc                            33 commits  ▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪
+    feEnc_correct                           28 commits  ▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪
+    B_order_l                               26 commits  ▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪
+    feDec_correct                           23 commits  ▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪
+    unifiedAddM1Rep_sig                     22 commits  ▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪
+    sharper_verify                          20 commits  ▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪
+    WordNZ_split1                           19 commits  ▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪
+    WordNZ_split2                           19 commits  ▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪
+
+  SimplyTypedArithmetic.v
+    declarations: 26  |  total commits: 363  |  avg: 14.0  |  max: 57
+    BoundsPipelineConst_correct             57 commits  ▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪
+    adjust_bounds                           46 commits  ▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪
+    resize                                  41 commits  ▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪
+    default                                 41 commits  ▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪
+    BoundsPipeline_correct                  33 commits  ▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪
+    CheckedPartialReduceWithBounds0         24 commits  ▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪
+    CheckedPartialReduceWithBounds1_Correct  24 commits  ▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪
+    CheckedPartialReduceWithBounds0_Correct  24 commits  ▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪
+
+  Interpretations.v
+    declarations: 19  |  total commits: 284  |  avg: 14.9  |  max: 37
+    to_bounds                               37 commits  ▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪
+    value_add                               29 commits  ▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪
+    related_Z_op                            28 commits  ▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪
+    related_bounds_op                       28 commits  ▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪
+    related_word64_op                       28 commits  ▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪
+    neg                                     15 commits  ▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪
+    cmovne                                  13 commits  ▪▪▪▪▪▪▪▪▪▪▪▪▪
+    cmovle                                  13 commits  ▪▪▪▪▪▪▪▪▪▪▪▪▪
+
+  Pow2BaseProofs.v
+    declarations: 36  |  total commits: 271  |  avg: 7.5  |  max: 22
+    pow2_mod_bounded                        22 commits  ▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪
+    pow2_mod_bounded_iff                    22 commits  ▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪
+    bounded_nil_iff                         22 commits  ▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪
+    bounded_iff                             22 commits  ▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪
+    decode_truncate_base                    21 commits  ▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪
+    pow2_mod_add_shiftl_low                 15 commits  ▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪
+    pow2_mod_subst                          15 commits  ▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪
+    digit_index_not_done                     9 commits  ▪▪▪▪▪▪▪▪▪
+
+  PointFormats.v
+    declarations: 28  |  total commits: 207  |  avg: 7.4  |  max: 23
+    zeroIsIdentity                          23 commits  ▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪
+    unifiedAddCon                           23 commits  ▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪
+    unifiedAddToTwisted                     23 commits  ▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪
+    twistedAddCompletePlus                  22 commits  ▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪
+    twistedAddCompleteMinus                 22 commits  ▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪
+    unifiedAdd                              19 commits  ▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪
+    point_eq                                11 commits  ▪▪▪▪▪▪▪▪▪▪▪
+    GFdiv_1                                 11 commits  ▪▪▪▪▪▪▪▪▪▪▪
+
+  Saturated.v
+    declarations: 18  |  total commits: 190  |  avg: 10.6  |  max: 35
+    eval_div                                35 commits  ▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪
+    eval_mod                                35 commits  ▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪
+    In_to_list_left_tl                      16 commits  ▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪
+    In_left_hd                              16 commits  ▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪
+    to_list_left_append                     16 commits  ▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪
+    eval_scmul                              15 commits  ▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪
+    eval_drop_high                          12 commits  ▪▪▪▪▪▪▪▪▪▪▪▪
+    uweight_le_mono                          9 commits  ▪▪▪▪▪▪▪▪▪
+
+  Proofs.v
+    declarations: 28  |  total commits: 172  |  avg: 6.1  |  max: 26
+    symex_asm_func_M_correct                26 commits  ▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪
+    symex_asm_func_correct                  23 commits  ▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪
+    build_inputs_ok                         20 commits  ▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪
+    symex_ident_correct                     16 commits  ▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪
+    R_runtime_output                        10 commits  ▪▪▪▪▪▪▪▪▪▪
+    get_asm_arguments                        9 commits  ▪▪▪▪▪▪▪▪▪
+    R_runtime_input                          7 commits  ▪▪▪▪▪▪▪
+    fst_redc_loop_mod_N                      7 commits  ▪▪▪▪▪▪▪
+
+  GF25519.v
+    declarations: 8  |  total commits: 110  |  avg: 13.8  |  max: 75
+    prime_modulus                           75 commits  ▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪
+    two_255_19_prime                        21 commits  ▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪
+    map_zeros                                6 commits  ▪▪▪▪▪▪
+    carry_field25519                         2 commits  ▪▪
+    homomorphism_carry_F25519                2 commits  ▪▪
+    GF25519Base25Point5_mul_reduce_formula   2 commits  ▪▪
+    base_succ                                1 commits  ▪
+    base_tail_matches_modulus                1 commits  ▪
+
+  SymbolicProofs.v
+    declarations: 10  |  total commits: 109  |  avg: 10.9  |  max: 19
+    R_SymexNornalInstruction                19 commits  ▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪
+    R_mem_subsumed                          18 commits  ▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪
+    R_SetOperand                            17 commits  ▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪
+    GetOperand_R                            16 commits  ▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪
+    operation_size_cases                    14 commits  ▪▪▪▪▪▪▪▪▪▪▪▪▪▪
+    GetReg_R                                13 commits  ▪▪▪▪▪▪▪▪▪▪▪▪▪
+    Tuple__nth_default_to_list               9 commits  ▪▪▪▪▪▪▪▪▪
+    SetOperand_same                          1 commits  ▪
+
+  Tuple.v
+    declarations: 10  |  total commits: 93  |  avg: 9.3  |  max: 14
+    map_S                                   14 commits  ▪▪▪▪▪▪▪▪▪▪▪▪▪▪
+    map_map2                                13 commits  ▪▪▪▪▪▪▪▪▪▪▪▪▪
+    map2_fst                                12 commits  ▪▪▪▪▪▪▪▪▪▪▪▪
+    map2_snd                                12 commits  ▪▪▪▪▪▪▪▪▪▪▪▪
+    map_id                                  12 commits  ▪▪▪▪▪▪▪▪▪▪▪▪
+    map_id_ext                              11 commits  ▪▪▪▪▪▪▪▪▪▪▪
+    map_map                                  7 commits  ▪▪▪▪▪▪▪
+    map2_map                                 6 commits  ▪▪▪▪▪▪
+
+  ModularBaseSystemProofs.v
+    declarations: 38  |  total commits: 81  |  avg: 2.1  |  max: 16
+    freeze_canonical                        16 commits  ▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪
+    nth_error_combine                        4 commits  ▪▪▪▪
+    nth_error_range                          4 commits  ▪▪▪▪
+    carry_done_bounds                        3 commits  ▪▪▪
+    Zneg_nonneg_false                        3 commits  ▪▪▪
+    map2_combine                             3 commits  ▪▪▪
+    map2_map_l                               3 commits  ▪▪▪
+    map2_map_r                               3 commits  ▪▪▪
+
+  BaseSystem.v
+    declarations: 22  |  total commits: 77  |  avg: 3.5  |  max: 14
+    mul_bi_single                           14 commits  ▪▪▪▪▪▪▪▪▪▪▪▪▪▪
+    add_leading_zeroes                       6 commits  ▪▪▪▪▪▪
+    app_zeros_zeros                          6 commits  ▪▪▪▪▪▪
+    zeros_app0                               6 commits  ▪▪▪▪▪▪
+    rev_zeros                                6 commits  ▪▪▪▪▪▪
+    app_cons_app_app                         6 commits  ▪▪▪▪▪▪
+    mul_bi                                   4 commits  ▪▪▪▪
+    rev_add                                  4 commits  ▪▪▪▪
+
+  Varnames.v
+    declarations: 12  |  total commits: 73  |  avg: 6.1  |  max: 11
+    used_varnames_iff                       11 commits  ▪▪▪▪▪▪▪▪▪▪▪
+    used_varnames_le                        11 commits  ▪▪▪▪▪▪▪▪▪▪▪
+    equiv_Z_only_differ_iff1                10 commits  ▪▪▪▪▪▪▪▪▪▪
+    get_untouched                           10 commits  ▪▪▪▪▪▪▪▪▪▪
+    only_differ_trans                        7 commits  ▪▪▪▪▪▪▪
+    only_differ_sameset                      7 commits  ▪▪▪▪▪▪▪
+    only_differ_sym                          5 commits  ▪▪▪▪▪
+    only_differ_put                          4 commits  ▪▪▪▪
+
+  SolinasReduction.v
+    declarations: 21  |  total commits: 68  |  avg: 3.2  |  max: 9
+    reduce_second                            9 commits  ▪▪▪▪▪▪▪▪▪
+    reduce_canonical_repr                    8 commits  ▪▪▪▪▪▪▪▪
+    reduce_full_canonical                    7 commits  ▪▪▪▪▪▪▪
+    reduce_full_correct                      7 commits  ▪▪▪▪▪▪▪
+    eval_reduce3                             6 commits  ▪▪▪▪▪▪
+    mulmod_correct                           6 commits  ▪▪▪▪▪▪
+    reduce_third                             4 commits  ▪▪▪▪
+    value_reduce_second                      4 commits  ▪▪▪▪
+
+  UnsaturatedSolinas.v
+    declarations: 12  |  total commits: 59  |  avg: 4.9  |  max: 14
+    relax_to_byte_bounds                    14 commits  ▪▪▪▪▪▪▪▪▪▪▪▪▪▪
+    scalar_of_bytes                          9 commits  ▪▪▪▪▪▪▪▪▪
+    scalar_to_bytes                          8 commits  ▪▪▪▪▪▪▪▪
+    felem_copy_func_correct                  7 commits  ▪▪▪▪▪▪▪
+    from_word_func_correct                   6 commits  ▪▪▪▪▪▪
+    carry_mul_correct                        4 commits  ▪▪▪▪
+    from_bytes_func_correct                  3 commits  ▪▪▪
+    Bignum_of_bytes                          2 commits  ▪▪
+
+  Wordize.v
+    declarations: 12  |  total commits: 50  |  avg: 4.2  |  max: 10
+    wordize_shiftr                          10 commits  ▪▪▪▪▪▪▪▪▪▪
+    natToWord_convS                          6 commits  ▪▪▪▪▪▪
+    natToWord_combine                        6 commits  ▪▪▪▪▪▪
+    natToWord_split1                         6 commits  ▪▪▪▪▪▪
+    mask_update_bound                        5 commits  ▪▪▪▪▪
+    wplus_bound                              4 commits  ▪▪▪▪
+    wordize_plus                             3 commits  ▪▪▪
+    Nlt_dec                                  2 commits  ▪▪
+
+  MontgomeryAPI.v
+    declarations: 13  |  total commits: 49  |  avg: 3.8  |  max: 7
+    small_add_S2                             7 commits  ▪▪▪▪▪▪▪
+    small_divmod                             7 commits  ▪▪▪▪▪▪▪
+    small_add_S1                             6 commits  ▪▪▪▪▪▪
+    small_conditional_sub                    6 commits  ▪▪▪▪▪▪
+    small_add                                5 commits  ▪▪▪▪▪
+    small_div                                4 commits  ▪▪▪▪
+    eval_pair                                2 commits  ▪▪
+    eval_join0                               2 commits  ▪▪
+
+  AbstractInterpretationProofs.v
+    declarations: 13  |  total commits: 47  |  avg: 3.6  |  max: 9
+    abstract_interp_ident_related            9 commits  ▪▪▪▪▪▪▪▪▪
+    Interp_PartialEvaluateWithListInfoFromBounds   8 commits  ▪▪▪▪▪▪▪▪
+    CheckedPartialEvaluateWithBounds_Correct   5 commits  ▪▪▪▪▪
+    Interp_PartialEvaluateWithBounds         4 commits  ▪▪▪▪
+    Interp_PartialEvaluateWithBounds_bounded   4 commits  ▪▪▪▪
+    interp_relax                             4 commits  ▪▪▪▪
+    interp_eta_expand_with_bound             3 commits  ▪▪▪
+    related_bounded_value_with_lets          2 commits  ▪▪
+
+  ModularBaseSystem.v
+    declarations: 14  |  total commits: 41  |  avg: 2.9  |  max: 13
+    sub_rep                                 13 commits  ▪▪▪▪▪▪▪▪▪▪▪▪▪
+    base_good                                7 commits  ▪▪▪▪▪▪▪
+    carry_rep                                5 commits  ▪▪▪▪▪
+    add_rep                                  3 commits  ▪▪▪
+    mul_rep                                  3 commits  ▪▪▪
+    base_positive                            2 commits  ▪▪
+    base_divide_2k                           1 commits  ▪
+    base_div_2k                              1 commits  ▪
+
+  X25519_64.v
+    declarations: 4  |  total commits: 39  |  avg: 9.8  |  max: 13
+    mulmod_Wf                               13 commits  ▪▪▪▪▪▪▪▪▪▪▪▪▪
+    mulmod_correct                          12 commits  ▪▪▪▪▪▪▪▪▪▪▪▪
+    decimal_varname_gen_unique              10 commits  ▪▪▪▪▪▪▪▪▪▪
+    mulmod_valid_func                        4 commits  ▪▪▪▪
+
+  RewriterProofs.v
+    declarations: 13  |  total commits: 39  |  avg: 3.0  |  max: 6
+    Interp_RewriteNBE                        6 commits  ▪▪▪▪▪▪
+    Interp_RewriteArith                      6 commits  ▪▪▪▪▪▪
+    Interp_RewriteToFancy                    6 commits  ▪▪▪▪▪▪
+    Interp_gen_RewriteNBE                    3 commits  ▪▪▪
+    Interp_gen_RewriteArith                  3 commits  ▪▪▪
+    Interp_gen_RewriteToFancy                3 commits  ▪▪▪
+    Interp_gen_RewriteArithWithCasts         2 commits  ▪▪
+    Interp_gen_RewriteToFancyWithCasts       2 commits  ▪▪
+
+  Compiler.v
+    declarations: 10  |  total commits: 36  |  avg: 3.6  |  max: 16
+    translate_expr_correct                  16 commits  ▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪
+    of_expr_correct                          7 commits  ▪▪▪▪▪▪▪
+    translate_inner_expr_correct_store       3 commits  ▪▪▪
+    translate_expr_carry                     2 commits  ▪▪
+    used_varnames_step                       2 commits  ▪▪
+    translate_list_correct                   2 commits  ▪▪
+    only_differ_step                         1 commits  ▪
+    sub_domain_retnames                      1 commits  ▪
+
+  Karatsuba.v
+    declarations: 8  |  total commits: 36  |  avg: 4.5  |  max: 15
+    wt_multiples                            15 commits  ▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪
+    repeat_left_append                       3 commits  ▪▪▪
+    from_to_associational_id                 3 commits  ▪▪▪
+    mul_power_equiv                          3 commits  ▪▪▪
+    permutation_from_associational           3 commits  ▪▪▪
+    prod_append_binary_expansion             3 commits  ▪▪▪
+    to_from_associational_append             3 commits  ▪▪▪
+    subtraction_id                           3 commits  ▪▪▪
+
+  Relations.v
+    declarations: 7  |  total commits: 36  |  avg: 5.1  |  max: 15
+    related_Z_op                            15 commits  ▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪
+    related_word64_op                        5 commits  ▪▪▪▪▪
+    related_Z_t_map1_tuple2                  4 commits  ▪▪▪▪
+    related_bounds_t_map1_tuple2             4 commits  ▪▪▪▪
+    related_bounds_op                        4 commits  ▪▪▪▪
+    related_word64_t_map1_tuple2             2 commits  ▪▪
+    related_t_map1_tuple2                    2 commits  ▪▪
+
+6. TACTIC GROUP USAGE ACROSS LIFECYCLE
+------------------------------------------------------------
+  (% of declarations that used each group at least once)
+  Group                         Count      Pct    Avg commits/decl  Bar
+  rewrite_reduce                  765  ( 97.0%)                 6.3  ███████████████████
+  hypothesis_management           754  ( 95.6%)                 6.4  ███████████████████
+  application                     753  ( 95.4%)                 6.4  ███████████████████
+  meta_tactical                   746  ( 94.6%)                 6.4  ██████████████████
+  case_induction                  743  ( 94.2%)                 6.5  ██████████████████
+  contradiction_solver            700  ( 88.7%)                 6.7  █████████████████
+  arithmetic_algebra              351  ( 44.5%)                 8.0  ████████
+
+7. TACTIC GROUPS: FIRST COMMIT vs LAST COMMIT IN LIFECYCLE
+------------------------------------------------------------
+  Group                         In first commit   In last commit
+  ----------------------------  ---------------  ---------------
+  rewrite_reduce                   743 ( 94.2%)     683 ( 86.6%)
+  hypothesis_management            725 ( 91.9%)     622 ( 78.8%)
+  application                      719 ( 91.1%)     634 ( 80.4%)
+  meta_tactical                    712 ( 90.2%)     620 ( 78.6%)
+  case_induction                   688 ( 87.2%)     577 ( 73.1%)
+  contradiction_solver             613 ( 77.7%)     511 ( 64.8%)
+  arithmetic_algebra               248 ( 31.4%)     194 ( 24.6%)
+
+8. TACTIC GROUP CO-OCCURRENCE  (top 15 pairs across lifecycle commits)
+------------------------------------------------------------
+  Pair                                                 Count
+  application + rewrite_reduce                   749
+  hypothesis_management + rewrite_reduce                   749
+  meta_tactical + rewrite_reduce                   746
+  case_induction + rewrite_reduce                   738
+  application + hypothesis_management            736
+  hypothesis_management + meta_tactical                    736
+  application + meta_tactical                    735
+  case_induction + hypothesis_management            730
+  application + case_induction                   726
+  case_induction + meta_tactical                    724
+  contradiction_solver + rewrite_reduce                   700
+  application + contradiction_solver             694
+  contradiction_solver + meta_tactical                    693
+  contradiction_solver + hypothesis_management            688
+  case_induction + contradiction_solver             687
+
+9. COMMIT CLASS DISTRIBUTION ACROSS ALL LIFECYCLE COMMITS
+------------------------------------------------------------
+  proof_add              2801  ( 57.7%)
+  proof_complete          760  ( 15.7%)
+  proof_optimise          634  ( 13.1%)
+  proof_new               518  ( 10.7%)
+  spec_change             141  (  2.9%)
+
+10. NET PROOF LINES ADDED PER COMMIT  (by difficulty bucket)
+------------------------------------------------------------
+  Bucket       Commits   Total net lines   Mean net/commit
+  1                221           -971646           -4396.6
+  2-3              591            157026             265.7
+  4-5              402            152462             379.3
+  6-10             708             65670              92.8
+  11-20           1021             74282              72.8
+  21-50           1489             65251              43.8
+  51+              422             11157              26.4
+
+11. TOP 40 TACTICS ACROSS ALL LIFECYCLE COMMITS  (from diff added lines)
+------------------------------------------------------------
+  Tactic                       Count
+  rewrite                       2944  ██████████████████████████████
+  intros                        2605  ██████████████████████████
+  cbv                           2477  █████████████████████████
+  apply                         2444  ████████████████████████
+  by                            2401  ████████████████████████
+  destruct                      2346  ███████████████████████
+  try                           2329  ███████████████████████
+  repeat                        2274  ███████████████████████
+  subst                         2036  ████████████████████
+  pose                          1710  █████████████████
+  eapply                        1694  █████████████████
+  auto                          1618  ████████████████
+  eauto                         1616  ████████████████
+  clear                         1591  ████████████████
+  induction                     1581  ████████████████
+  split                         1507  ███████████████
+  simpl                         1430  ██████████████
+  unfold                        1391  ██████████████
+  assert                        1374  ██████████████
+  progress                      1333  █████████████
+  replace                       1322  █████████████
+  cbn                           1208  ████████████
+  intuition                     1102  ███████████
+  exact                         1061  ██████████
+  solve                         1043  ██████████
+  intro                         1030  ██████████
+  omega                         1009  ██████████
+  congruence                    1000  ██████████
+  assumption                     941  █████████
+  lia                            907  █████████
+  exists                         874  ████████
+  inversion                      846  ████████
+  erewrite                       810  ████████
+  specialize                     789  ████████
+  revert                         730  ███████
+  eexists                        709  ███████
+  trivial                        703  ███████
+  do                             686  ██████
+  change                         664  ██████
+  set                            642  ██████
+
+12. DECLARATIONS THAT REQUIRED ALL 7 TACTIC GROUPS
+------------------------------------------------------------
+  Count: 324
+  Declaration                               Commits    Days  File
+  prime_modulus                                  75     266  GF25519.v
+  homomorphism_inv                               62      92  Algebra.v
+  permute_commutative                            60      90  Symbolic.v
+  BoundsPipelineConst_correct                    57      32  SimplyTypedArithmetic.v
+  homomorphism_multiplicative_inverse            49      29  Algebra.v
+  eval_bound_expr                                47      19  Symbolic.v
+  adjust_bounds                                  46      12  SimplyTypedArithmetic.v
+  resize                                         41      11  SimplyTypedArithmetic.v
+  default                                        41      11  SimplyTypedArithmetic.v
+  convert_spec                                   37     178  StringConversion.v
+  eval_div                                       35      14  Saturated.v
+  eval_mod                                       35      14  Saturated.v
+  BoundsPipeline_correct                         33      10  SimplyTypedArithmetic.v
+  Proper_feEnc                                   33      14  Ed25519.v
+  consts_commutative                             30       8  Symbolic.v
+  feEnc_correct                                  28      13  Ed25519.v
+  Good                                           27     183  Toplevel1.v
+  addoverflow_small                              26       8  Symbolic.v
+  drop_identity                                  26       8  Symbolic.v
+  B_order_l                                      26     124  Ed25519.v
+  flatten_associative                            25       7  Symbolic.v
+  slice_set_slice                                24       7  Symbolic.v
+  CheckedPartialReduceWithBounds0                24      25  SimplyTypedArithmetic.v
+  CheckedPartialReduceWithBounds1_Correct        24      25  SimplyTypedArithmetic.v
+  CheckedPartialReduceWithBounds0_Correct        24      25  SimplyTypedArithmetic.v
+  symex_asm_func_correct                         23      82  Proofs.v
+  set_slice_set_slice                            23       7  Symbolic.v
+  feDec_correct                                  23      16  Ed25519.v
+  zeroIsIdentity                                 23      59  PointFormats.v
+  unifiedAddCon                                  23      86  PointFormats.v
+
+13. DECLARATIONS PROVED IN A SINGLE COMMIT  (full list)
+------------------------------------------------------------
+  Count: 221
+  Declaration                               Tactic groups  File
+  Address_R                                   4 groups  SymbolicProofs.v
+  Bignum_nth_load                             5 groups  Copy.v
+  CtoZ_correct                                7 groups  Pre.v
+  F_eqb_false                                 7 groups  PointEncodingPre.v
+  Fixpoint                                    6 groups  QhasmCommon.v
+  Prime_nonzero                               4 groups  ModularBaseSystem.v
+  S1_eq                                       6 groups  Combined.v
+  SRepDecModL_Correct                         6 groups  Exponent25519.v
+  SetOperand_same                             6 groups  SymbolicProofs.v
+  UniformWeight_eval_app                      6 groups  Arithmetic.v
+  Z_of_nat_of_word_eq_Z_of_N_of_word          6 groups  Exponent25519.v
+  __                                          6 groups  Compiler.v
+  abstraction_function                        0 groups  PartialEvaluationWithLetIn.v
+  access_size_to_zrange_word_upper_bound      1 groups  MakeAccessSizes.v
+  add_assoc                                   3 groups  BaseSystem.v
+  add_coordinates_correct_full                0 groups  GF25519BoundedExtendedAddCoordinates.v
+  add_same_length                             7 groups  BaseSystem.v
+  allocate_correct                            0 groups  Toplevel2.v
+  app_zeros                                   3 groups  BaseSystem.v
+  append1_gt1                                 6 groups  PointFormats.v
+  arith_rewrite_rules_good                    6 groups  RewriterProofs.v
+  arith_with_casts_rewrite_rules_interp_good    3 groups  RewriterRulesInterpGood.v
+  barrett_red256_alloc_equivalent             0 groups  Toplevel2.v
+  barrett_red256_fancy_correct                0 groups  Toplevel2.v
+  barrett_red256_prefancy_correct             6 groups  SimplyTypedArithmetic.v
+  base_bounds                                 4 groups  ModularBaseSystem.v
+  base_div_2k                                 5 groups  ModularBaseSystem.v
+  base_divide_2k                              6 groups  ModularBaseSystem.v
+  base_shift_log_cap                          7 groups  ModularBaseSystemProofs.v
+  base_succ                                   7 groups  GF25519.v
+  base_tail_matches_modulus                   7 groups  GF25519.v
+  bounded_by_encode                           5 groups  Ed25519.v
+  bounded_by_mul_freeze                       5 groups  Ed25519.v
+  bounded_by_pow                              5 groups  Ed25519.v
+  bounded_stabilizes                          6 groups  IsBoundedBy.v
+  bounds_of_R_runtime_input                   6 groups  Proofs.v
+  canonical_app                               6 groups  SolinasReduction.v
+  canonical_bounded                           6 groups  SolinasReduction.v
+  canonical_eval_bounded                      6 groups  SolinasReduction.v
+  carry_mul_on_tuple                          5 groups  ModularBaseSystemInterface.v
+  carry_rep_reduce                            6 groups  ModularBaseSystem.v
+  char_gt_2                                   6 groups  PointFormats.v
+  check_equivalenceM_correct                  5 groups  Proofs.v
+  combine_ZNWord                              6 groups  Ed25519.v
+  combines_to_correct_alt                     6 groups  Symbolic.v
+  compile_byte_memcpy                         6 groups  Low.v
+  compile_sctestbit                           6 groups  MontgomeryLadder.v
+  compile_stack_alloc                         4 groups  LadderStep.v
+  compiler_emitted_valid_instructions         7 groups  GarageDoor.v
+  cond_subM_correct                           7 groups  Arithmetic.v
+  conditional_subtract_lt_modulus             7 groups  ModularBaseSystemProofs.v
+  conditional_subtract_modulus_preserves_bounded    7 groups  ModularBaseSystemProofs.v
+  conditional_subtract_modulus_spec           7 groups  ModularBaseSystemProofs.v
+  context_equiv_undef                         6 groups  Cmd.v
+  curve25519_params_ok                        7 groups  Ed25519.v
+  decode_firstn_succ                          7 groups  Pow2BaseProofs.v
+  decode_modulus_digits                       7 groups  ModularBaseSystemProofs.v
+  deterministic_stack_alloc                   5 groups  LadderStep.v
+  digit_index_done_case                       6 groups  Pow2BaseProofs.v
+  doubleAndAdd_iterop                         6 groups  PointFormats.v
+  doubleAndAdd_spec                           6 groups  PointFormats.v
+  encode_correct                              3 groups  OutputType.v
+  eqb_sign_opp_r                              7 groups  PointEncodingPre.v
+  euler_criterion                             6 groups  NumTheoryUtil.v
+  eval_bytes                                  6 groups  Representation.v
+  eval_bytes_range                            6 groups  UnsaturatedSolinas.v
+  eval_extract_row                            7 groups  SimplyTypedArithmetic.v
+  eval_merge                                  6 groups  Symbolic.v
+  eval_mod_eq                                 6 groups  SolinasReduction.v
+  example_and                                 7 groups  MultiBoundedWord.v
+  exists_primitive_root_power                 7 groups  NumTheoryUtil.v
+  exprF0                                      6 groups  Compile.v
+  expr_beq_spec                               5 groups  Symbolic.v
+  extend_locals                               6 groups  Compiler.v
+  extendedRepAdd_extendedPoint_sig            6 groups  Ed25519.v
+  extendedRepAdd_sig                          5 groups  Ed25519.v
+  extended_shiftadd                           4 groups  ModularBaseSystem.v
+  fe25519WToZToW                              4 groups  Ed25519.v
+  fe25519_copy_correct                        7 groups  MontgomeryLadderProperties.v
+  fe25519_cswap_correct                       7 groups  MontgomeryLadderProperties.v
+  fe25519_small_literal_correct               7 groups  MontgomeryLadderProperties.v
+  feSign_correct                              6 groups  Ed25519.v
+  field1305                                   7 groups  GF1305.v
+  fieldwise_to_list_iff                       6 groups  ModularBaseSystemProofs.v
+  fill_correct                                7 groups  Arithmetic.v
+  freeze_minimal_rep                          7 groups  ModularBaseSystemProofs.v
+  freeze_rep                                  6 groups  ModularBaseSystemProofs.v
+  from_Q_to_Z_and_back                        5 groups  DettmanMultiplication.v
+  ge_modulus_spec                             6 groups  ModularBaseSystemListProofs.v
+  get_untouched                               6 groups  Cmd.v
+  high_correct                                7 groups  Arithmetic.v
+  highest_digit_determines                    7 groups  ModularBaseSystemProofs.v
+  init_symbolic_state_correct                 5 groups  Proofs.v
+  inject_distr_sub                            4 groups  GaloisTheory.v
+  interp_annotate                             6 groups  AbstractInterpretationProofs.v
+  interp_related                              6 groups  AbstractInterpretationProofs.v
+  interp_smart_App_curried_2                  0 groups  Toplevel2.v
+  interpf_ocompilef                           6 groups  CompileInterp.v
+  intersect_state_base_value                  0 groups  PartialEvaluationWithLetIn.v
+  invert_conditional_subtract                 6 groups  Interpretations.v
+  is_nonzero_correct                          7 groups  Pre.v
+  iterations_required_complete                6 groups  Loops.v
+  iterations_required_step                    6 groups  Loops.v
+  jason                                       7 groups  Pre.v
+  land_bounds_extreme                         6 groups  IsBoundedBy.v
+  land_max_bound_0                            7 groups  ModularBaseSystemProofs.v
+  land_upper_lor_land_bounds                  6 groups  IsBoundedBy.v
+  length_extract_row                          7 groups  SimplyTypedArithmetic.v
+  length_list_of_encodedT                     6 groups  SimplyTypedArithmetic.v
+  list_Z_bounded_by_in_range                  5 groups  UnsaturatedSolinas.v
+  loop                                        7 groups  GarageDoor.v
+  loop_ok                                     7 groups  GarageDoor.v
+  lor_bounds_extreme                          6 groups  IsBoundedBy.v
+  lor_upper_lor_land_bounds                   6 groups  IsBoundedBy.v
+  lt_mul_2_pow_2_shiftr                       6 groups  ModularBaseSystemProofs.v
+  lt_mul_2_shiftr                             6 groups  ModularBaseSystemProofs.v
+  lt_pow_2_shiftr                             6 groups  ModularBaseSystemProofs.v
+  makeRange_spec                              6 groups  Evaluables.v
+  map2_append                                 5 groups  CPSUtil.v
+  map2_zselect                                5 groups  Saturated.v
+  map_land_max_ones_modulus_digits            7 groups  ModularBaseSystemProofs.v
+  map_to_list                                 4 groups  Tuple.v
+  mask_bound                                  7 groups  MultiBoundedWord.v
+  mask_update_bound                           7 groups  MultiBoundedWord.v
+  mask_wand                                   7 groups  MultiBoundedWord.v
+  max_column_size0                            7 groups  SimplyTypedArithmetic.v
+  max_column_size_cons                        7 groups  SimplyTypedArithmetic.v
+  min_operation_size                          6 groups  SymbolicProofs.v
+  minimal_rep_encode                          6 groups  ModularBaseSystemProofs.v
+  minimal_rep_freeze                          6 groups  ModularBaseSystemProofs.v
+  minimal_rep_unique_if_bounded               7 groups  ModularBaseSystemProofs.v
+  modulus_digits_length                       7 groups  ModularBaseSystemProofs.v
+  montladder_correct                          6 groups  XZProofs.v
+  montred256_alloc_equivalent                 7 groups  Montgomery256.v
+  montred256_alloc_equivalent                 0 groups  Toplevel2.v
+  montred_correct                             5 groups  MontgomeryReduction.v
+  muSelect_correct                            7 groups  Arithmetic.v
+  mu_range                                    7 groups  Arithmetic.v
+  mul2_correct                                6 groups  SolinasReduction.v
+  mul_converted_single_eq                     7 groups  SimplyTypedArithmetic.v
+  mul_length                                  0 groups  BaseSystem.v
+  mul_split_rewrite_rules_proofs              6 groups  RulesProofs.v
+  mul_twice_correct                           5 groups  API.v
+  mulmod_256                                  4 groups  IntegrationTestMontgomeryP256.v
+  n                                           4 groups  Loop.v
+  nbe_rewrite_rules_good                      6 groups  RewriterProofs.v
+  neg_nonneg                                  4 groups  ModularBaseSystemListZOperationsProofs.v
+  neg_upperbound                              4 groups  ModularBaseSystemListZOperationsProofs.v
+  nth_error_app                               6 groups  ListUtil.v
+  nth_error_app                               4 groups  ModularBaseSystem.v
+  odd_m                                       7 groups  ModularWordEncodingTheorems.v
+  of_Expr_correct                             6 groups  Toplevel2.v
+  onCurveDenominatorOk                        7 groups  PointFormats.v
+  only_differ_sameset                         6 groups  Cmd.v
+  only_differ_step                            6 groups  Compiler.v
+  only_differ_trans                           6 groups  Cmd.v
+  opaque_id                                   5 groups  WeierstrassCurveTheorems.v
+  partition_app                               7 groups  Arithmetic.v
+  pinterp_base                                0 groups  PartialEvaluationWithLetIn.v
+  pos_size_gt0                                6 groups  PointFormats.v
+  postfreezeW_correct_and_bounded             6 groups  GF25519Bounded.v
+  primitive_root_prime                        7 groups  NumTheoryUtil.v
+  prod_barrett_red256_correct                 0 groups  Toplevel2.v
+  prod_montred256_correct                     7 groups  Montgomery256.v
+  prod_montred256_correct                     0 groups  Toplevel2.v
+  puninterp_base                              0 groups  PartialEvaluationWithLetIn.v
+  q3_correct                                  7 groups  Arithmetic.v
+  q3_range                                    7 groups  Arithmetic.v
+  rangeEval_Some_spec_high                    6 groups  Evaluables.v
+  rangeEval_Some_spec_low                     6 groups  Evaluables.v
+  reduce_defn                                 4 groups  ModularBaseSystem.v
+  reduce_second_bounds                        6 groups  SolinasReduction.v
+  reduce_valid_number                         6 groups  SolinasReduction.v
+  reduction_rule                              5 groups  NewBaseSystem.v
+  rfreezeW_correct_and_bounded                4 groups  Freeze.v
+  rfreeze_output_bounds                       4 groups  Freeze.v
+  sat_add_div                                 7 groups  AddSub.v
+  sat_add_mod                                 7 groups  AddSub.v
+  scmul_func_correct                          4 groups  ScalarMult.v
+  setbit_high                                 6 groups  NatUtil.v
+  shiftr_bound                                7 groups  MultiBoundedWord.v
+  shiftr_spec                                 7 groups  MultiBoundedWord.v
+  sig_sig_assoc                               5 groups  IntegrationTest.v
+  sign_match                                  7 groups  PointEncodingPre.v
+  skipn_firstn_decomp                         5 groups  SolinasReduction.v
+  something                                   5 groups  DettmanMultiplication.v
+  splitWords                                  7 groups  BinGF.v
+  sq_and_multiply_mod_correct                 7 groups  Pow.v
+  square_no_reduce_correct                    5 groups  SolinasReduction.v
+  sub_domain_retnames                         5 groups  Compiler.v
+  sum_rows_div                                7 groups  SimplyTypedArithmetic.v
+  sum_rows_mod                                7 groups  SimplyTypedArithmetic.v
+  swap_casts                                  1 groups  Barrett256.v
+  swap_casts                                  5 groups  Montgomery256.v
+  symex_asm_func_M_correct                    5 groups  Proofs.v
+  symex_expr_correct                          6 groups  Proofs.v
+  test_low_bit_xI                             6 groups  PointFormats.v
+  test_low_bit_xO                             6 groups  PointFormats.v
+  to_nat_mod                                  7 groups  EdDSARepChange.v
+  to_twisted_add                              7 groups  ExtendedCoordinates.v
+  to_twisted_add_unopt                        7 groups  ExtendedCoordinates.v
+  translate_carries_None                      6 groups  Cmd.v
+  translate_carries_Some                      6 groups  Cmd.v
+  translate_carries_correct                   6 groups  Cmd.v
+  translate_func                              6 groups  Func.v
+  translate_inner_expr_correct                3 groups  Expr.v
+  truncate_word_word                          6 groups  ChaChaWrapped.v
+  type_transport                              4 groups  PartialEvaluationWithLetIn.v
+  unfold_Let_In                               6 groups  Ed25519.v
+  universal_measure_step                      6 groups  Loops.v
+  used_varnames_iff                           6 groups  Cmd.v
+  used_varnames_le                            6 groups  Cmd.v
+  w_eq_2k                                     7 groups  Arithmetic.v
+  wf_SmartAbs                                 5 groups  WfProofs.v
+  wf_cse                                      6 groups  CommonSubexpressionEliminationWf.v
+  wf_smart_bound                              5 groups  SmartBoundWf.v
+  wff_bound_op                                0 groups  SmartBoundWf.v
+  word_size_bound                             7 groups  MultiBoundedWord.v
+  wshiftr_spec                                6 groups  BoundedWord.v
+  xzladderstep                                7 groups  MontgomeryCurve.v
+  zrange_to_access_size_ok                    1 groups  MakeAccessSizes.v
+
+14. PROOF SHRINKAGE EVENTS  (commits with net_proof_lines < 0)
+------------------------------------------------------------
+  Commits with net < -20 lines: 395
+  Declaration                          Date           Net lines  Subject
+  allocate_correct                     2019-01-08       -143793  remove old pipeline
+  interp_smart_App_curried_2           2019-01-08       -143793  remove old pipeline
+  barrett_red256_fancy_correct         2019-01-08       -143793  remove old pipeline
+  barrett_red256_alloc_equivalent      2019-01-08       -143793  remove old pipeline
+  prod_barrett_red256_correct          2019-01-08       -143793  remove old pipeline
+  montred256_alloc_equivalent          2019-01-08       -143793  remove old pipeline
+  prod_montred256_correct              2019-01-08       -143793  remove old pipeline
+  chacha20_ok                          2022-11-03         -3832  bump bedrock2 for func! Notations and clean u
+  base_25_5_mul                        2017-12-15         -1136  make SimplyTypedArithmetic less "Smart" by gi
+  BoundsPipelineConst_correct          2018-02-23          -825  Remove dead bounds analysis code
+  CheckedPartialReduceWithBounds0      2018-02-23          -825  Remove dead bounds analysis code
+  CheckedPartialReduceWithBounds1_Correct  2018-02-23          -825  Remove dead bounds analysis code
+  CheckedPartialReduceWithBounds0_Correct  2018-02-23          -825  Remove dead bounds analysis code
+  prime_modulus                        2016-07-28          -817  Refactor ModularArithmetic into Zmod, expand 
+  homomorphism_inv                     2016-07-28          -817  Refactor ModularArithmetic into Zmod, expand 
+  odd_m                                2016-07-28          -817  Refactor ModularArithmetic into Zmod, expand 
+  Fq_inv_fermat                        2016-07-28          -817  Refactor ModularArithmetic into Zmod, expand 
+  ZToRange_binop_correct               2016-09-24          -628  Large-scale refactoring of src/Assembly
+  ZToWord_binop_correct                2016-09-24          -628  Large-scale refactoring of src/Assembly
+  exprF0                               2016-09-24          -628  Large-scale refactoring of src/Assembly
+  B_order_l                            2016-10-31          -596  Switch to reflective bounded word in Ed25519
+  radd_correct_and_bounded             2016-10-31          -596  Switch to reflective bounded word in Ed25519
+  rsub_correct_and_bounded             2016-10-31          -596  Switch to reflective bounded word in Ed25519
+  rmul_correct_and_bounded             2016-10-31          -596  Switch to reflective bounded word in Ed25519
+  ropp_correct_and_bounded             2016-10-31          -596  Switch to reflective bounded word in Ed25519
+  rfreeze_correct_and_bounded          2016-10-31          -596  Switch to reflective bounded word in Ed25519
+  rge_modulus_correct_and_bounded      2016-10-31          -596  Switch to reflective bounded word in Ed25519
+  rpack_correct_and_bounded            2016-10-31          -596  Switch to reflective bounded word in Ed25519
+  runpack_correct_and_bounded          2016-10-31          -596  Switch to reflective bounded word in Ed25519
+  base_25_5_mul                        2017-12-04          -538  Remove dead code in comments
+
+15. DIFFICULTY vs TACTIC GROUP DIVERSITY
+------------------------------------------------------------
+  Bucket      N decls   Avg groups   % using all 7   Avg days
+  1               221          5.5           29.9%        4.6
+  2-3             252          6.2           34.9%        9.4
+  4-5              93          6.3           37.6%       11.4
+  6-10             95          6.5           58.9%       57.7
+  11-20            70          6.5           52.9%       23.4
+  21-50            51          6.7           74.5%       41.7
+  51+               7          6.6           57.1%      131.1
