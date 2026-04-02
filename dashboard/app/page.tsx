@@ -86,6 +86,12 @@ export default async function Home() {
             >
               Datasets
             </Link>
+            <Link
+              href="/quali"
+              className="text-zinc-500 dark:text-zinc-400 hover:text-foreground transition-colors"
+            >
+              Qualitative Study
+            </Link>
           </nav>
         </div>
       </header>
