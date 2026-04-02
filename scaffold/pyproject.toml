@@ -12,10 +12,12 @@ dependencies = [
     "typer>=0.24.0",
     "anthropic>=0.52.0",
     "pydantic-ai>=1.76.0",
+    "rich>=14.3.2",
 ]
 
 [project.scripts]
 scaffold = "scaffold.cli:main"
+quali = "quali.cli:main"
 
 [build-system]
 requires = ["uv_build>=0.9.22,<0.10.0"]

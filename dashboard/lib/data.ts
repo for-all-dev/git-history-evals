@@ -170,6 +170,73 @@ export function computeStats(records: CommitRecord[]): CommitStats {
   };
 }
 
+// --- Qualitative study types ---
+
+export type QualiObservation = {
+  code: string;
+  commit_hash: string;
+  evidence: string;
+};
+
+export type QualiAnalysis = {
+  declaration: string;
+  file: string;
+  observations: QualiObservation[];
+  narrative: string;
+  trajectory_signature: string;
+  complexity: number;
+  dominant_strategy: string;
+};
+
+export type QualiRecord = {
+  source: {
+    declaration: string;
+    file: string;
+    hole_kind: string;
+    first_hole_date: string;
+    proof_complete_date: string;
+    days_to_prove: number;
+    n_commits: number;
+    top_tactics: string[];
+  };
+  analysis: QualiAnalysis;
+};
+
+const qualiCache = new Map<string, { records: QualiRecord[]; mtime: number }>();
+
+async function parseQualiJsonl(filePath: string): Promise<QualiRecord[]> {
+  const fileStat = await stat(filePath);
+  const cached = qualiCache.get(filePath);
+  if (cached && cached.mtime === fileStat.mtimeMs) return cached.records;
+
+  const records = await new Promise<QualiRecord[]>((resolve, reject) => {
+    const results: QualiRecord[] = [];
+    const rl = readline.createInterface({
+      input: createReadStream(filePath),
+      crlfDelay: Infinity,
+    });
+    rl.on("line", (line) => {
+      if (line.trim()) {
+        try {
+          results.push(JSON.parse(line));
+        } catch {}
+      }
+    });
+    rl.on("close", () => resolve(results));
+    rl.on("error", reject);
+  });
+
+  qualiCache.set(filePath, { records, mtime: fileStat.mtimeMs });
+  return records;
+}
+
+export async function readQualiStudy(
+  filename = "fiat-crypto-quali.jsonl"
+): Promise<QualiRecord[]> {
+  const filePath = path.join(ARTIFACTS_DIR, filename);
+  return parseQualiJsonl(filePath);
+}
+
 export type FilterParams = {
   dataset: string;
   page: number;
