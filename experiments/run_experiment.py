@@ -1,3 +1,11 @@
+# /// script
+# requires-python = ">=3.11"
+# dependencies = [
+#     "anthropic",
+#     "python-dotenv",
+#     "typer",
+# ]
+# ///
 """
 Proof completion experiment using the Claude API.
 
@@ -23,18 +31,23 @@ import time
 from pathlib import Path
 
 import anthropic
+import typer
 from dotenv import load_dotenv
 
-load_dotenv(Path(__file__).parent.parent.parent / ".env")
+# Walk up from the script's directory to find .env
+_script_dir = Path(__file__).resolve().parent
+for _p in (_script_dir, *_script_dir.parents):
+    if (_p / ".env").exists():
+        load_dotenv(_p / ".env")
+        break
 
 # ── Config ───────────────────────────────────────────────────────────────────
 BASE  = Path(__file__).parent
 EXP_A = BASE / "admitted-proofs"
 EXP_B = BASE / "experiments3"
 LOG   = BASE / "experiment-log.txt"
-MODEL          = "claude-sonnet-4-6"
-COQC           = "coqc"
-MAX_CHALLENGES = 3   # set to None to run all
+MODEL = "claude-sonnet-4-6"
+COQC  = "coqc"
 
 client = anthropic.Anthropic()   # reads ANTHROPIC_API_KEY from env
 
@@ -46,8 +59,6 @@ fiat-crypto library (elliptic curve cryptography). Your task is to fill \
 in missing proof tactics in Coq source files.
 
 Rules:
-- Return the COMPLETE modified .v file — nothing else, no markdown fences, \
-  no explanation before or after.
 - Replace every occurrence of `Admitted.` that belongs to the target \
   declaration with real tactics followed by `Qed.` or `Defined.` \
   (use `Qed.` unless the original used `Defined.`).
@@ -55,6 +66,19 @@ Rules:
 - Do NOT add new imports or axioms.
 - If you genuinely cannot determine the proof, write `Admitted.` and leave \
   it — do not hallucinate incorrect tactics.
+
+Output format:
+- First, briefly explain your reasoning in a <reasoning> tag.
+- Then, output the COMPLETE modified .v file inside a <code> tag.
+- Do NOT output anything after the closing </code> tag.
+
+Example structure:
+<reasoning>
+The goal requires ... so I will use tactic X because ...
+</reasoning>
+<code>
+(* full .v file here *)
+</code>
 """
 
 def make_prompt_full(decl: str, file_content: str) -> str:
@@ -102,15 +126,26 @@ def call_claude(prompt: str, label: str, log: list[str]) -> str:
     return response
 
 
-def strip_fences(text: str) -> str:
-    """Remove markdown code fences and leading prose if the model added them."""
-    text = re.sub(r"^```[a-z]*\n?", "", text.strip(), flags=re.MULTILINE)
-    text = re.sub(r"```$", "", text.strip(), flags=re.MULTILINE)
-    text = text.strip()
+def extract_code(text: str) -> str:
+    """Extract Coq source from structured model output.
 
-    # Strip leading prose: find the first line that looks like Coq source.
-    # Valid Coq file starts with: Require, From, Set, Unset, a comment (*,
-    # or a declaration keyword (Lemma, Theorem, Definition, etc.)
+    Tries, in order:
+      1. <code>...</code> XML tags
+      2. ```...``` markdown fences
+      3. Heuristic: first line that looks like Coq source
+    """
+    # 1. XML <code> tag (preferred)
+    m = re.search(r"<code>\s*\n?(.*?)\s*</code>", text, re.DOTALL)
+    if m:
+        return m.group(1).strip()
+
+    # 2. Markdown fences
+    m = re.search(r"```[a-z]*\n(.*?)```", text, re.DOTALL)
+    if m:
+        return m.group(1).strip()
+
+    # 3. Fallback: strip leading prose, find first Coq-like line
+    text = text.strip()
     coq_start = re.compile(
         r"^(Require|From|Set|Unset|Local|Global|Import|Export|\(\*"
         r"|Lemma|Theorem|Definition|Fixpoint|CoFixpoint|Inductive"
@@ -149,13 +184,14 @@ def run_coqc(attempt_path: Path, log: list[str]) -> str:
 
 
 def run_condition(slots: list[Path], condition: str,
-                  prompt_fn, challenge_file: str, log_lines: list[str]) -> dict:
+                  prompt_fn, challenge_file: str, log_lines: list[str],
+                  max_challenges: int | None = None) -> dict:
     results = {}
     count = 0
     for slot in sorted(slots):
         if not slot.is_dir():
             continue
-        if MAX_CHALLENGES is not None and count >= MAX_CHALLENGES:
+        if max_challenges is not None and count >= max_challenges:
             break
         meta_path = slot / "meta.json"
         chal_path = slot / challenge_file
@@ -186,7 +222,14 @@ def run_condition(slots: list[Path], condition: str,
         # Call the API
         prompt   = prompt_fn(decl, content)
         response = call_claude(prompt, slot.name, log_lines)
-        completed = strip_fences(response)
+
+        # Log model reasoning if present
+        reasoning_match = re.search(r"<reasoning>\s*\n?(.*?)\s*</reasoning>", response, re.DOTALL)
+        if reasoning_match:
+            log_lines.append(f"\nModel reasoning:")
+            log_lines.append(f"  {reasoning_match.group(1).strip()}")
+
+        completed = extract_code(response)
 
         # Write attempt.v
         attempt_path = slot / "attempt.v"
@@ -219,11 +262,16 @@ def run_condition(slots: list[Path], condition: str,
 
 # ── Main ─────────────────────────────────────────────────────────────────────
 
-def main():
+def main(
+    max_challenges: int = typer.Option(3, "--max-challenges", "-n", help="Max challenges per condition (0 = all)"),
+):
+    limit = max_challenges if max_challenges > 0 else None
+
     log_lines: list[str] = [
         "=" * 64,
         "PROOF COMPLETION EXPERIMENT — Claude API",
         f"Model: {MODEL}",
+        f"Max challenges: {limit or 'all'}",
         f"Date : {time.strftime('%Y-%m-%d %H:%M:%S')}",
         "=" * 64,
     ]
@@ -234,7 +282,8 @@ def main():
     log_lines.append("━"*64)
     slots_b = sorted(EXP_B.iterdir())
     results_b = run_condition(
-        slots_b, "B", make_prompt_partial, "challenge3.v", log_lines
+        slots_b, "B", make_prompt_partial, "challenge3.v", log_lines,
+        max_challenges=limit,
     )
 
     # Condition A — full Admitted (harder)
@@ -243,7 +292,8 @@ def main():
     log_lines.append("━"*64)
     slots_a = sorted(EXP_A.iterdir())
     results_a = run_condition(
-        slots_a, "A", make_prompt_full, "challenge.v", log_lines
+        slots_a, "A", make_prompt_full, "challenge.v", log_lines,
+        max_challenges=limit,
     )
 
     # Summary
@@ -272,4 +322,4 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    typer.run(main)
