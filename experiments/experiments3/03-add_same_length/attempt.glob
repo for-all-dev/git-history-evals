@@ -1,0 +1,5 @@
+DIGEST 6cc3e9f50f9c2ca6502f1a5cac8c0b28
+Fattempt
+R15:18 Stdlib.Lists.List <> <> lib
+R36:48 Stdlib.ZArith.ZArith <> <> lib
+R50:60 Stdlib.ZArith.Zdiv <> <> lib

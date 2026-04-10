@@ -1,0 +1,11 @@
+{
+  "task_id": "fiat-crypto_549d05f1_9ea7c50d",
+  "declaration": "lift_homomorphism",
+  "hole_kind": "admitted",
+  "file_path": "src/CompleteEdwardsCurve/ExtendedCoordinates.v",
+  "commit_hash": "549d05f1105340952ef9075381ae5fb5f3bffe13",
+  "parent_hash": "ecb9e0bdfa34e8ce68e3cbf8588435a1bbe38b6a",
+  "commit_message": "CompleteEdwardsCurve.ExtendedCoordinates: remove admitted lift_homomorphism lemma that did not turn out to be necessary",
+  "instructions": "Fill in the proof(s) marked with placeholder tactics (admitted in lift_homomorphism) in src/CompleteEdwardsCurve/ExtendedCoordinates.v.",
+  "context_lines": "             | |- Keq ?x ?y => rewrite_strat bottomup hints field_homomorphism\n             | [ H : Feq _ _ |- Keq (phi _) (phi _)] => solve [f_equiv; intuition]\n             end.\n      Admitted. (* TODO(jadep or andreser) *)\n  End Homomorphism.\nEnd Extended."
+}

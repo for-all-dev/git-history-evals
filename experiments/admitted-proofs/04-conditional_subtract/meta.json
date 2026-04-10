@@ -1,0 +1,11 @@
+{
+  "task_id": "fiat-crypto_f8eab3da_7a52b302",
+  "declaration": "conditional_subtract",
+  "hole_kind": "admit",
+  "file_path": "src/Reflection/Z/Interpretations.v",
+  "commit_hash": "f8eab3da78edd44864e12e50962e5c1e382759fc",
+  "parent_hash": "60bd3785db01f5275aaab52a2a5fec66caa9de53",
+  "commit_message": "Finish related_bounds_t_map1_tuple2",
+  "instructions": "Fill in the proof(s) marked with placeholder tactics (admit in conditional_subtract) in src/Reflection/Z/Interpretations.v.",
+  "context_lines": "        component of [ret_val] is [Some (l, v, u)], then we can fill\n        in [pf] and return the tuple of [{| lower := l ; value := v ;\n        upper := u ; in_bounds := pf |}]. *)\n    admit.\n  Defined.\n\n  Local Ltac convoy_destruct_in H :="
+}

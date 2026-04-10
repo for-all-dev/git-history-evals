@@ -1,0 +1,11 @@
+{
+  "task_id": "fiat-crypto_6327fdd8_cdd1a82d",
+  "declaration": "symex_asm_func_M_correct",
+  "hole_kind": "admitted",
+  "file_path": "src/Assembly/WithBedrock/Proofs.v",
+  "commit_hash": "6327fdd8755f79a1ead4a620f9a91285767740b4",
+  "parent_hash": "3f2f5413a0ce047a5d55dd7427abab0b43575aa3",
+  "commit_message": "Finish assembly equivalence checker proof",
+  "instructions": "Fill in the proof(s) marked with placeholder tactics (admitted in symex_asm_func_M_correct) in src/Assembly/WithBedrock/Proofs.v.",
+  "context_lines": "       | [ |- Semantics.get_reg ?m1 ?r = Semantics.get_reg ?m2 ?r ]\n         => idtac\n       end.\nTime Admitted. (* 201.5s o.O *)\n\nTheorem symex_asm_func_correct\n        {output_scalars_are_pointers:bool}"
+}

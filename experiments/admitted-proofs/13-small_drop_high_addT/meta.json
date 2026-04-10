@@ -1,0 +1,11 @@
+{
+  "task_id": "fiat-crypto_a58a68cf_b36eabdb",
+  "declaration": "small_drop_high_addT",
+  "hole_kind": "admitted",
+  "file_path": "src/Experiments/NewPipeline/Arithmetic.v",
+  "commit_hash": "a58a68cf5bb4d634683b091a8e35b5829a2e90bd",
+  "parent_hash": "069c3ec5ece85b7cddd1299ffa037a68d87d21a8",
+  "commit_message": "prove admit",
+  "instructions": "Fill in the proof(s) marked with placeholder tactics (admitted in small_drop_high_addT) in src/Experiments/NewPipeline/Arithmetic.v.",
+  "context_lines": "      rewrite !UniformWeight.uweight_eq_alt by omega.\n      autorewrite with push_Zof_nat zsimplify_fast.\n      rewrite Z.pow_succ_r by omega.\n    Admitted.\n    Local Axiom eval_conditional_sub : forall v, small v -> 0 <= eval v < eval N + R -> eval (conditional_sub v N) = eval v + if eval N <=? eval v then -eval N else 0.\n    Local Axiom small_conditional_sub : forall v, small v -> 0 <= eval v < eval N + R -> small (conditional_sub v N).\n    Local Axiom eval_sub_then_maybe_add : forall a b, small a -> small b -> 0 <= eval a < eval N -> 0 <= eval b < eval N -> eval (sub_then_maybe_add a b) = eval a - eval b + if eval a - eval b <? 0 then eval N else 0."
+}

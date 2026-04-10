@@ -1,0 +1,11 @@
+{
+  "task_id": "fiat-crypto_7d139ded_44798946",
+  "declaration": "homomorphism_inv",
+  "hole_kind": "admitted",
+  "file_path": "src/Algebra.v",
+  "commit_hash": "7d139ded819549c587b169e6ef54d411bc543cd4",
+  "parent_hash": "c82fc1e10da10b5e7f83d9bed8db1dd931e41930",
+  "commit_message": "Algebra: prove an admit, add eq_r_opp_r_inv",
+  "instructions": "Fill in the proof(s) marked with placeholder tactics (admitted in homomorphism_inv) in src/Algebra.v.",
+  "context_lines": "\n    Lemma homomorphism_inv : forall x, phi (INV x) = inv (phi x).\n    Proof.\n    Admitted.\n  End Homomorphism.\n\n  Section GroupByHomomorphism."
+}

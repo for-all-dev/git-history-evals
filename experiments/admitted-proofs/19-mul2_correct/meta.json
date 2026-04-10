@@ -1,0 +1,11 @@
+{
+  "task_id": "fiat-crypto_03a7e18d_1244ac0a",
+  "declaration": "mul2_correct",
+  "hole_kind": "admitted",
+  "file_path": "src/PushButtonSynthesis/SolinasReduction.v",
+  "commit_hash": "03a7e18d0a8d3eaf78dda7198a5244a34b51ce0f",
+  "parent_hash": "bf21773a86d8fad84941cc2a1558b405b241164e",
+  "commit_message": "remove mul2 for pr",
+  "instructions": "Fill in the proof(s) marked with placeholder tactics (admitted in mul2_correct) in src/PushButtonSynthesis/SolinasReduction.v.",
+  "context_lines": "        (Hres : mul2 = Success res)\n    : mul2_correct weight n m boundsn (Interp res).\n  Proof using curve_good.\n  Admitted.\n\n  Lemma Wf_mul2 res (Hres : mul2 = Success res) : Wf res.\n  Proof using Type. prove_pipeline_wf (). Qed."
+}

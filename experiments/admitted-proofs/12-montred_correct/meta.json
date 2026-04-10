@@ -1,0 +1,11 @@
+{
+  "task_id": "fiat-crypto_9025014c_7fc0203f",
+  "declaration": "montred_correct",
+  "hole_kind": "admitted",
+  "file_path": "src/PushButtonSynthesis/MontgomeryReduction.v",
+  "commit_hash": "9025014cf7b64082d0bfed93dd76ba99ab9bb72b",
+  "parent_hash": "a1f9d9ee2c662790b43bf56df58121a390efbe7c",
+  "commit_message": "Make Qed not take forever",
+  "instructions": "Fill in the proof(s) marked with placeholder tactics (admitted in montred_correct) in src/PushButtonSynthesis/MontgomeryReduction.v.",
+  "context_lines": "      rewrite Bool.andb_true_iff, !Z.leb_le. lia. }\n    { cbv [ZRange.type.base.option.is_bounded_by ZRange.type.base.is_bounded_by bound is_bounded_by_bool value_range upper lower].\n      rewrite Bool.andb_true_iff, !Z.leb_le. lia. }\n  Admitted.\nEnd rmontred.\n\n(* TODO: get Barrett to this same point, even if Qed slow, and then use these lemmas in the specific files *)"
+}

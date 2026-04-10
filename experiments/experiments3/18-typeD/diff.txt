@@ -1,0 +1,13 @@
+diff --git a/src/Compilers/MultiSizeTest.v b/src/Compilers/MultiSizeTest.v
+index fab0c65d8..c31127126 100644
+--- a/src/Compilers/MultiSizeTest.v
++++ b/src/Compilers/MultiSizeTest.v
+@@ -82,8 +82,6 @@ Definition typeD (t : type) : Type :=
+   | Word9 => word9
+   end.
+ 
+-Axiom admit : forall T, T.
+-
+ Theorem O_lt_S : forall n, O < S n.
+ Proof.
+   intros; omega.

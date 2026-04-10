@@ -1,0 +1,11 @@
+{
+  "task_id": "fiat-crypto_b9f28afe_0a30ef7a",
+  "declaration": "of_prefancy_identZ_correct",
+  "hole_kind": "admitted",
+  "file_path": "src/Experiments/NewPipeline/Toplevel2.v",
+  "commit_hash": "b9f28afec4f3dc3340a8693cdf450721af67d13b",
+  "parent_hash": "07e016ed52f68205f851f3686c64018a0c7a262b",
+  "commit_message": "WIP: expand valid_ident and prove of_prefancy_correct using it",
+  "instructions": "Fill in the proof(s) marked with placeholder tactics (admitted in of_prefancy_identZ_correct) in src/Experiments/NewPipeline/Toplevel2.v.",
+  "context_lines": "          (forall v1 v2, In (existZZ (v1, v2)) G -> snd v2 mod 2 = snd v2) ->\n          of_prefancy_ident idc x = Some i ->\n          spec (projT1 i) (Tuple.map ctx (projT2 i)) cc mod wordmax = (cinterp f (cinterp x2)).\n      Admitted.\n      Lemma of_prefancy_identZZ_correct' {s} idc:\n        forall (x : @cexpr var _) i ctx G cc cctx x2 f,\n          @valid_ident (type_base s) (type_base (tZ * tZ)) idc x ->"
+}

@@ -1,0 +1,164 @@
+======================================================================
+EXPERIMENTS3 BUILD LOG
+Removed last 3 tactic sentences from each solution proof.
+======================================================================
+
+────────────────────────────────────────────────────────────
+Challenge: 01-of_prefancy_identZ_correct
+Declaration: of_prefancy_identZ_correct
+  Removed sentences (1):
+    >> Time
+          inversion 1; inversion 1; cbn [of_prefancy_ident]; hammer; (simplify_ident; [ ]); (* TODO : suuuuuper slo
+  STATUS: OK — wrote challenge3.v
+
+────────────────────────────────────────────────────────────
+Challenge: 02-pull_cast_genericize_op
+Declaration: pull_cast_genericize_op
+  Removed sentences (3):
+    >> generalize dependent (Zinterp_op t tR opc).
+    >> generalize dependent (Bounds.interp_op opc bs); simpl; intros.
+    >> repeat (destruct_one_head flat_type; try solve [ inversion opc ]);
+      repeat first [ progress simpl in *
+  STATUS: OK — wrote challenge3.v
+
+────────────────────────────────────────────────────────────
+Challenge: 03-add_same_length
+Declaration: add_same_length
+  Removed sentences (3):
+    >> replace l with (length (z :: vs)) by (apply H).
+    >> rewrite cons_length; simpl; auto.
+    >> }
+    }
+  Qed.
+  STATUS: OK — wrote challenge3.v
+
+────────────────────────────────────────────────────────────
+Challenge: 04-conditional_subtract
+Declaration: conditional_subtract
+  Removed sentences (3):
+    >> refine (let v := Word64.word64ToZ x in
+            match Sumbool.sumbool_of_bool (0 <=? v)%Z, Sumbool.sumbool_of_bool (Z
+    >> subst v.
+    >> abstract (Z.ltb_to_lt; repeat split; (assumption || reflexivity)).
+  STATUS: OK — wrote challenge3.v
+
+────────────────────────────────────────────────────────────
+Challenge: 05-sq_and_multiply_mod_correct
+Declaration: sq_and_multiply_mod_correct
+  STATUS: SKIP — Proof. not found after declaration
+
+────────────────────────────────────────────────────────────
+Challenge: 06-only_differ_step
+Declaration: only_differ_step
+  Removed sentences (3):
+    >> cbv [Interface.map.only_differ used_varnames PropSet.of_list
+                                     PropSet.elem_of].
+    >> let H1 := fresh in
+      let H2 := fresh in
+      let x := fresh "x" in
+      intros H1 H2 x; specialize (H1 x); special
+    >> repeat match goal with
+             | _ => progress cleanup
+             | _ => progress subst
+             | H : _ \/ _
+  STATUS: OK — wrote challenge3.v
+
+────────────────────────────────────────────────────────────
+Challenge: 07-bapp_value_spec
+Declaration: bapp_value_spec
+  STATUS: SKIP — declaration not found in solution.v
+
+────────────────────────────────────────────────────────────
+Challenge: 08-radd_coordinatesW_correct_and_bounded_gen
+Declaration: radd_coordinatesW_correct_and_bounded_gen
+  STATUS: SKIP — Proof. not found after declaration
+
+────────────────────────────────────────────────────────────
+Challenge: 09-symex_asm_func_M_correct
+Declaration: symex_asm_func_M_correct
+  Removed sentences (3):
+    >> do 3 eexists; repeat match goal with |- _ /\ _ => apply conj end; try eassumption.
+    >> }
+  { subst runtime_inputs; apply eq_length_Forall2 in Hinputs; lia.
+    >> }
+Qed.
+  STATUS: OK — wrote challenge3.v
+
+────────────────────────────────────────────────────────────
+Challenge: 10-lift_homomorphism
+Declaration: lift_homomorphism
+  STATUS: SKIP — declaration not found in solution.v
+
+────────────────────────────────────────────────────────────
+Challenge: 11-homomorphism_inv
+Declaration: homomorphism_inv
+  Removed sentences (2):
+    >> apply inv_unique.
+    >> rewrite <- homomorphism, left_inverse, homomorphism_id; reflexivity.
+  STATUS: OK — wrote challenge3.v
+
+────────────────────────────────────────────────────────────
+Challenge: 12-montred_correct
+Declaration: montred_correct
+  STATUS: SKIP — Proof. not found after declaration
+
+────────────────────────────────────────────────────────────
+Challenge: 13-small_drop_high_addT
+Declaration: small_drop_high_addT
+  STATUS: SKIP — Proof. not found after declaration
+
+────────────────────────────────────────────────────────────
+Challenge: 14-add_precomputed_partial
+Declaration: add_precomputed_partial
+  STATUS: SKIP — declaration not found in solution.v
+
+────────────────────────────────────────────────────────────
+Challenge: 15-eval_bytes
+Declaration: eval_bytes
+  Removed sentences (3):
+    >> } }
+    { cbn [bounded_by frep]; intros.
+    >> apply relax_bounds; auto.
+    >> }
+  Qed.
+  STATUS: OK — wrote challenge3.v
+
+────────────────────────────────────────────────────────────
+Challenge: 16-ge25519_ast
+Declaration: ge25519_ast
+  Removed sentences (3):
+    >> cbv beta delta [ge25519_add'].
+    >> Reify_rhs.
+    >> reflexivity.
+  STATUS: OK — wrote challenge3.v
+
+────────────────────────────────────────────────────────────
+Challenge: 17-redc_loop_mod_N
+Declaration: redc_loop_mod_N
+  STATUS: SKIP — declaration not found in solution.v
+
+────────────────────────────────────────────────────────────
+Challenge: 18-typeD
+Declaration: typeD
+  Removed sentences (1):
+    >> intros; omega.
+  STATUS: OK — wrote challenge3.v
+
+────────────────────────────────────────────────────────────
+Challenge: 19-mul2_correct
+Declaration: mul2_correct
+  STATUS: SKIP — declaration not found in solution.v
+
+────────────────────────────────────────────────────────────
+Challenge: 20-wt_multiples
+Declaration: wt_multiples
+  Removed sentences (3):
+    >> cbv[mod_eq]; apply f_equal2;
+     [  | reflexivity ]; apply f_equal.
+    >> cbv - [runtime_opp runtime_add runtime_mul runtime_shr runtime_and Let_In Z.add_get_carry Z.zselect].
+    >> reflexivity.
+  STATUS: OK — wrote challenge3.v
+
+======================================================================
+SUMMARY: 11/20 challenges successfully built into experiments3.
+Output: /Users/taibaabid/Desktop/spar/git-history-evals/experiments/experiments3

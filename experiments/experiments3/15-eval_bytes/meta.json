@@ -1,0 +1,11 @@
+{
+  "task_id": "fiat-crypto_792119a2_21ee846a",
+  "declaration": "eval_bytes",
+  "hole_kind": "admit",
+  "file_path": "src/Bedrock/Field/Interface/Representation.v",
+  "commit_hash": "792119a2b67925dab9a3a2d0faaae252f41fa961",
+  "parent_hash": "f632bf3643a56d1a067e26f0dd8c3a10163a36fd",
+  "commit_message": "Bignum_to_bytes proved; representation working",
+  "instructions": "Fill in the proof(s) marked with placeholder tactics (admit in eval_bytes) in src/Bedrock/Field/Interface/Representation.v.",
+  "context_lines": "        eapply Bignum_to_bytes in H;\n        eapply Array.array_1_to_anybytes in H.\n        replace (Z.of_nat (length (Util.encode_bytes x0)))\n          with (bytes_per_word width * Z.of_nat n)%Z in * by admit.\n        eauto. } }\n    { cbn [bounded_by frep]; intros.\n      apply relax_bounds; auto. }"
+}

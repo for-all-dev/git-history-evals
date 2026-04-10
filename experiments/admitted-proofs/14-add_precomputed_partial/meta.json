@@ -1,0 +1,11 @@
+{
+  "task_id": "fiat-crypto_36db466a_597488ca",
+  "declaration": "add_precomputed_partial",
+  "hole_kind": "admitted",
+  "file_path": "src/Bedrock/End2End/X25519/AddPrecomputed.v",
+  "commit_hash": "36db466a6296353dda50596d912afe8ffb6aeb4e",
+  "parent_hash": "2ec98950f1a69703d832e861994912e8e080a7fe",
+  "commit_message": "Clean up add_precomputed_partial",
+  "instructions": "Fill in the proof(s) marked with placeholder tactics (admitted in add_precomputed_partial) in src/Bedrock/End2End/X25519/AddPrecomputed.v.",
+  "context_lines": "Local Instance spec_of_fe25519_add : spec_of \"fe25519_add\" := Field.spec_of_BinOp bin_add.\nLocal Instance spec_of_fe25519_sub : spec_of \"fe25519_sub\" := Field.spec_of_BinOp bin_sub.\nLocal Instance spec_of_fe25519_from_word : spec_of \"fe25519_from_word\" := Field.spec_of_from_word.\nLocal Instance frep_ok : FieldRepresentation_ok(field_representation:=frep25519). Admitted. (* Should be an instance elsewhere I can grab? *)\n\nImport WeakestPrecondition.\n"
+}

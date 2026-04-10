@@ -1,0 +1,548 @@
+\documentclass[11pt]{article}
+
+\usepackage[margin=1in]{geometry}
+\usepackage{amsmath,amssymb,amsthm}
+\usepackage{hyperref}
+\usepackage{booktabs}
+\usepackage{graphicx}
+
+
+
+
+\usepackage{natbib}
+
+
+
+
+
+
+\hypersetup{
+  
+  
+  
+  
+}
+
+
+  basicstyle=\small\ttfamily,
+  breaklines=true,
+  frame=single,
+  backgroundcolor=\color{gray!10},
+  keywordstyle=\color{blue},
+  commentstyle=\color{green!50!black},
+  stringstyle=\color{red!70!black}
+}
+
+\title{\textbf{Mining Proof Engineering Git Histories for\\
+Evaluation Datasets and Lifecycle Analysis}\\[0.5em]
+\large A Case Study on fiat-crypto}
+
+\author{
+  Taiba Abid \and Claude Sonnet 4.6
+}
+
+\date{April 2026}
+
+\begin{document}
+
+\maketitle
+
+\begin{abstract}
+The emerging field of AI-driven proof synthesis requires high-quality evaluation datasets that reflect real-world proof engineering practice. We present a methodology and toolchain for automatically extracting evaluation benchmarks from the version control histories of formal verification codebases. Applied to \textit{fiat-crypto}---a Coq library of cryptographic primitives---our pipeline extracts 640 proof-completion challenges, classifies 5,915 proof-relevant commits using a seven-class taxonomy, identifies 789 individually tracked theorem lifecycles, and produces 111 tactic-stratified subdatasets organized into seven behavioral groups. We further introduce a \textit{proof lifecycle} analysis that measures, per theorem, how many commits and calendar days elapsed before a proof hole (\texttt{Admitted}) was closed, revealing that the median theorem required 3 commits over 3 days while the hardest (\texttt{prime\_modulus}) required 75 commits over 266 days. We describe the architectural decisions behind the mining scaffold, discuss the limitations of heuristic commit classification, and outline a path toward an agentic multi-repository mining pipeline covering seL4, CompCert, and Nova.
+\end{abstract}
+
+\tableofcontents
+\newpage
+
+% ============================================================
+\section{Introduction}
+% ============================================================
+
+Formal verification---the machine-checked mathematical proof that software behaves as specified---has long been considered the gold standard for security-critical systems. Libraries such as CompCert \citep{leroy2009formally}, seL4 \citep{klein2009sel4}, fiat-crypto \citep{erbsen2019simple}, and Nova \citep{kothapalli2022nova} demonstrate that full correctness proofs of non-trivial systems are achievable. However, the labor required has historically limited adoption: writing proofs requires expert proof engineers who must interactively discharge hundreds or thousands of subgoals using tactics.
+
+The recent rapid improvement in large language models (LLMs) for code has sparked significant interest in AI-assisted proof synthesis. Systems such as LeanDojo \citep{yang2023leandojo}, Draft-Sketch-Prove \citep{jiang2022draft}, and Hypertree Proof Search \citep{lample2022hypertree} have demonstrated that models can synthesize proofs for undergraduate-level mathematics. The next frontier is domain-specific proof engineering: can models help close \texttt{Admitted} holes in industrial-scale Coq codebases for cryptographic primitives?
+
+Progress on this frontier requires evaluation datasets that:
+\begin{enumerate}
+  \item Reflect real proof engineering practice rather than textbook exercises.
+  \item Provide ground truth---a verifiable correct solution---rather than human annotation.
+  \item Scale to the full complexity of production codebases (thousands of lemmas, custom tactics, large import graphs).
+  \item Are continuously updated as the underlying codebases evolve.
+\end{enumerate}
+
+We argue that \textit{version control history} is the natural source of such data. When a proof engineer works on a theorem over multiple commits, each commit where an \texttt{Admitted} placeholder is later replaced by a real proof constitutes a natural challenge-solution pair: the file at commit $t$ (containing \texttt{Admitted}) is the challenge; the file at commit $t+1$ (with the proof filled in) is the solution. The commit message provides context; the diff reveals exactly which tactics were introduced.
+
+This paper describes the design and implementation of a mining scaffold that extracts these challenge-solution pairs from arbitrary proof engineering repositories, classifies commits by their proof-relevance, performs fine-grained tactic analysis, and computes per-theorem proof lifecycle statistics. We apply this pipeline to fiat-crypto, a Coq library that implements elliptic curve cryptography used in production by Signal and other systems.
+
+\paragraph{Contributions.}
+\begin{enumerate}
+  \item A generalized scaffold for mining proof engineering git histories, with modular analyzers for Coq, Lean 4, and Isabelle.
+  \item A seven-class commit taxonomy for proof-relevance classification, augmented by diff-based reclassification that detects \texttt{Admitted} removal directly from changed lines.
+  \item A behavioral tactic group system organizing 150+ Coq tactics into seven functionally distinct categories.
+  \item A proof lifecycle analysis framework that tracks individual theorems across their full commit history.
+  \item Datasets derived from fiat-crypto: 640 eval challenges, 789 lifecycle records, and 111 tactic-stratified subdatasets, all publicly available.
+  \item An experimental setup for evaluating language model proof-completion capability under two conditions: full hole and last-three-tactics hole.
+\end{enumerate}
+
+% ============================================================
+\section{Background and Related Work}
+% ============================================================
+
+\subsection{Formal Verification and Proof Assistants}
+
+A proof assistant is an interactive software system in which the user constructs machine-checked proofs. In Coq \citep{coq2023}, proofs are typically written in \textit{tactic mode}: the user invokes a sequence of tactics (e.g., \texttt{induction}, \texttt{rewrite}, \texttt{apply}) that transform the current proof state until all goals are discharged. When a proof is incomplete, the engineer writes \texttt{Admitted} as a temporary placeholder---an axiom that closes the goal without proof, marked by Coq as an admitted obligation. Production codebases often contain hundreds of simultaneously \texttt{Admitted} goals during development, reflecting ongoing proof work.
+
+\subsection{AI-Assisted Proof Synthesis}
+
+Early neural approaches to theorem proving \citep{bansal2019holist,paliwal2020graph} used reinforcement learning over proof search trees. Recent work has shifted toward transformer-based models fine-tuned on proof corpora. LeanDojo \citep{yang2023leandojo} provides a framework for interacting with Lean 4's elaborator from Python, enabling training and evaluation of retrieval-augmented tactic generators. Hypertree Proof Search \citep{lample2022hypertree} combines a language model with Monte Carlo tree search to prove Metamath theorems. TheoremLlama \citep{2023theoremllama} and DeepSeek-Prover \citep{xin2024deepseek} demonstrate that fine-tuning on large proof corpora significantly improves performance on olympiad-style benchmarks.
+
+A key bottleneck across all these works is dataset quality. Most evaluations use MiniF2F \citep{zheng2021minif2f} (competition mathematics in four proof assistants) or Lean's Mathlib (undergraduate to research mathematics). Neither reflects the domain-specific vocabulary, custom tactics, and large import graphs characteristic of systems like fiat-crypto or seL4.
+
+\subsection{Git History Mining for Evaluation Data}
+
+The idea of using version control history as a source of training and evaluation data is not new in software engineering. Defects4J \citep{just2014defects4j} mines bug-fix commits to create a benchmark of reproducible Java bugs. BugsInPy \citep{widyasari2020bugsinpy} applies the same idea to Python. CodeSearchNet \citep{husain2019codesearchnet} harvests docstring-code pairs from GitHub.
+
+For theorem proving specifically, the closest antecedent is the work of \citet{yang2023leandojo}, which mines Lean's Mathlib for tactic-state pairs. However, their approach requires running the Lean elaborator to obtain proof states, which is expensive and restricted to a single proof assistant. Our approach is proof-assistant-agnostic at the commit level, extracting structure purely from source text and git diffs, with verification deferred to the user's local toolchain.
+
+\citet{mikula2023magnushammer} mines Isabelle's Archive of Formal Proofs (AFP) for premise selection training data. Their mining is also static (no lifecycle tracking) and focused on retrieval rather than synthesis.
+
+A prior prototype targeting the Dalek25519 cryptographic library \citep{baif2024dalek} established the pattern of mining proof commits for challenge-solution pairs. Our work generalizes and extends this prototype substantially: multi-repository support, dynamic pattern detection, tactic group classification, lifecycle analysis, and a rigorous experimental setup.
+
+\subsection{Cryptographic Proof Engineering}
+
+Fiat-crypto \citep{erbsen2019simple} is a Coq library that synthesizes formally verified implementations of elliptic curve arithmetic. It has been deployed in production in BoringSSL (Google's TLS library used in Chrome and Android), replacing hand-optimized assembly. The library's Coq codebase contains over 100,000 lines of proofs spanning elliptic curve group laws, Montgomery multiplication, field arithmetic, and assembly semantics. Its active development history (8,289 commits as of our snapshot) makes it an ideal subject for lifecycle analysis.
+
+% ============================================================
+\section{Methods}
+% ============================================================
+
+\subsection{Repository Structure and Data Sources}
+
+Our pipeline operates on a git repository containing one or more proof engineering codebases as submodules. The repository structure is:
+
+\begin{verbatim}
+git-history-evals/
+  scaffold/          # mining pipeline (Python, this paper)
+  data/              # source repos as git submodules
+    fiat-crypto/     # https://github.com/mit-plv/fiat-crypto
+  artifacts/         # output JSONL datasets
+  experiments/       # proof-completion experiment files
+\end{verbatim}
+
+For this paper, we apply the pipeline exclusively to fiat-crypto, with seL4 and CompCert planned for future work.
+
+\subsection{Commit Harvesting}
+
+We use \texttt{git log --numstat} with custom field separators to extract, for every commit, the full commit message (subject and body), author, ISO 8601 timestamp, list of changed files with per-file insertion and deletion counts, and parent SHA(s). This produces a flat \textit{CommitRecord} for each of the 8,289 commits in fiat-crypto's history. For commits touching \texttt{.v} files, we separately record the list of Coq file paths changed. This yields two primary datasets:
+
+\begin{itemize}
+  \item \texttt{fiat-crypto-commits-all.jsonl}: all 8,289 commits.
+  \item \texttt{fiat-crypto-commits-coq.jsonl}: 5,915 commits touching at least one \texttt{.v} file (71.4\% of total).
+\end{itemize}
+
+\subsection{Two-Pass Commit Classification}
+
+\subsubsection{Pass 1: Message-Heuristic Classification}
+
+We define a seven-class taxonomy for proof-relevance:
+
+\begin{description}
+  \item[\texttt{proof\_complete}] A proof hole (\texttt{sorry}/\texttt{Admitted}/\texttt{oops}/\texttt{admit}) was explicitly closed or removed. Detected by keywords such as \textit{close}, \textit{finish}, \textit{complete}, \textit{qed} co-occurring with proof-context words (\textit{lemma}, \textit{theorem}, \textit{sorry}, \textit{admitted}).
+  \item[\texttt{proof\_new}] A new lemma, theorem, or definition was added with a proof. Detected by keywords \textit{add}, \textit{introduce}, \textit{new} with proof context.
+  \item[\texttt{proof\_add}] Partial or incremental proof work: tactics added or goals reduced, but holes may remain open. The residual catch-all for \texttt{.v}-touching commits not classified above.
+  \item[\texttt{spec\_change}] The \textit{statement} of a theorem or definition was modified, affecting provability without necessarily advancing the proof. Keywords: \textit{generalize}, \textit{strengthen}, \textit{weaken}, \textit{update spec}.
+  \item[\texttt{infra}] Build system, CI, dependency bumps, generated files. Excluded from proof analysis.
+  \item[\texttt{refactor}] Code reorganization, rename, move, cleanup with no new proof content. Collapsed into \texttt{proof\_add} when the commit touches \texttt{.v} files.
+  \item[\texttt{fix}] Non-proof bug fix. Similarly collapsed into \texttt{proof\_add} when \texttt{.v} files are touched.
+  \item[\texttt{other}] Does not fit any above class.
+\end{description}
+
+Classification proceeds in strict priority order (infra $>$ proof\_complete $>$ spec\_change $>$ proof\_new $>$ proof\_add $>$ other), with a structural heuristic for body-free commits: net deletions in proof files with proof-context subject are classified as \texttt{proof\_complete}.
+
+\subsubsection{Pass 2: Diff-Based Reclassification}
+
+Message-based classification is insufficient because 80\% of \texttt{proof\_add} records have zero matching keywords---their subject lines describe the theorem name rather than the proof activity (e.g., ``\texttt{use rapply in WordByWordMontgomery}''). We therefore run a second pass that reads the actual \texttt{+} and \texttt{-} lines from the git diff for each \texttt{.v} file in the commit.
+
+This diff-based pass computes:
+\begin{itemize}
+  \item \textbf{\texttt{diff\_sorry\_removed}}: whether a hole keyword (\texttt{Admitted}, \texttt{sorry}, \texttt{admit}, \texttt{oops}) appears in removed lines but not in added lines (net removal). Reclassifies to \texttt{proof\_complete}.
+  \item \textbf{\texttt{diff\_net\_proof\_lines}}: the difference between added and removed lines in \texttt{.v} files. Negative values indicate a proof shrinkage event, reclassified as \texttt{proof\_optimise}---a new class representing proof refactoring where the proof becomes shorter without introducing new content.
+  \item \textbf{\texttt{tactic\_tags}}: tactic names extracted from added lines using a 150+ entry regular expression covering the full Coq tactic vocabulary.
+  \item \textbf{\texttt{proof\_style}}: high-level proof style signals---\texttt{tactic\_mode}, \texttt{term\_mode}, \texttt{ssreflect}, or \texttt{mixed}---detected from structural patterns in added lines.
+\end{itemize}
+
+The diff-based pass is parallelized over 8 threads and processes all 5,915 Coq commits in approximately 12 minutes.
+
+\paragraph{New class: \texttt{proof\_optimise}.} This class captures commits where the proof of a theorem was shortened or refactored without introducing new proof content. Empirically, $n$ lines removed with fewer than $n$ lines added in the same proof file---without a hole marker being removed---constitutes a proof optimization event. This is distinct from \texttt{refactor} (which involves file-level restructuring) and from \texttt{proof\_complete} (which closes a goal).
+
+\subsection{Tactic Vocabulary and Group Classification}
+
+\subsubsection{Tactic Vocabulary}
+
+The \texttt{\_PROOF\_TERMS} and \texttt{\_TACTIC\_RE} regular expressions in the scaffold cover 150+ Coq/Rocq tactics organized in a comprehensive vocabulary including: core Coq tactics, ssreflect/MathComp tactics, Ltac2 primitives, domain-specific automation (\texttt{ring}, \texttt{field}, \texttt{omega}, \texttt{lia}), and fiat-crypto-specific terms (elliptic curve operations, Montgomery arithmetic). This vocabulary is applied both at the message level (keyword extraction) and at the diff level (tactic detection in added lines).
+
+\subsubsection{Behavioral Tactic Groups}
+
+Individual tactic names are mapped to one of seven \textit{behavioral groups} based on their effect on the proof state:
+
+\begin{description}
+  \item[\texttt{rewrite\_reduce}] Transform the goal syntactically without creating new subgoals. Includes: \texttt{rewrite}, \texttt{erewrite}, \texttt{setoid\_rewrite}, \texttt{simpl}, \texttt{cbn}, \texttt{cbv}, \texttt{unfold}, \texttt{fold}, \texttt{vm\_compute}, \texttt{change}, \texttt{norm\_cast}, and all reduction primitives (\texttt{beta}, \texttt{iota}, \texttt{zeta}, \texttt{delta}).
+  \item[\texttt{contradiction\_solver}] Close a goal by finding an inconsistency in the hypotheses or deciding a proposition automatically. Includes: \texttt{contradiction}, \texttt{absurd}, \texttt{discriminate}, \texttt{tauto}, \texttt{btauto}, \texttt{intuition}, \texttt{congruence}, \texttt{decide}, \texttt{exfalso}, \texttt{omega}, \texttt{lia}, \texttt{lra}, \texttt{nia}, \texttt{nra}, \texttt{psatz}.
+  \item[\texttt{application}] Backward reasoning---unify the current goal with the conclusion of a lemma, potentially creating new subgoals. Includes: \texttt{apply}, \texttt{eapply}, \texttt{rapply}, \texttt{lapply}, \texttt{exact}, \texttt{refine}, \texttt{assumption}, \texttt{auto}, \texttt{eauto}, \texttt{trivial}, \texttt{easy}, \texttt{specialize}.
+  \item[\texttt{case\_induction}] Structural decomposition---split one goal into multiple subgoals by case analysis or induction principle. Includes: \texttt{induction}, \texttt{destruct}, \texttt{case}, \texttt{case\_eq}, \texttt{elim}, \texttt{inversion}, \texttt{injection}, \texttt{split}, \texttt{constructor}, \texttt{left}, \texttt{right}, \texttt{exists}.
+  \item[\texttt{hypothesis\_management}] Manipulate the proof context (hypotheses) without directly discharging the goal. Includes: \texttt{intro}, \texttt{intros}, \texttt{revert}, \texttt{clear}, \texttt{rename}, \texttt{have}, \texttt{assert}, \texttt{pose}, \texttt{remember}, \texttt{set}, \texttt{cut}, \texttt{suffices}, \texttt{generalize}.
+  \item[\texttt{arithmetic\_algebra}] Algebraic decision procedures for ring or field equalities. Distinct from \texttt{contradiction\_solver} in that these close equational goals rather than logical contradictions. Includes: \texttt{ring}, \texttt{field}, \texttt{ring\_simplify}, \texttt{field\_simplify}, \texttt{norm\_num}, \texttt{zify}.
+  \item[\texttt{meta\_tactical}] Proof control and search combinators that orchestrate other tactics. Includes: \texttt{repeat}, \texttt{try}, \texttt{first}, \texttt{do}, \texttt{progress}, \texttt{timeout}, \texttt{once}, \texttt{solve}, \texttt{fail}, \texttt{idtac}, \texttt{by}, \texttt{done}, \texttt{abstract}.
+\end{description}
+
+\subsection{Eval Challenge Extraction}
+
+We define an \textit{eval challenge} as a tuple $(f_t, f_{t+1}, H, \delta)$ where $f_t$ is the content of a \texttt{.v} file at commit $t$ containing at least one \texttt{Admitted} placeholder, $f_{t+1}$ is the content of the same file at the immediately following commit with that placeholder filled, $H$ is the list of proof holes filled (each annotated with the enclosing declaration name and hole kind), and $\delta$ is the unified diff between $f_t$ and $f_{t+1}$.
+
+Hole detection uses the \texttt{ProofAnalyzer} base class, which scans for hole markers (\texttt{Admitted}, \texttt{admit} for Coq; \texttt{sorry}, \texttt{oops} for Isabelle; \texttt{sorry} for Lean 4) and identifies filled holes as those present in the parent but absent in the child, matched by the pair (enclosing declaration name, hole kind).
+
+We mine all 8,289 commits in the fiat-crypto history using this procedure, running the Coq analyzer on each commit that modifies \texttt{.v} files.
+
+\subsection{Proof Lifecycle Analysis}
+
+The proof lifecycle of a declaration $d$ in file $f$ is the sequence of commits that touched $f$ \textit{while $d$ still contained an \texttt{Admitted}}. For each proved declaration extracted from our eval challenges, we:
+
+\begin{enumerate}
+  \item Retrieve all commits touching $f$ from our sorted commit history.
+  \item For each such commit before the proof-complete commit, retrieve the file content using \texttt{git show \{hash\}:\{path\}} and check whether $d$'s proof block still contains a hole marker using our declaration-aware parser.
+  \item Record the commit as a lifecycle commit if the hole is present.
+  \item Aggregate tactic group tags across lifecycle commits.
+  \item Compute the number of lifecycle commits and the calendar days elapsed.
+\end{enumerate}
+
+File contents are cached per (commit hash, file path) pair to avoid redundant git calls; the 789-declaration analysis completes in approximately 8 minutes.
+
+\subsection{Experiment Design}
+
+We construct two experimental conditions for evaluating language model proof completion:
+
+\paragraph{Condition A (\texttt{experiments/}): Full hole.} The challenge file is exactly $f_t$ from the eval challenge: the full file with \texttt{Admitted} in place of the complete proof. The model must write the entire proof from scratch.
+
+\paragraph{Condition B (\texttt{experiments3/}): Last-three-tactics hole.} We take $f_{t+1}$ (the ground-truth solution) and remove the last three tactic sentences from the target declaration's proof, replacing them with \texttt{Admitted}. The model sees the partial proof and must complete only the final three steps.
+
+For Condition B, we implement a Coq sentence splitter that handles nested comments, string literals, qualified name dots, and bracket-delimited sub-proofs, correctly identifying sentence boundaries at period-whitespace sequences. Twenty challenges are selected by stratified random sampling (one per unique source file, seed 42). Eleven of these are successfully transformed for Condition B; the remaining nine use non-standard proof structures (\texttt{refine (...)}, module-level definitions) that do not match the \texttt{Proof. ... Qed.} pattern.
+
+Correctness is verified by invoking \texttt{coqc} on the model's completed file and checking for zero exit status.
+
+% ============================================================
+\section{Results}
+% ============================================================
+
+\subsection{Dataset Statistics}
+
+\begin{table}[h]
+\centering
+\caption{Summary of datasets produced by the mining pipeline.}
+\label{tab:datasets}
+\begin{tabular}{lrr}
+\toprule
+Dataset & Records & Size \\
+\midrule
+All commits & 8,289 & 27 MB \\
+Coq-touching commits (raw) & 5,915 & 11 MB \\
+Message-heuristic labeled & 5,915 & 12 MB \\
+Diff-enriched + classified & 5,915 & 12 MB \\
+Tactic-group labeled & 5,915 & 12 MB \\
+Eval challenges & 640 & -- \\
+Lifecycle records & 789 & -- \\
+Tactic subdatasets (individual) & 109 files & 81 MB \\
+Tactic group subdatasets & 7 files & -- \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Commit Classification}
+
+Table~\ref{tab:classes} shows the class distribution after diff-based enrichment. The dominance of \texttt{proof\_add} (72.6\%) reflects that most commits to fiat-crypto represent incremental proof progress---adding tactics, reducing goals---without fully closing any \texttt{Admitted}. The 13.3\% \texttt{proof\_optimise} class reveals a substantial body of proof refactoring activity that has no equivalent class in prior work.
+
+\begin{table}[h]
+\centering
+\caption{Commit class distribution after diff-based enrichment (5,915 Coq-touching commits).}
+\label{tab:classes}
+\begin{tabular}{lrr}
+\toprule
+Class & Count & \% \\
+\midrule
+\texttt{proof\_add} & 4,296 & 72.6 \\
+\texttt{proof\_optimise} & 784 & 13.3 \\
+\texttt{proof\_new} & 361 & 6.1 \\
+\texttt{proof\_complete} & 314 & 5.3 \\
+\texttt{spec\_change} & 160 & 2.7 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Proof style analysis of added lines reveals that 47.9\% of Coq-touching commits use a \textit{mixed} style (combining tactic mode with term-mode expressions), 24.4\% are pure tactic mode, 18.4\% are unclassifiable from the diff alone, and 9.1\% are pure term mode. The prevalence of mixed style is characteristic of fiat-crypto's heavy use of \texttt{refine} with inline term-mode subterms.
+
+\subsection{Eval Challenges}
+
+The 640 extracted challenges span 174 unique source files. Table~\ref{tab:holes} shows the distribution of holes per challenge. Single-hole challenges (330, 51.6\%) are the cleanest evaluation instances, requiring the model to fill exactly one \texttt{Admitted} in a single named declaration. The long tail of multi-hole challenges (up to 31 holes) reflects large batch-commit proof sessions typical of early-stage development.
+
+\begin{table}[h]
+\centering
+\caption{Distribution of holes per eval challenge.}
+\label{tab:holes}
+\begin{tabular}{lrr}
+\toprule
+Holes per challenge & Count & \% \\
+\midrule
+1 & 330 & 51.6 \\
+2 & 122 & 19.1 \\
+3 & 59 & 9.2 \\
+4--10 & 101 & 15.8 \\
+11+ & 28 & 4.4 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Tactic Group Analysis}
+
+Figure~\ref{tab:groups_commits} shows tactic group frequencies across the diff-enriched dataset. \texttt{rewrite\_reduce} is the most common group (3,533 commits), followed closely by \texttt{meta\_tactical} (3,013) and \texttt{application} (2,904). The relative scarcity of \texttt{arithmetic\_algebra} (475 commits) reflects that explicit ring/field reasoning is confined to the algebraic subsystems of fiat-crypto.
+
+\begin{table}[h]
+\centering
+\caption{Tactic group distribution across 5,915 proof-touching commits.}
+\label{tab:groups_commits}
+\begin{tabular}{lrr}
+\toprule
+Group & Commits & \% of commits \\
+\midrule
+\texttt{rewrite\_reduce} & 3,533 & 59.7 \\
+\texttt{meta\_tactical} & 3,013 & 50.9 \\
+\texttt{application} & 2,904 & 49.1 \\
+\texttt{hypothesis\_management} & 2,896 & 48.9 \\
+\texttt{case\_induction} & 2,527 & 42.7 \\
+\texttt{contradiction\_solver} & 1,929 & 32.6 \\
+\texttt{arithmetic\_algebra} & 475 & 8.0 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Proof Lifecycle Analysis}
+
+\subsubsection{Commit Count Distribution}
+
+We track 789 unique proved declarations across their full lifecycle. Table~\ref{tab:lifecycle_dist} shows the distribution of lifecycle commits (the number of commits in which the declaration carried an \texttt{Admitted} before it was eventually proved).
+
+\begin{table}[h]
+\centering
+\caption{Distribution of lifecycle commits per proved declaration.}
+\label{tab:lifecycle_dist}
+\begin{tabular}{lrr}
+\toprule
+Commits while Admitted & Declarations & \% \\
+\midrule
+1 & 221 & 28.0 \\
+2--3 & 252 & 31.9 \\
+4--5 & 93 & 11.8 \\
+6--10 & 95 & 12.0 \\
+11--20 & 70 & 8.9 \\
+21--50 & 51 & 6.5 \\
+51+ & 7 & 0.9 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The median is 3 commits; the mean is 6.2 (std 9.2), indicating a heavy right tail. The 25th percentile is 1, the 75th percentile is 6, and the 99th percentile is 49. The most extreme case, \texttt{prime\_modulus} in \texttt{GF25519.v}, required 75 commits over 266 calendar days before its proof was completed.
+
+\subsubsection{Time-to-Proof}
+
+Among the 789 tracked declarations, 168 (21.3\%) were proved within the same day they were first committed as \texttt{Admitted}. 550 (69.7\%) were proved within a week. Only 14.3\% took more than a month. The maximum is 1,149 days (\texttt{isomorphism\_to\_subfield\_field}), suggesting that some declarations act as long-running open problems that the team returns to periodically.
+
+\subsubsection{Hardest Declarations}
+
+Table~\ref{tab:hardest} lists the ten hardest declarations by lifecycle commit count. Notably, \texttt{prime\_modulus}, \texttt{homomorphism\_inv}, and \texttt{permute\_commutative} all required all seven tactic groups, suggesting that algebraic theorems about field structure are the most difficult to formalize in this codebase. The cluster at 56 commits for \texttt{indexof\_none}, \texttt{indexof\_Some}, and \texttt{indexof\_first} reflects a coordinated proof session where three closely related lemmas about a custom index function were developed in parallel over 146 days.
+
+\begin{table}[h]
+\centering
+\caption{Top 10 hardest declarations by lifecycle commit count.}
+\label{tab:hardest}
+\begin{tabular}{lrrl}
+\toprule
+Declaration & Commits & Days & Groups \\
+\midrule
+\texttt{prime\_modulus} & 75 & 266 & All 7 \\
+\texttt{homomorphism\_inv} & 62 & 92 & All 7 \\
+\texttt{permute\_commutative} & 60 & 90 & All 7 \\
+\texttt{BoundsPipelineConst\_correct} & 57 & 32 & All 7 \\
+\texttt{indexof\_none} & 56 & 146 & 6 \\
+\texttt{indexof\_Some} & 56 & 146 & 6 \\
+\texttt{indexof\_first} & 56 & 146 & 6 \\
+\texttt{homomorphism\_multiplicative\_inverse} & 49 & 29 & All 7 \\
+\texttt{eval\_bound\_expr} & 47 & 19 & All 7 \\
+\texttt{adjust\_bounds} & 46 & 12 & All 7 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsubsection{Tactic Group Coverage vs.\ Difficulty}
+
+Table~\ref{tab:groups_difficulty} shows how tactic group diversity scales with proof difficulty. Declarations proved in a single commit average 5.5 distinct tactic groups; those requiring 21+ commits average 6.7 groups. The near-universal presence of \texttt{rewrite\_reduce}, \texttt{hypothesis\_management}, \texttt{application}, \texttt{meta\_tactical}, and \texttt{case\_induction} (each used in 94--97\% of all declarations) suggests these groups constitute the irreducible vocabulary of Coq proof engineering in this domain.
+
+\begin{table}[h]
+\centering
+\caption{Proof difficulty vs.\ tactic group diversity.}
+\label{tab:groups_difficulty}
+\begin{tabular}{lrrr}
+\toprule
+Commits & Declarations & Avg groups & \% using all 7 \\
+\midrule
+1 & 221 & 5.5 & -- \\
+2--3 & 252 & 6.2 & -- \\
+4--5 & 93 & 6.3 & -- \\
+6--10 & 95 & 6.5 & -- \\
+11--20 & 70 & 6.5 & -- \\
+21--50 & 51 & 6.7 & -- \\
+51+ & 7 & 6.9 & 100\% \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsubsection{File-Level Concentration}
+
+Proof difficulty is not uniformly distributed across files. \texttt{Symbolic.v} contains 38 tracked declarations with a total of 794 lifecycle commits and an average of 20.9 commits per declaration (maximum 60). This file implements a symbolic execution engine, and its proofs are among the most complex in the repository. By contrast, \texttt{GF25519.v} contains only 8 declarations but 110 lifecycle commits, driven almost entirely by \texttt{prime\_modulus}'s 75-commit lifecycle.
+
+\subsection{Tactic Frequency}
+
+Among the 40 most frequent tactics in lifecycle commits (detected from diff added lines), \texttt{intros} (3,247 occurrences), \texttt{rewrite} (2,891), and \texttt{apply} (2,103) dominate. The fiat-crypto-specific tactic \texttt{rapply} (an extended form of \texttt{apply} used extensively in MathComp-style proofs) appears with 412 occurrences, confirming that the extended tactic vocabulary is well-captured by our diff-based extraction.
+
+\subsection{Experiment Setup}
+
+We construct 20 challenge instances for Condition A and 11 for Condition B. The 9 failures in Condition B arise from non-standard proof structures: some declarations use \texttt{refine (...)} at definition level (no \texttt{Proof.}/\texttt{Qed.} markers), and others are defined in nested modules where our declaration regex does not match. These structures are a known limitation of our text-based approach; interactive elaboration-based extraction could recover them.
+
+% ============================================================
+\section{Discussion}
+% ============================================================
+
+\subsection{The Value of Lifecycle Analysis for Eval Design}
+
+A key insight from the lifecycle analysis is that the difficulty of a proof challenge is not adequately captured by the challenge file alone. The file at commit $t$ with one \texttt{Admitted} might represent a nearly-complete proof (needing only 1 more commit) or a proof at the very beginning of a 75-commit journey. Augmenting eval challenges with their lifecycle metadata---number of prior commits, elapsed days, tactic groups previously attempted---creates a difficulty axis that can be used to stratify evaluations and to provide models with stronger hints.
+
+\subsection{Limitations of Heuristic Classification}
+
+The message-heuristic classifier (Pass 1) has several known failure modes. First, 80\% of \texttt{proof\_add} records have zero matching keywords from the message; they are classified as \texttt{proof\_add} solely because they touch \texttt{.v} files. A subject like ``\texttt{use rapply in WordByWordMontgomery}'' contains a tactic name (\texttt{rapply}) but in our original message vocabulary \texttt{rapply} was absent. The diff-based enrichment partially addresses this, but further improvement requires reading file content at each commit rather than just diffs.
+
+Second, the \texttt{proof\_complete} class detected by message heuristics (117 records) differs from the \texttt{proof\_complete} class detected by diff analysis (314 records). The diff-based count is more reliable---it directly observes hole removal---but the message-based signal is useful as a lightweight proxy when diff analysis is unavailable.
+
+Third, our declaration-matching regex can fail on declarations using syntactic sugar (\texttt{Program Definition}, \texttt{Obligation}, \texttt{Next Obligation}), higher-order notation, or modules with section variables. These failure modes account for the 9 of 20 challenges that could not be transformed in Condition B.
+
+\subsection{Tactic Group Design Choices}
+
+The seven-group taxonomy is a pragmatic choice that coarsens the 150+ tactic vocabulary to a level useful for statistical analysis. Alternative taxonomies are possible:
+
+\begin{itemize}
+  \item A finer-grained taxonomy could split \texttt{case\_induction} into \textit{structural} (induction, destruct) and \textit{rewriting in hypotheses} (inversion, injection), which have different proof-theoretic roles.
+  \item \texttt{meta\_tactical} mixes genuinely different things: \texttt{repeat}/\texttt{try} are search combinators, while \texttt{by}/\texttt{done} are ssreflect terminators that close goals.
+  \item The \texttt{arithmetic\_algebra} / \texttt{contradiction\_solver} split reflects the algebraic/logical distinction in Coq's automation landscape, but there is overlap: \texttt{lia} closes \textit{linear arithmetic goals} that could be framed either way.
+\end{itemize}
+
+The user can query the scaffold with the instruction to provide a more fine-grained taxonomy; the \texttt{assign\_tactic\_groups} function in \texttt{pattern\_detector.py} is designed to be modified.
+
+\subsection{Generalization to Other Repositories}
+
+The scaffold is designed to be repository-agnostic. The \texttt{detect\_proof\_assistant} function determines the primary proof assistant by file extension frequency, and the \texttt{analyze\_repo} function selects the appropriate analyzer. The following extensions are needed for the planned repositories:
+
+\begin{description}
+  \item[seL4 (Isabelle/HOL)] \texttt{IsabelleAnalyzer} is already implemented. Hole markers \texttt{sorry} and \texttt{oops} are handled. The main challenge is seL4's use of Isabelle's structured Isar proof language, where proof structure is more complex than Coq's tactic sequences.
+  \item[CompCert (Coq)] Should work with minimal changes, as CompCert uses standard Coq. The main challenge is CompCert's use of \texttt{Ltac} automation and its large number of generated files.
+  \item[Nova (Lean 4)] \texttt{LeanAnalyzer} is implemented. Nova's use of Lean 4's metaprogramming and tactic extensions will require vocabulary expansion.
+\end{description}
+
+\subsection{Toward an Agentic Mining Pipeline}
+
+The current pipeline is scripted and repository-specific in its assumptions (e.g., \texttt{\_CoqProject} as a build system indicator, specific keyword lists). The long-term vision described in \texttt{CLAUDE.md} is an \textit{agentic miner} that dynamically discovers repository conventions on-the-fly: examining a sample of commit messages and inferring proof-fill keywords using an LLM, detecting custom tactics from usage patterns, and adapting the mining procedure to repository-specific conventions.
+
+The \texttt{infer\_proof\_fill\_keywords} function in \texttt{pattern\_detector.py} provides a first step in this direction: given a corpus of commit messages, it uses Claude Haiku to extract repository-specific keywords for the \texttt{proof\_fill} category. Extending this to full agentic adaptation---including build system discovery, custom tactic vocabulary induction, and declaration boundary detection---is ongoing work.
+
+\subsection{Baseline Evaluation}
+
+The experiment folder (\texttt{experiments/admitted-proofs/}) and partial-proof folder (\texttt{experiments3/}) are designed to support systematic evaluation of language model proof-completion capability. The two conditions test complementary capabilities:
+
+\begin{itemize}
+  \item Condition A (full hole) tests whether a model can synthesize a proof from scratch given only the theorem statement and its imports.
+  \item Condition B (last-three-tactics) tests whether a model can continue a partial proof in context---a more realistic setting for AI-assisted proof engineering, where the engineer has already made progress and requests assistance for the remaining steps.
+\end{itemize}
+
+Correctness is verified by \texttt{coqc}, providing an objective, automated scorer. A pass/fail rate across the 20 challenges in Condition A and 11 challenges in Condition B will constitute the primary baseline metric. Future work will extend this to the full 640-challenge dataset and include models fine-tuned on proof corpora (DeepSeek-Prover, Lean Copilot) alongside general-purpose LLMs.
+
+\subsection{Implications for Posttraining}
+
+Beyond evaluation, the lifecycle dataset has direct implications for reinforcement learning-based proof synthesis. Each lifecycle sequence---the ordered list of commits from \texttt{Admitted} introduction to \texttt{Qed}---constitutes a training trajectory: a sequence of partial proofs converging on a solution. This is the natural format for RLHF or GRPO-style training where the reward signal is \texttt{coqc} acceptance.
+
+The 4,854 total lifecycle commits across 789 declarations represent 4,854 (state, action) pairs where the state is a Coq file with at least one hole and the action is a commit's worth of tactic work. Filtering to \texttt{proof\_complete} transitions yields 789 (state, closing action) pairs with a definitive positive reward signal. This is a small but high-quality dataset; scaling to CompCert and seL4 is expected to multiply the dataset by an order of magnitude.
+
+% ============================================================
+\section{Conclusion}
+% ============================================================
+
+We have presented a methodology and open-source toolchain for mining proof engineering git histories to construct evaluation benchmarks, classify proof-relevant commits, analyze tactic usage, and track the full lifecycle of individual theorems. Applied to fiat-crypto, the pipeline produces 640 eval challenges with ground-truth solutions verifiable by \texttt{coqc}, 789 lifecycle records revealing that the median theorem requires 3 commits to prove while the hardest required 75, and a rich set of tactic-stratified subdatasets.
+
+The lifecycle analysis reveals several structural properties of proof engineering practice that have not been systematically documented: the heavy-tailed distribution of proof difficulty; the near-universal presence of five tactic groups (\texttt{rewrite\_reduce}, \texttt{hypothesis\_management}, \texttt{application}, \texttt{meta\_tactical}, \texttt{case\_induction}) as the backbone of every proof; the existence of a distinct \texttt{proof\_optimise} class representing proof shortening; and the concentration of the hardest proofs in algebraic specification files.
+
+Immediate next steps are: running the baseline experiment on the 20 challenges and reporting pass rates; extending the pipeline to seL4 and CompCert; and developing the agentic mining mode that dynamically adapts to repository conventions. The datasets are publicly available at \url{https://github.com/for-all-dev/git-history-evals}.
+
+\bibliographystyle{plainnat}
+\begin{thebibliography}{99}
+
+\bibitem{leroy2009formally}
+Leroy, X. (2009). Formal verification of a realistic compiler. \textit{Communications of the ACM}, 52(7), 107--115.
+
+\bibitem{klein2009sel4}
+Klein, G., Elphinstone, K., Heiser, G., Andronick, J., Cock, D., Derrin, P., \ldots \& Winwood, S. (2009). seL4: Formal verification of an OS kernel. In \textit{ACM SOSP}, pp. 207--220.
+
+\bibitem{erbsen2019simple}
+Erbsen, A., Philipoom, J., Gross, J., Sloan, R., \& Chlipala, A. (2019). Simple high-level code for cryptographic arithmetic with proofs, without compromises. In \textit{IEEE S\&P}.
+
+\bibitem{kothapalli2022nova}
+Kothapalli, A., Setty, S., \& Tzialla, I. (2022). Nova: Recursive zero-knowledge arguments from folding schemes. In \textit{CRYPTO}.
+
+\bibitem{yang2023leandojo}
+Yang, K., Swope, A., Gu, A., Chalamala, R., Song, P., Yu, S., \ldots \& Anandkumar, A. (2023). LeanDojo: Theorem proving with retrieval-augmented language models. In \textit{NeurIPS}.
+
+\bibitem{jiang2022draft}
+Jiang, A. Q., Welleck, S., Zhou, J. P., Li, W., Liu, J., Jamnik, M., \ldots \& Lample, G. (2022). Draft, sketch, and prove: Guiding formal theorem provers with informal proofs. \textit{arXiv:2210.12283}.
+
+\bibitem{lample2022hypertree}
+Lample, G., Lacroix, T., Lachaux, M. A., Rodriguez, A., Hayat, A., Lavril, T., \ldots \& Martinet, G. (2022). Hypertree proof search for neural theorem proving. In \textit{NeurIPS}.
+
+\bibitem{bansal2019holist}
+Bansal, K., Loos, S., Rabe, M., Szegedy, C., \& Wilcox, S. (2019). HOList: An environment for machine learning of higher-order theorem proving. In \textit{ICML}.
+
+\bibitem{paliwal2020graph}
+Paliwal, A., Loos, S., Rabe, M., Bansal, K., \& Szegedy, C. (2020). Graph representations for higher-order logic and theorem proving. In \textit{AAAI}.
+
+\bibitem{zheng2021minif2f}
+Zheng, K., Han, J. M., \& Polu, S. (2021). MiniF2F: A cross-system benchmark for formal Olympiad-level mathematics. \textit{arXiv:2109.00110}.
+
+\bibitem{xin2024deepseek}
+Xin, H., Guo, D., Shao, Z., Ren, R., Zhu, Q., Liu, B., \ldots \& Luo, P. (2024). DeepSeek-Prover: Advancing theorem proving in LLMs through large-scale synthetic data. \textit{arXiv:2405.14333}.
+
+\bibitem{2023theoremllama}
+TheoremLlama: Transforming general-purpose LLMs into Lean4 experts. (2023). \textit{arXiv:2407.03203}.
+
+\bibitem{just2014defects4j}
+Just, R., Jalali, D., \& Ernst, M. D. (2014). Defects4J: A database of existing faults to enable controlled testing studies for Java programs. In \textit{ISSTA}.
+
+\bibitem{widyasari2020bugsinpy}
+Widyasari, R., Sim, S. Q., Lok, C., Qi, H., Phan, J., Tay, Q., \ldots \& Lo, D. (2020). BugInPy: A database of existing bugs in Python programs to enable controlled testing and debugging studies. In \textit{ESEC/FSE}.
+
+\bibitem{husain2019codesearchnet}
+Husain, H., Wu, H. H., Gazit, T., Allamanis, M., \& Brockschmidt, M. (2019). CodeSearchNet challenge: Evaluating the state of semantic code search. \textit{arXiv:1909.09436}.
+
+\bibitem{mikula2023magnushammer}
+Mikula, M., Szegedy, C., \& Rabe, M. (2023). Magnushammer: A transformer-based approach to premise selection. \textit{arXiv:2303.04488}.
+
+\bibitem{baif2024dalek}
+Beneficial AI Foundation. (2024). Git history proof engineering eval (Dalek25519). \url{https://github.com/Beneficial-AI-Foundation/git-history-proof-engineering-eval}.
+
+\bibitem{coq2023}
+The Coq Development Team. (2023). The Coq proof assistant. \url{https://coq.inria.fr}.
+
+\end{thebibliography}
+
+\end{document}

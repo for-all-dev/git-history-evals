@@ -1,0 +1,11 @@
+{
+  "task_id": "fiat-crypto_612d7242_fd57b28d",
+  "declaration": "add_same_length",
+  "hole_kind": "admitted",
+  "file_path": "src/Galois/BaseSystem.v",
+  "commit_hash": "612d7242648366fd9eb6a9c4c5444a48cd192d1a",
+  "parent_hash": "d0a8f3e1168466ae2e3d4948aed4ec829a0c8b01",
+  "commit_message": "Proved add_same_length lemma.",
+  "instructions": "Fill in the proof(s) marked with placeholder tactics (admitted in add_same_length) in src/Galois/BaseSystem.v.",
+  "context_lines": "\n  Lemma add_same_length : forall us vs l, (length us = l) -> (length vs = l) ->\n    length (us .+ vs) = l.\n  Admitted.\n\n  Lemma add_app_same_length : forall us vs a b l, (length (us ++ a :: nil) = l) \n    -> (length (vs ++ a :: nil) = l) ->"
+}

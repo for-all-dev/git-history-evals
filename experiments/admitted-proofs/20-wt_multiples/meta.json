@@ -1,0 +1,11 @@
+{
+  "task_id": "fiat-crypto_6e55d0f4_db355775",
+  "declaration": "wt_multiples",
+  "hole_kind": "admitted",
+  "file_path": "src/Specific/Karatsuba.v",
+  "commit_hash": "6e55d0f4ce8be20438c42aaac8852a0aa310b295",
+  "parent_hash": "65e6c7c113aa4a896092161a911aef7eba407127",
+  "commit_message": "prove an admit in ArithmeticSynthesisTest",
+  "instructions": "Fill in the proof(s) marked with placeholder tactics (admitted in wt_multiples) in src/Specific/Karatsuba.v.",
+  "context_lines": "    Qed.\n\n    Lemma wt_multiples i : wt (S i) mod (wt i) = 0.\n    Admitted.\n\n    Lemma wt_divides_full_pos i : wt (S i) / wt i > 0.\n    Proof."
+}

@@ -1,0 +1,22 @@
+EXPERIMENTS3 — last 3 tactics removed, replaced with Admitted
+============================================================
+Each folder contains:
+  challenge3.v  — solution with last 3 tactics → Admitted
+  solution.v    — full ground-truth proof
+  challenge.v   — original full-Admitted version
+  meta.json     — declaration name, task_id, instructions
+  diff.txt      — original git diff
+
+  Folder                                        Declaration                              Tactics removed
+----------------------------------------------------------------------------------------------------
+  01-of_prefancy_identZ_correct                 of_prefancy_identZ_correct               1
+  02-pull_cast_genericize_op                    pull_cast_genericize_op                  3
+  03-add_same_length                            add_same_length                          3
+  04-conditional_subtract                       conditional_subtract                     3
+  06-only_differ_step                           only_differ_step                         3
+  09-symex_asm_func_M_correct                   symex_asm_func_M_correct                 3
+  11-homomorphism_inv                           homomorphism_inv                         2
+  15-eval_bytes                                 eval_bytes                               3
+  16-ge25519_ast                                ge25519_ast                              3
+  18-typeD                                      typeD                                    1
+  20-wt_multiples                               wt_multiples                             3

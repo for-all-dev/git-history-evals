@@ -1,0 +1,11 @@
+{
+  "task_id": "fiat-crypto_ab6583f5_fe68db5a",
+  "declaration": "typeD",
+  "hole_kind": "admit",
+  "file_path": "src/Compilers/MultiSizeTest.v",
+  "commit_hash": "ab6583f5bc4bb25c4eba5e6cc3f853534c3499f9",
+  "parent_hash": "bf8572ea461758b8b66155ec6573d8f99c59065e",
+  "commit_message": "Remove some admitted lemmas",
+  "instructions": "Fill in the proof(s) marked with placeholder tactics (admit in typeD) in src/Compilers/MultiSizeTest.v.",
+  "context_lines": "  | Word9 => word9\n  end.\n\nAxiom admit : forall T, T.\n\nTheorem O_lt_S : forall n, O < S n.\nProof."
+}

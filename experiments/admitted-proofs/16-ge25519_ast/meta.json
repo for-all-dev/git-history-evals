@@ -1,0 +1,11 @@
+{
+  "task_id": "fiat-crypto_e0a9db83_f505836f",
+  "declaration": "ge25519_ast",
+  "hole_kind": "admitted",
+  "file_path": "src/Experiments/SpecificCurve25519.v",
+  "commit_hash": "e0a9db832e699bc731f94fc4589c1f439189914f",
+  "parent_hash": "981ee1840ee9d767a7c3b467a0b19280523c92de",
+  "commit_message": "Pieces of a correctness lemma",
+  "instructions": "Fill in the proof(s) marked with placeholder tactics (admitted in ge25519_ast) in src/Experiments/SpecificCurve25519.v.",
+  "context_lines": "    cbv beta delta [ge25519_add'].\n    Reify_rhs.\n    reflexivity.\n  Admitted.\n\n  Definition ge25519_result_range := RangeInterp (ZToRange 32 ge25519_ast).\nEnd Curve25519. *)"
+}

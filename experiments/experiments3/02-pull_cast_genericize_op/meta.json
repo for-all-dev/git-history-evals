@@ -1,0 +1,11 @@
+{
+  "task_id": "fiat-crypto_f2814cf2_6d25e601",
+  "declaration": "pull_cast_genericize_op",
+  "hole_kind": "admitted",
+  "file_path": "src/Compilers/Z/Bounds/InterpretationLemmas/PullCast.v",
+  "commit_hash": "f2814cf2ba24fbddc3cb091a4fddd19a8c807b89",
+  "parent_hash": "4d334608f7f8f5be98276c5f1904d7955e1b6f53",
+  "commit_message": "Finish the last of the admits in word-size-selection!",
+  "instructions": "Fill in the proof(s) marked with placeholder tactics (admitted in pull_cast_genericize_op) in src/Compilers/Z/Bounds/InterpretationLemmas/PullCast.v.",
+  "context_lines": "                                  | [ H : context[?x mod _] |- _ ]\n                                    => revert H; progress Z.rewrite_mod_small; intro\n                                  end ].\n  Admitted.\nEnd with_round_up."
+}

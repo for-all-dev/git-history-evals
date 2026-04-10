@@ -1,0 +1,104 @@
+\relax 
+\providecommand\hyper@newdestlabel[2]{}
+\providecommand\HyField@AuxAddToFields[1]{}
+\providecommand\HyField@AuxAddToCoFields[2]{}
+\citation{leroy2009formally}
+\citation{klein2009sel4}
+\citation{erbsen2019simple}
+\citation{kothapalli2022nova}
+\citation{yang2023leandojo}
+\citation{jiang2022draft}
+\citation{lample2022hypertree}
+\citation{coq2023}
+\@writefile{toc}{\contentsline {section}{\numberline {1}Introduction}{3}{section.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{Contributions.}{3}{section*.2}\protected@file@percent }
+\citation{bansal2019holist,paliwal2020graph}
+\citation{yang2023leandojo}
+\citation{lample2022hypertree}
+\citation{2023theoremllama}
+\citation{xin2024deepseek}
+\citation{zheng2021minif2f}
+\citation{just2014defects4j}
+\citation{widyasari2020bugsinpy}
+\citation{husain2019codesearchnet}
+\citation{yang2023leandojo}
+\citation{mikula2023magnushammer}
+\citation{baif2024dalek}
+\citation{erbsen2019simple}
+\@writefile{toc}{\contentsline {section}{\numberline {2}Background and Related Work}{4}{section.2}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {2.1}Formal Verification and Proof Assistants}{4}{subsection.2.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {2.2}AI-Assisted Proof Synthesis}{4}{subsection.2.2}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {2.3}Git History Mining for Evaluation Data}{4}{subsection.2.3}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {2.4}Cryptographic Proof Engineering}{4}{subsection.2.4}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {3}Methods}{5}{section.3}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {3.1}Repository Structure and Data Sources}{5}{subsection.3.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {3.2}Commit Harvesting}{5}{subsection.3.2}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {3.3}Two-Pass Commit Classification}{5}{subsection.3.3}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {3.3.1}Pass 1: Message-Heuristic Classification}{5}{subsubsection.3.3.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {3.3.2}Pass 2: Diff-Based Reclassification}{6}{subsubsection.3.3.2}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{New class: \texttt  {proof\_optimise}.}{6}{section*.3}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {3.4}Tactic Vocabulary and Group Classification}{6}{subsection.3.4}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {3.4.1}Tactic Vocabulary}{6}{subsubsection.3.4.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {3.4.2}Behavioral Tactic Groups}{7}{subsubsection.3.4.2}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {3.5}Eval Challenge Extraction}{7}{subsection.3.5}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {3.6}Proof Lifecycle Analysis}{7}{subsection.3.6}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {3.7}Experiment Design}{8}{subsection.3.7}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{Condition A (\texttt  {experiments/}): Full hole.}{8}{section*.4}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{Condition B (\texttt  {experiments3/}): Last-three-tactics hole.}{8}{section*.5}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {4}Results}{8}{section.4}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {4.1}Dataset Statistics}{8}{subsection.4.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {4.2}Commit Classification}{8}{subsection.4.2}\protected@file@percent }
+\@writefile{lot}{\contentsline {table}{\numberline {1}{\ignorespaces Summary of datasets produced by the mining pipeline.}}{9}{table.1}\protected@file@percent }
+\newlabel{tab:datasets}{{1}{9}{Summary of datasets produced by the mining pipeline}{table.1}{}}
+\@writefile{lot}{\contentsline {table}{\numberline {2}{\ignorespaces Commit class distribution after diff-based enrichment (5,915 Coq-touching commits).}}{9}{table.2}\protected@file@percent }
+\newlabel{tab:classes}{{2}{9}{Commit class distribution after diff-based enrichment (5,915 Coq-touching commits)}{table.2}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {4.3}Eval Challenges}{9}{subsection.4.3}\protected@file@percent }
+\@writefile{lot}{\contentsline {table}{\numberline {3}{\ignorespaces Distribution of holes per eval challenge.}}{9}{table.3}\protected@file@percent }
+\newlabel{tab:holes}{{3}{9}{Distribution of holes per eval challenge}{table.3}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {4.4}Tactic Group Analysis}{9}{subsection.4.4}\protected@file@percent }
+\@writefile{lot}{\contentsline {table}{\numberline {4}{\ignorespaces Tactic group distribution across 5,915 proof-touching commits.}}{10}{table.4}\protected@file@percent }
+\newlabel{tab:groups_commits}{{4}{10}{Tactic group distribution across 5,915 proof-touching commits}{table.4}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {4.5}Proof Lifecycle Analysis}{10}{subsection.4.5}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {4.5.1}Commit Count Distribution}{10}{subsubsection.4.5.1}\protected@file@percent }
+\@writefile{lot}{\contentsline {table}{\numberline {5}{\ignorespaces Distribution of lifecycle commits per proved declaration.}}{10}{table.5}\protected@file@percent }
+\newlabel{tab:lifecycle_dist}{{5}{10}{Distribution of lifecycle commits per proved declaration}{table.5}{}}
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {4.5.2}Time-to-Proof}{10}{subsubsection.4.5.2}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {4.5.3}Hardest Declarations}{10}{subsubsection.4.5.3}\protected@file@percent }
+\@writefile{lot}{\contentsline {table}{\numberline {6}{\ignorespaces Top 10 hardest declarations by lifecycle commit count.}}{11}{table.6}\protected@file@percent }
+\newlabel{tab:hardest}{{6}{11}{Top 10 hardest declarations by lifecycle commit count}{table.6}{}}
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {4.5.4}Tactic Group Coverage vs.\ Difficulty}{11}{subsubsection.4.5.4}\protected@file@percent }
+\@writefile{lot}{\contentsline {table}{\numberline {7}{\ignorespaces Proof difficulty vs.\ tactic group diversity.}}{11}{table.7}\protected@file@percent }
+\newlabel{tab:groups_difficulty}{{7}{11}{Proof difficulty vs.\ tactic group diversity}{table.7}{}}
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {4.5.5}File-Level Concentration}{11}{subsubsection.4.5.5}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {4.6}Tactic Frequency}{12}{subsection.4.6}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {4.7}Experiment Setup}{12}{subsection.4.7}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {5}Discussion}{12}{section.5}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {5.1}The Value of Lifecycle Analysis for Eval Design}{12}{subsection.5.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {5.2}Limitations of Heuristic Classification}{12}{subsection.5.2}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {5.3}Tactic Group Design Choices}{12}{subsection.5.3}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {5.4}Generalization to Other Repositories}{13}{subsection.5.4}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {5.5}Toward an Agentic Mining Pipeline}{13}{subsection.5.5}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {5.6}Baseline Evaluation}{13}{subsection.5.6}\protected@file@percent }
+\bibstyle{plainnat}
+\bibcite{leroy2009formally}{{1}{}{{}}{{}}}
+\bibcite{klein2009sel4}{{2}{}{{}}{{}}}
+\bibcite{erbsen2019simple}{{3}{}{{}}{{}}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {5.7}Implications for Posttraining}{14}{subsection.5.7}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {6}Conclusion}{14}{section.6}\protected@file@percent }
+\bibcite{kothapalli2022nova}{{4}{}{{}}{{}}}
+\bibcite{yang2023leandojo}{{5}{}{{}}{{}}}
+\bibcite{jiang2022draft}{{6}{}{{}}{{}}}
+\bibcite{lample2022hypertree}{{7}{}{{}}{{}}}
+\bibcite{bansal2019holist}{{8}{}{{}}{{}}}
+\bibcite{paliwal2020graph}{{9}{}{{}}{{}}}
+\bibcite{zheng2021minif2f}{{10}{}{{}}{{}}}
+\bibcite{xin2024deepseek}{{11}{}{{}}{{}}}
+\bibcite{2023theoremllama}{{12}{}{{}}{{}}}
+\bibcite{just2014defects4j}{{13}{}{{}}{{}}}
+\bibcite{widyasari2020bugsinpy}{{14}{}{{}}{{}}}
+\bibcite{husain2019codesearchnet}{{15}{}{{}}{{}}}
+\bibcite{mikula2023magnushammer}{{16}{}{{}}{{}}}
+\bibcite{baif2024dalek}{{17}{}{{}}{{}}}
+\bibcite{coq2023}{{18}{}{{}}{{}}}
+\providecommand\NAT@force@numbers{}\NAT@force@numbers
+\gdef \@abspage@last{15}

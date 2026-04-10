@@ -1,0 +1,11 @@
+{
+  "task_id": "fiat-crypto_f6133814_fdb59528",
+  "declaration": "radd_coordinatesW_correct_and_bounded_gen",
+  "hole_kind": "admitted",
+  "file_path": "src/Specific/GF25519Reflective/Reified/AddCoordinates.v",
+  "commit_hash": "f613381431f92dce54591324cde6cb954d61470d",
+  "parent_hash": "de0a4ce7d93437aa8229308cd06cd95f27f58809",
+  "commit_message": "Remove admits, fill templates, copy bounds",
+  "instructions": "Fill in the proof(s) marked with placeholder tactics (admitted in radd_coordinatesW_correct_and_bounded_gen) in src/Specific/GF25519Reflective/Reified/AddCoordinates.v.",
+  "context_lines": "\nTime Definition radd_coordinatesW := Eval vm_compute in rword_of_Z radd_coordinatesZ_sig.\nLemma radd_coordinatesW_correct_and_bounded_gen : correct_and_bounded_genT radd_coordinatesW radd_coordinatesZ_sig.\nProof. (*Time rexpr_correct. Time Qed.*) Admitted.\nDefinition radd_coordinates_output_bounds := Eval vm_compute in compute_bounds radd_coordinatesW Expr9Op_bounds.\n\nLocal Obligation Tactic := intros; vm_compute; constructor."
+}

@@ -1,0 +1,11 @@
+{
+  "task_id": "fiat-crypto_54c89602_ed5de024",
+  "declaration": "redc_loop_mod_N",
+  "hole_kind": "admitted",
+  "file_path": "src/Arithmetic/MontgomeryReduction/WordByWord/Proofs.v",
+  "commit_hash": "54c89602d50fc4adc60931e34b8afe304b40da38",
+  "parent_hash": "1ff16cf798e249cd6b8e9a0d47f0db19b510c807",
+  "commit_message": "Update context to not need eval_nonneg",
+  "instructions": "Fill in the proof(s) marked with placeholder tactics (admitted in redc_loop_mod_N) in src/Arithmetic/MontgomeryReduction/WordByWord/Proofs.v.",
+  "context_lines": "      Coercion Z.of_nat : nat >-> Z.\n      Notation \"x '.+1'\" := (Datatypes.S x) (format \"x '.+1'\", at level 10).\n      Infix \"\u2261\" := (Z.equiv_modulo _) (at level 70).\n  Admitted.\n\n  Lemma redc_mod_N A\n    : (eval (redc A)) mod (eval N) = (eval A * eval B * ri^(Z.of_nat (numlimbs A))) mod (eval N)."
+}

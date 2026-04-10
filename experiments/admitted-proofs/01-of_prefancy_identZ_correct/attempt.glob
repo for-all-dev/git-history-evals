@@ -1,0 +1,8 @@
+DIGEST b858618d8aa228c05d9ef91c369d07e9
+Fattempt
+R15:31 Stdlib.ZArith.ZArith <> <> lib
+R33:49 Stdlib.micromega.Lia <> <> lib
+R67:83 Stdlib.derive.Derive <> <> lib
+R101:113 Stdlib.Bool.Bool <> <> lib
+R131:148 Stdlib.Strings.String <> <> lib
+R166:179 Stdlib.Lists.List <> <> lib

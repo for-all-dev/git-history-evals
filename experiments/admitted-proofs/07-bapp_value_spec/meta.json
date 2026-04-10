@@ -1,0 +1,11 @@
+{
+  "task_id": "fiat-crypto_7361ecd4_b7a3803f",
+  "declaration": "bapp_value_spec",
+  "hole_kind": "admitted",
+  "file_path": "src/Assembly/Evaluables.v",
+  "commit_hash": "7361ecd49ae13cff49467e67a6533a557e77139c",
+  "parent_hash": "abd5931c3166ccef09e1305f5adc1a82cad0dcd5",
+  "commit_message": "Merge pull request #84 from mit-plv/rsloan-phoas",
+  "instructions": "Fill in the proof(s) marked with placeholder tactics (admitted in bapp_value_spec) in src/Assembly/Evaluables.v.",
+  "context_lines": "                    (range N (low b1) (high b1))) (fun _ =>\n        vapp op (value b0) (value b1))).\n  Proof.\n  Admitted.\n\n  Definition toRange (w: BoundedWord): Range N :=\n    range N (low w) (high w)."
+}

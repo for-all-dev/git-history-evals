@@ -1,0 +1,44 @@
+\contentsline {section}{\numberline {1}Introduction}{3}{section.1}%
+\contentsline {paragraph}{Contributions.}{3}{section*.2}%
+\contentsline {section}{\numberline {2}Background and Related Work}{4}{section.2}%
+\contentsline {subsection}{\numberline {2.1}Formal Verification and Proof Assistants}{4}{subsection.2.1}%
+\contentsline {subsection}{\numberline {2.2}AI-Assisted Proof Synthesis}{4}{subsection.2.2}%
+\contentsline {subsection}{\numberline {2.3}Git History Mining for Evaluation Data}{4}{subsection.2.3}%
+\contentsline {subsection}{\numberline {2.4}Cryptographic Proof Engineering}{4}{subsection.2.4}%
+\contentsline {section}{\numberline {3}Methods}{5}{section.3}%
+\contentsline {subsection}{\numberline {3.1}Repository Structure and Data Sources}{5}{subsection.3.1}%
+\contentsline {subsection}{\numberline {3.2}Commit Harvesting}{5}{subsection.3.2}%
+\contentsline {subsection}{\numberline {3.3}Two-Pass Commit Classification}{5}{subsection.3.3}%
+\contentsline {subsubsection}{\numberline {3.3.1}Pass 1: Message-Heuristic Classification}{5}{subsubsection.3.3.1}%
+\contentsline {subsubsection}{\numberline {3.3.2}Pass 2: Diff-Based Reclassification}{6}{subsubsection.3.3.2}%
+\contentsline {paragraph}{New class: \texttt {proof\_optimise}.}{6}{section*.3}%
+\contentsline {subsection}{\numberline {3.4}Tactic Vocabulary and Group Classification}{6}{subsection.3.4}%
+\contentsline {subsubsection}{\numberline {3.4.1}Tactic Vocabulary}{6}{subsubsection.3.4.1}%
+\contentsline {subsubsection}{\numberline {3.4.2}Behavioral Tactic Groups}{7}{subsubsection.3.4.2}%
+\contentsline {subsection}{\numberline {3.5}Eval Challenge Extraction}{7}{subsection.3.5}%
+\contentsline {subsection}{\numberline {3.6}Proof Lifecycle Analysis}{7}{subsection.3.6}%
+\contentsline {subsection}{\numberline {3.7}Experiment Design}{8}{subsection.3.7}%
+\contentsline {paragraph}{Condition A (\texttt {experiments/}): Full hole.}{8}{section*.4}%
+\contentsline {paragraph}{Condition B (\texttt {experiments3/}): Last-three-tactics hole.}{8}{section*.5}%
+\contentsline {section}{\numberline {4}Results}{8}{section.4}%
+\contentsline {subsection}{\numberline {4.1}Dataset Statistics}{8}{subsection.4.1}%
+\contentsline {subsection}{\numberline {4.2}Commit Classification}{8}{subsection.4.2}%
+\contentsline {subsection}{\numberline {4.3}Eval Challenges}{9}{subsection.4.3}%
+\contentsline {subsection}{\numberline {4.4}Tactic Group Analysis}{9}{subsection.4.4}%
+\contentsline {subsection}{\numberline {4.5}Proof Lifecycle Analysis}{10}{subsection.4.5}%
+\contentsline {subsubsection}{\numberline {4.5.1}Commit Count Distribution}{10}{subsubsection.4.5.1}%
+\contentsline {subsubsection}{\numberline {4.5.2}Time-to-Proof}{10}{subsubsection.4.5.2}%
+\contentsline {subsubsection}{\numberline {4.5.3}Hardest Declarations}{10}{subsubsection.4.5.3}%
+\contentsline {subsubsection}{\numberline {4.5.4}Tactic Group Coverage vs.\ Difficulty}{11}{subsubsection.4.5.4}%
+\contentsline {subsubsection}{\numberline {4.5.5}File-Level Concentration}{11}{subsubsection.4.5.5}%
+\contentsline {subsection}{\numberline {4.6}Tactic Frequency}{12}{subsection.4.6}%
+\contentsline {subsection}{\numberline {4.7}Experiment Setup}{12}{subsection.4.7}%
+\contentsline {section}{\numberline {5}Discussion}{12}{section.5}%
+\contentsline {subsection}{\numberline {5.1}The Value of Lifecycle Analysis for Eval Design}{12}{subsection.5.1}%
+\contentsline {subsection}{\numberline {5.2}Limitations of Heuristic Classification}{12}{subsection.5.2}%
+\contentsline {subsection}{\numberline {5.3}Tactic Group Design Choices}{12}{subsection.5.3}%
+\contentsline {subsection}{\numberline {5.4}Generalization to Other Repositories}{13}{subsection.5.4}%
+\contentsline {subsection}{\numberline {5.5}Toward an Agentic Mining Pipeline}{13}{subsection.5.5}%
+\contentsline {subsection}{\numberline {5.6}Baseline Evaluation}{13}{subsection.5.6}%
+\contentsline {subsection}{\numberline {5.7}Implications for Posttraining}{14}{subsection.5.7}%
+\contentsline {section}{\numberline {6}Conclusion}{14}{section.6}%

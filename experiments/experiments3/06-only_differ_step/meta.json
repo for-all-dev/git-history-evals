@@ -1,0 +1,11 @@
+{
+  "task_id": "fiat-crypto_9f55b6be_5ffdea5c",
+  "declaration": "only_differ_step",
+  "hole_kind": "admitted",
+  "file_path": "src/Bedrock/Compiler.v",
+  "commit_hash": "9f55b6be919be5e3ab38c340fb7e67f589e9913c",
+  "parent_hash": "da7746bb9d47226d02c5fe3f87a95a27ad3100fd",
+  "commit_message": "prove only_differ_step",
+  "instructions": "Fill in the proof(s) marked with placeholder tactics (admitted in only_differ_step) in src/Bedrock/Compiler.v.",
+  "context_lines": "      Interface.map.only_differ l2 (used_varnames (nextn + nvars) nvars') l3 ->\n      Interface.map.only_differ l1 (used_varnames nextn (nvars + nvars')) l3.\n    Proof.\n    Admitted.\n\n    Lemma translate_expr_correct' {t'} (t:=type.base t')\n          (* three exprs, representing the same Expr with different vars *)"
+}

@@ -1,0 +1,31 @@
+ADMITTED PROOFS EXPERIMENT — fiat-crypto
+============================================================
+20 single-hole Coq proof challenges, one per unique source file.
+Each folder contains:
+  challenge.v  — the .v file with Admitted in place of the proof
+  solution.v   — the ground-truth proof from the next git commit
+  diff.txt     — unified diff showing exactly what changed
+  meta.json    — declaration name, task_id, commit info, instructions
+
+#    Declaration                                   File                                Hole kind
+----------------------------------------------------------------------------------------------------
+1    of_prefancy_identZ_correct                    Toplevel2.v                         admitted
+2    pull_cast_genericize_op                       PullCast.v                          admitted
+3    add_same_length                               BaseSystem.v                        admitted
+4    conditional_subtract                          Interpretations.v                   admit
+5    sq_and_multiply_mod_correct                   Pow.v                               admitted
+6    only_differ_step                              Compiler.v                          admitted
+7    bapp_value_spec                               Evaluables.v                        admitted
+8    radd_coordinatesW_correct_and_bounded_gen     AddCoordinates.v                    admitted
+9    symex_asm_func_M_correct                      Proofs.v                            admitted
+10   lift_homomorphism                             ExtendedCoordinates.v               admitted
+11   homomorphism_inv                              Algebra.v                           admitted
+12   montred_correct                               MontgomeryReduction.v               admitted
+13   small_drop_high_addT                          Arithmetic.v                        admitted
+14   add_precomputed_partial                       AddPrecomputed.v                    admitted
+15   eval_bytes                                    Representation.v                    admit
+16   ge25519_ast                                   SpecificCurve25519.v                admitted
+17   redc_loop_mod_N                               Proofs.v                            admitted
+18   typeD                                         MultiSizeTest.v                     admit
+19   mul2_correct                                  SolinasReduction.v                  admitted
+20   wt_multiples                                  Karatsuba.v                         admitted

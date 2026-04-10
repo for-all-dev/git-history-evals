@@ -1,0 +1,75 @@
+METHODS
+-------
+We mined the complete git history of fiat-crypto (8,289 commits) using a
+custom Python scaffold that extracts CommitRecords via git log --numstat.
+Classification proceeds in two passes: first, a regex-based heuristic over
+commit messages assigns one of seven classes (proof_complete, proof_new,
+proof_add, proof_optimise, spec_change, infra, other); second, a diff-based
+pass reads actual +/- lines from .v file diffs to detect Admitted removal,
+net proof-line change, and tactic usage. Tactic names are extracted using a
+150+ entry regex covering the full Coq vocabulary and mapped to seven
+behavioral groups (rewrite_reduce, application, case_induction,
+hypothesis_management, contradiction_solver, arithmetic_algebra,
+meta_tactical). Eval challenges are extracted as (file_at_t, file_at_t+1)
+pairs where an Admitted was net-removed. Proof lifecycle tracking reads file
+content at each commit via git show, caching per (hash, path) to avoid
+redundant calls. Correctness of model completions is verified by coqc exit
+status.
+
+
+RESULTS
+-------
+The pipeline classifies 5,915 Coq-touching commits: 72.6% proof_add, 13.3%
+proof_optimise, 6.1% proof_new, 5.3% proof_complete, 2.7% spec_change.
+Diff-based reclassification increased the proof_complete count from 117
+(message-heuristic) to 314, demonstrating the inadequacy of message-only
+signals. 640 eval challenges were extracted spanning 174 unique source files;
+330 (51.6%) are single-hole, requiring the model to fill exactly one
+Admitted. Tactic group analysis shows rewrite_reduce appears in 59.7% of
+commits, while arithmetic_algebra appears in only 8.0%, reflecting that
+explicit algebraic reasoning is confined to specialized subsystems.
+
+Lifecycle analysis tracks 789 proved declarations. The median declaration
+required 3 commits and 3 days before its Admitted was closed; the mean is 6.2
+commits (std 9.2), indicating a heavy right tail. 21.3% of declarations were
+proved the same day they were first committed as Admitted; 69.7% within a
+week. The hardest declaration, prime_modulus, required 75 commits over 266
+days and engaged all seven tactic groups. Tactic group diversity scales with
+difficulty: single-commit proofs average 5.5 groups; 51+ commit proofs
+average 6.9 groups. Five groups (rewrite_reduce, hypothesis_management,
+application, meta_tactical, case_induction) appear in over 94% of all
+declarations, forming the irreducible backbone of proof engineering in this
+codebase. Negative result: 9 of 20 experiment challenges could not be
+transformed for the partial-proof condition because their proofs use
+non-standard structures (refine at definition level, nested modules) that
+our text-based sentence splitter does not handle.
+
+
+DISCUSSION
+----------
+The dominance of proof_add (72.6%) confirms that proof engineering is
+primarily an incremental, iterative process rather than one of discrete
+breakthroughs. The proof_optimise class — absent from prior taxonomies —
+accounts for 13.3% of commits, revealing substantial proof-refactoring
+activity that has not been systematically studied. The gap between
+message-heuristic and diff-based proof_complete counts (117 vs 314) shows
+that commit messages are poor signals for proof closure; diff-level analysis
+is necessary. A key limitation is that our declaration tracking is
+text-based: we cannot handle proofs defined via metaprogramming, obligations,
+or module-level refine terms, which accounts for the 9 failures in
+experiments3. Future directions: (1) replace text-based declaration detection
+with elaborator-level proof state extraction for precise hole tracking;
+(2) extend the pipeline to seL4 and CompCert to test generalization across
+proof assistants and domains; (3) use the lifecycle sequences as RL training
+trajectories, with coqc acceptance as the reward signal.
+
+
+CONCLUSION
+----------
+We present an open-source pipeline that mines proof engineering git histories
+to produce evaluation benchmarks, commit classifications, tactic group
+datasets, and per-theorem lifecycle records. Applied to fiat-crypto, it
+yields 640 verifiable eval challenges and shows that the median theorem
+requires 3 commits to prove while the hardest required 75. The methodology
+generalizes to any proof assistant with text-based source files and a git
+history.
