@@ -1,4 +1,4 @@
-DIGEST a2d26a1c8a3555a26ac075da0457c4ab
+DIGEST 7fe87535579f7891e6b235540e40f2b1
 Fattempt
-R15:31 Stdlib.ZArith.ZArith <> <> lib
-R49:67 Stdlib.micromega.Psatz <> <> lib
+R15:31 Coq.ZArith.ZArith <> <> lib
+R49:67 Coq.micromega.Psatz <> <> lib

@@ -144,19 +144,22 @@ Section with_round_up.
       repeat first [ progress simpl in *
                    | progress destruct_head unit
                    | progress destruct_head True
+                   | progress cbv [unzify_op cast_back_flat_const lift_op Bounds.is_bounded_by' ZRange.is_bounded_pose proof (is_bounded_by_interp_op t tR opc bs).
+unfold interp_op in *.
+rewrite Zinterp_op_genericize_op.
+  pose proof (is_bounded_by_interp_op t tR opc bs).
+    unfold interp_op in *.
+    rewrite Zinterp_op_genericize_op.
+    generalize dependent (Zinterp_op t tR opc).
+    generalize dependent (Bounds.interp_op opc bs); simpl; intros.
+    repeat (destruct_one_head flat_type; try solve [ inversion opc ]);
+      repeat first [ progress simpl in *
+                   | progress destruct_head unit
+                   | progress destruct_head True
                    | progress cbv [unzify_op cast_back_flat_const lift_op Bounds.is_bounded_by' ZRange.is_bounded_by] in *
-                   | progress split_and
-                   | progress specialize_by assumption
-                   | apply ZToInterp_cast_const_small
-                   | apply interpToZ_cast_const_small
-                   | solve [ eauto using ZToInterp_cast_const_small, interpToZ_cast_const_small ] ].
-    all: repeat first [ progress simpl in *
-                      | progress destruct_head unit
-                      | progress destruct_head True
-                      | progress cbv [unzify_op cast_back_flat_const lift_op Bounds.is_bounded_by' ZRange.is_bounded_by] in *
-                      | progress split_and
-                      | progress specialize_by assumption
-                      | apply ZToInterp_cast_const_small
-                      | solve [ eauto using ZToInterp_cast_const_small, interpToZ_cast_const_small ] ].
+                   | progress destruct_head prod
+                   | progress destruct_head and
+                   | rewrite interpToZ_cast_const_small by assumption
+                   | rewrite ZToInterp_cast_const_small by assumption
+                   | reflexivity ].
   Qed.
-End with_round_up.

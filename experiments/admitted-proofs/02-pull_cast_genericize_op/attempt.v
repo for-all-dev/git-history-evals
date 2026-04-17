@@ -214,4 +214,30 @@ Section with_round_up.
                        | progress autorewrite with push_Zof_nat zsimplify_const
                        | progress intros
                        | match goal with
-                         | [ H : Bounds.bounds_to_base_type _ ?x = _, H' : Z
+                         | [ H : Bounds.bounds_to_base_type _ ?x = _, H' : ZRange.lower ?x <= ?v |- context[?v] ]
+                           => cbv [Bounds.actual_logsz Bounds.bounds_to_base_type] in H; revert H
+                         | [ H : (_ <=? _)%nat = true |- _ ] => apply Nat.leb_le in H
+                         | [ H : (_ <= _)%nat |- _ ] => apply inj_le in H
+                         | [ H : ?x <= 0, H' : 0 <= ?x |- _ ] => assert (x = 0) by omega; clear H H'
+                         | [ |- ?x < ?y ] => cut (1 + x <= y); [ omega | ]
+                         | [ H : ?x < ?y |- _ ] => assert (1 + x <= y) by omega; clear H
+                         | [ |- context[Z.max 0 ?x] ]
+                           => repeat match goal with
+                                     | [ H : context[Z.max 0 x] |- _ ] => revert H
+                                     end;
+                              apply Z.max_case_strong; Z.rewrite_mod_small; intros
+                         end
+                       | progress cbv [Bounds.bounds_to_base_type Bounds.smallest_logsz Bounds.actual_logsz] in *
+                       | progress break_innermost_match_hyps_step
+                       | progress autorewrite with push_Zof_nat zsimplify_const in *
+                       | match goal with
+                         | [ H : ?x <= 2^2^Z.log2_up (Z.log2_up ?y), H' : ?y <= 2^2^?z |- context[_ mod 2^2^?z] ]
+                           => rewrite H' in H
+                         end
+                       | progress Z.rewrite_mod_small
+                       | progress match goal with
+                                  | [ H : context[?x mod _] |- _ ]
+                                    => revert H; progress Z.rewrite_mod_small; intro
+                                  end ].
+  Admitted.
+End with_round_up.

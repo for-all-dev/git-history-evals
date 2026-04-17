@@ -278,21 +278,259 @@ Module BaseSystem (Import B:BaseCoefs).
       apply H0.
     } {
       destruct vs. {
+        rinduction us; intros.
+{
+      rewrite add_nil_l.
+apply H0.
+} {
+      destruct vs.
+{
         rewrite add_nil_r; apply H.
-      } {
+} {
         rewrite add_first_terms.
-        rewrite cons_length.
-        rewrite (IHus vs (pred l)).
-        apply NPeano.Nat.succ_pred_pos.
-        replace l with (length (a :: us)) by (apply H).
-        rewrite cons_length; simpl.
-        apply gt_Sn_O.
-        replace l with (length (a :: us)) by (apply H).
-        rewrite cons_length; simpl; auto.
-        replace l with (length (z :: vs)) by (apply H0).
-        rewrite cons_length; simpl; auto.
+rewrite cons_length.
+rewrite (IHus vs (pred l)).
+apply NPeano.Nat.succ_pred_pos.
+replace l with (length (a :: us)) by (apply H).
+rewrite cons_length; simpl.
+SearchAbout S.
+apply gt_Sn_O.
+replace l with (length (a :: us)) by (apply H).
+rewrite cons_length; simpl; auto.
+  Admitted.:: nil) = l) ->
+    (us ++ a :: nil) .+ (vs ++ b :: nil) = (us .+ vs) ++ (a + b) :: nil.
+  replace l with (length (vs ++ x0 :: nil)) by (apply H0).
+          rewrite app_length; simpl; omega.
+          replace l with (length (us ++ x :: nil)) by (apply H).
+          rewrite app_length; simpl; omega.
+        }
       }
+    Qed.
+  Lemma mul_bi'_add : forall us n vs l, (length us = l) -> (length vs = l) ->
+    mul_bi' n (rev (us .+ vs)) = 
+    mul_bi' n (rev us) .+ mul_bi' n (rev vs).
+  Proof.
+    induction us using rev_ind; intros. {
+      rewrite add_nil_l.
+      rewrite mul_bi'_n_nil.
+      rewrite add_nil_l; auto.
+   } {
+      destruct vs using rev_ind. {
+        rewrite add_nil_r.
+        rewrite mul_bi'_n_nil.
+        rewrite add_nil_r; auto.
+      } {
+        simpl in *.
+        simpl_list.
+        rewrite (add_app_same_length us vs x x0 l); auto.
+        Focus 2.
+        replace l with (length (vs ++ x0 :: nil)) by (apply H0).
+        simpl_list; simpl; auto.
+        (* end focus 2 *)
+        rewrite rev_unit.
+        rewrite mul_bi'_cons.
+        rewrite mul_bi'_cons.
+        rewrite mul_bi'_cons.
+        rewrite add_first_terms.
+        rewrite rev_length.
+        rewrite rev_length.
+        rewrite rev_length.
+        assert (length us = pred l).
+        replace l with (length (us ++ x :: nil)) by (apply H).
+        rewrite app_length; simpl; omega.
+        assert (length vs = pred l).
+        replace l with (length (vs ++ x0 :: nil)) by (apply H0).
+        rewrite app_length; simpl; omega.
+        rewrite (IHus n vs (pred l)).
+        replace (length us) with (pred l) by (apply H).
+        replace (length vs) with (pred l) by (apply H).
+        rewrite (add_same_length us vs (pred l)).
+        f_equal; ring.
+        apply H1. apply H2. apply H1. apply H2.
+       }
+     }
+     Qed.
+
+  Lemma add_leading_zeroes : forall n us vs,
+    (zeros n ++ us) .+ (zeros n ++ vs) = zeros n ++ (us .+ vs).
+  Admitted.
+  
+  Lemma rev_add_rev : forall us vs, (rev us) .+ (rev vs) = rev (us .+ vs).
+  Admitted.
+
+  Lemma mul_bi_add : forall n us vs, (length us = length vs) ->
+    mul_bi n (us .+ vs) = mul_bi n us .+ mul_bi n vs.
+  Proof.
+    intros.
+    unfold mul_bi; simpl.
+    rewrite add_leading_zeroes.
+    rewrite mul_bi'_add.
+    rewrite rev_add_rev; auto.
+  Qed.
+
+  Lemma mul_bi_rep : forall i vs,
+    (i + length vs < length base)%nat ->
+    decode (mul_bi i vs) = decode vs * nth_default 0 base i.
+  Proof.
+    unfold decode.
+    induction vs using rev_ind; intros; simpl. {
+      unfold mul_bi, decode.
+      ssimpl_list; rewrite zeros_rep; simpl.
+      unfold decode'; simpl.
+      ring.
+    } {
+      assert (i + length vs < length base)%nat as inbounds. {
+        rewrite app_length in *; simpl in *.
+        rewrite NPeano.Nat.add_1_r, <- plus_n_Sm in *.
+        etransitivity; eauto.
+      }
+
+      rewrite set_higher.
+      ring_simplify.
+      rewrite <- IHvs by auto; clear IHvs.
+      simpl in *.
+      rewrite <- mul_bi_single by auto.
+      rewrite <- add_rep.
+      rewrite <- mul_bi_add.
+      rewrite set_higher'.
+      auto.
     }
   Qed.
 
-  Lemma add_app_same_length : forall us vs a b l, (length (us
+  (* mul' is multiplication with the FIRST ARGUMENT REVERSED *)
+  Fixpoint mul' (usr vs:digits) : digits :=
+		match usr with
+			| u::usr' => 
+            mul_each u (mul_bi (length usr') vs) .+ mul' usr' vs
+			| _ => nil
+    end.
+  Definition mul us := mul' (rev us).
+  Infix "#*" := mul (at level 40).
+
+  Lemma mul'_rep : forall us vs,
+    (length us + length vs <= length base)%nat ->
+    decode (mul' (rev us) vs) = decode us * decode vs.
+  Proof.
+    unfold decode.
+    induction us using rev_ind; intros; simpl; try apply decode_nil.
+
+    assert (length us + length vs < length base)%nat as inbounds. {
+      rewrite app_length in *; simpl in *.
+      rewrite plus_comm in *.
+      rewrite NPeano.Nat.add_1_r, <- plus_n_Sm in *.
+      auto.
+    }
+
+    ssimpl_list.
+    rewrite add_rep.
+    rewrite IHus by (rewrite le_trans; eauto); clear IHus.
+    rewrite set_higher.
+    rewrite mul_each_rep.
+    rewrite mul_bi_rep by auto; unfold decode.
+    ring.
+  Qed.
+
+  Lemma mul_rep : forall us vs,
+    (length us + length vs <= length base)%nat ->
+    decode (us #* vs) = decode us * decode vs.
+  Proof.
+    exact mul'_rep.
+  Qed.
+Print Assumptions mul_rep.
+End BaseSystem.
+
+Module Type PolynomialBaseParams.
+  Parameter b1 : positive. (* the value at which the polynomial is evaluated *)
+  Parameter baseLength : nat. (* 1 + degree of the polynomial *)
+  Axiom baseLengthNonzero : NPeano.ltb 0 baseLength = true.
+End PolynomialBaseParams.
+
+Module PolynomialBaseCoefs (Import P:PolynomialBaseParams) <: BaseCoefs.
+  (** PolynomialBaseCoeffs generates base vectors for [BaseSystem] using the extra assumption that $b_{i+j} = b_j b_j$. *)
+  Definition bi i := (Zpos b1)^(Z.of_nat i).
+  Definition base := map bi (seq 0 baseLength).
+
+  Lemma b0_1 : nth_default 0 base 0 = 1.
+    unfold base, bi, nth_default.
+    case_eq baseLength; intros. {
+      assert ((0 < baseLength)%nat) by
+        (rewrite <-NPeano.ltb_lt; apply baseLengthNonzero).
+      subst; omega.
+    }
+    auto.
+  Qed.
+
+  Lemma base_positive : forall b, In b base -> b > 0.
+    unfold base.
+    intros until 0; intro H.
+    rewrite in_map_iff in *.
+    destruct H; destruct H.
+    subst.
+    apply pos_pow_nat_pos.
+  Qed.
+
+  Lemma base_good:
+    forall i j, (i + j < length base)%nat ->
+    let b := nth_default 0 base in
+    let r := (b i * b j) / b (i+j)%nat in
+    b i * b j = r * b (i+j)%nat.
+  Proof.
+    unfold base, nth_default.
+    intros; repeat progress (match goal with
+      | [  |- context[match nth_error ?xs ?i with Some _ => _ | None => _ end ] ] => case_eq (nth_error xs i); intros
+      | [ H: nth_error (map _ _) _ = Some _ |- _ ] => destruct (nth_error_map _ _ _ _ _ _ H); clear H
+      | [ H: _ /\ _ |- _ ] => destruct H
+      | [ H: nth_error (seq _ _) _ = Some _ |- _ ] => rewrite nth_error_seq in H
+      | [ H: context[if lt_dec ?a ?b then _ else _] |- _ ] => destruct (lt_dec a b)
+      | [ H: Some _ = Some _ |- _ ] => injection H; clear H; intros; subst
+      | [ H: None = Some _  |- _ ] => inversion H
+      | [ H: Some _ = None |- _ ] => inversion H
+      | [H: nth_error _ _ = None |- _ ] => specialize (nth_error_length_error _ _ _ H); intro; clear H
+    end); autorewrite with list in *; try omega.
+
+    clear.
+    unfold bi.
+    rewrite Nat2Z.inj_add, Zpower_exp by
+      (replace 0 with (Z.of_nat 0) by auto; rewrite <- Nat2Z.inj_ge; omega).
+    rewrite Z_div_same_full; try ring.
+    rewrite <- Z.neq_mul_0.
+    split; apply Z.pow_nonzero; try apply Zle_0_nat; try solve [intro H; inversion H].
+  Qed.
+End PolynomialBaseCoefs.
+
+Module BasePoly2Degree32Params <: PolynomialBaseParams.
+  Definition b1 := 2%positive.
+  Definition baseLength := 32%nat.
+  Lemma baseLengthNonzero : NPeano.ltb 0 baseLength = true.
+    compute; reflexivity.
+  Qed.
+End BasePoly2Degree32Params.
+
+Import ListNotations.
+
+Module BaseSystemExample.
+  Module BasePoly2Degree32Coefs := PolynomialBaseCoefs BasePoly2Degree32Params.
+  Module BasePoly2Degree32 := BaseSystem BasePoly2Degree32Coefs.
+  Import BasePoly2Degree32.
+
+  Example three_times_two : [1;1;0] #* [0;1;0] = [0;1;1;0;0].
+    compute; reflexivity.
+  Qed.
+
+  (* python -c "e = lambda x: '['+''.join(reversed(bin(x)[2:])).replace('1','1;').replace('0','0;')[:-1]+']'; print(e(19259)); print(e(41781))" *)
+  Definition a := [1;1;0;1;1;1;0;0;1;1;0;1;0;0;1].
+  Definition b := [1;0;1;0;1;1;0;0;1;1;0;0;0;1;0;1].
+  Example da : decode a = 19259.
+    compute. reflexivity.
+  Qed.
+  Example db : decode b = 41781.
+    compute. reflexivity.
+  Qed.
+  Example encoded_ab :
+    a #*b =[1;1;1;2;2;4;2;2;4;5;3;3;3;6;4;2;5;3;4;3;2;1;2;2;2;0;1;1;0;1].
+    compute. reflexivity.
+  Qed.
+  Example dab : decode (a #* b) = 804660279.
+    compute. reflexivity.
+  Qed.
+End BaseSystemExample.

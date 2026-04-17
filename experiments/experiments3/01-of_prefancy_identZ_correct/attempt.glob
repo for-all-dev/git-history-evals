@@ -1,2 +1,8 @@
-DIGEST 2e11d691ae933cde3f61e0cd70c70024
+DIGEST 00d3c7c62449c9ce0bb899eee85a2b9c
 Fattempt
+R15:31 Coq.ZArith.ZArith <> <> lib
+R33:49 Coq.micromega.Lia <> <> lib
+R67:83 Coq.derive.Derive <> <> lib
+R101:113 Coq.Bool.Bool <> <> lib
+R131:148 Coq.Strings.String <> <> lib
+R166:179 Coq.Lists.List <> <> lib

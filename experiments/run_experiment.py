@@ -4,6 +4,7 @@
 #     "anthropic",
 #     "python-dotenv",
 #     "typer",
+#     "pydantic",
 # ]
 # ///
 """
@@ -15,9 +16,11 @@ Two conditions:
 
 For each challenge the script:
   1. Reads the challenge file and meta.json
-  2. Calls claude-sonnet-4-6 to fill the Admitted
-  3. Writes the completed file to attempt.v
-  4. Runs coqc to check correctness (best-effort — fiat-crypto deps may be missing)
+  2. Calls claude-sonnet-4-6 to produce only the missing tactics
+  3. Splices the tactics into the original file, writing attempt.v
+  4. Clones fiat-crypto at the challenge's commit into /tmp, places a
+     renamed copy of attempt.v (<stem>_challenge.v, all declarations
+     suffixed with '1'), then runs coqc with the _CoqProject flags
   5. Logs all reasoning, responses, and verdicts to experiment-log.txt
 """
 
@@ -26,6 +29,7 @@ from __future__ import annotations
 import json
 import os
 import re
+import shutil
 import subprocess
 import time
 from pathlib import Path
@@ -33,6 +37,7 @@ from pathlib import Path
 import anthropic
 import typer
 from dotenv import load_dotenv
+from pydantic import BaseModel
 
 # Walk up from the script's directory to find .env
 _script_dir = Path(__file__).resolve().parent
@@ -42,146 +47,209 @@ for _p in (_script_dir, *_script_dir.parents):
         break
 
 # ── Config ───────────────────────────────────────────────────────────────────
-BASE  = Path(__file__).parent
-EXP_A = BASE / "admitted-proofs"
-EXP_B = BASE / "experiments3"
-LOG   = BASE / "experiment-log.txt"
-MODEL = "claude-sonnet-4-6"
-COQC  = "coqc"
+BASE             = Path(__file__).parent
+EXP_A            = BASE / "admitted-proofs"
+EXP_B            = BASE / "experiments3"
+LOG              = BASE / "experiment-log.txt"
+MODEL            = "claude-sonnet-4-6"
+COQC             = "coqc"
+FIAT_CRYPTO_DIR  = Path(os.environ.get("FIAT_CRYPTO_DIR", "/data/fiat-crypto"))
 
-client = anthropic.Anthropic()   # reads ANTHROPIC_API_KEY from env
+client = anthropic.Anthropic()
+
+
+# ── Structured output schema ──────────────────────────────────────────────────
+
+class ProofAttempt(BaseModel):
+    tactics: str    # only the tactic lines that replace Admitted., ending with Qed. or Admitted.
+
 
 # ── Prompts ──────────────────────────────────────────────────────────────────
 
 SYS_PROMPT = """\
-You are an expert Coq/Rocq proof engineer with deep knowledge of the \
-fiat-crypto library (elliptic curve cryptography). Your task is to fill \
-in missing proof tactics in Coq source files.
+You are an expert Coq proof engineer. Your task is to supply the missing \
+tactic lines that complete a proof.
 
-Rules:
-- Replace every occurrence of `Admitted.` that belongs to the target \
-  declaration with real tactics followed by `Qed.` or `Defined.` \
-  (use `Qed.` unless the original used `Defined.`).
-- Do NOT change anything outside the target proof block.
-- Do NOT add new imports or axioms.
-- If you genuinely cannot determine the proof, write `Admitted.` and leave \
-  it — do not hallucinate incorrect tactics.
+Output ONLY the tactic lines themselves — do not repeat any surrounding \
+Lemma/Theorem/Definition header, do not include the opening `Proof.`, \
+and do not include anything outside the proof body.
 
-Output format:
-- First, briefly explain your reasoning in a <reasoning> tag.
-- Then, output the COMPLETE modified .v file inside a <code> tag.
-- Do NOT output anything after the closing </code> tag.
-
-Example structure:
-<reasoning>
-The goal requires ... so I will use tactic X because ...
-</reasoning>
-<code>
-(* full .v file here *)
-</code>
+End with `Qed.` (or `Defined.` if the original used `Defined.`).
+If you genuinely cannot determine the proof, write just `Admitted.`.
+Do not hallucinate tactics.
 """
 
 def make_prompt_full(decl: str, file_content: str) -> str:
     return (
-        f"Fill in the complete proof for the declaration `{decl}` in the "
-        f"Coq file below. The proof currently ends with `Admitted.` — replace "
-        f"it with a complete tactic proof.\n\n"
-        f"FILE CONTENT:\n{file_content}"
+        f"The proof of `{decl}` is replaced entirely by `Admitted.`.\n"
+        f"Write the complete tactic proof body (tactics only, ending with Qed.).\n\n"
+        f"FILE:\n{file_content}"
     )
 
 def make_prompt_partial(decl: str, file_content: str) -> str:
     return (
-        f"The proof for declaration `{decl}` in the Coq file below is "
-        f"partially written. The last 3 tactic sentences have been removed "
-        f"and replaced with `Admitted.`. Fill in those missing tactics to "
-        f"complete the proof.\n\n"
-        f"FILE CONTENT:\n{file_content}"
+        f"The last 3 tactic sentences of the proof of `{decl}` have been removed "
+        f"and replaced with `Admitted.`.\n"
+        f"Write only those missing tactic lines (ending with Qed.) to complete the proof.\n\n"
+        f"FILE:\n{file_content}"
     )
+
 
 # ── Helpers ──────────────────────────────────────────────────────────────────
 
-def call_claude(prompt: str, label: str, log: list[str]) -> str:
+def patch_admitted(content: str, decl: str, tactics: str) -> str:
+    """Replace the first standalone Admitted. after `decl` with the supplied tactics."""
+    decl_pos = content.find(decl)
+    if decl_pos == -1:
+        return content
+
+    search_region = content[decl_pos:]
+    m = re.search(r'(?m)^\s*Admitted\.\s*$', search_region)
+    if m is None:
+        return content
+
+    abs_start = decl_pos + m.start()
+    abs_end   = decl_pos + m.end()
+
+    indent = re.match(r'(\s*)', content[abs_start:]).group(1)
+    replacement = "\n".join(
+        indent + line if line.strip() else line
+        for line in tactics.strip().splitlines()
+    )
+    return content[:abs_start] + replacement + content[abs_end:]
+
+
+def call_claude(prompt: str, log: list[str]) -> ProofAttempt:
     log.append(f"\n  [API call: {MODEL}]")
     t0 = time.time()
     for attempt in range(6):
         try:
-            msg = client.messages.create(
+            response = client.messages.parse(
                 model=MODEL,
                 max_tokens=4096,
                 temperature=0,
                 system=SYS_PROMPT,
                 messages=[{"role": "user", "content": prompt}],
+                output_format=ProofAttempt,
             )
             break
-        except anthropic.RateLimitError as e:
+        except anthropic.RateLimitError:
             wait = 60 * (attempt + 1)
             log.append(f"  rate-limited (attempt {attempt+1}), waiting {wait}s…")
             print(f"  rate-limited (attempt {attempt+1}), waiting {wait}s…", flush=True)
             time.sleep(wait)
     else:
         raise RuntimeError("Exceeded retry limit for rate limiting")
+
     elapsed = time.time() - t0
-    response = msg.content[0].text
-    log.append(f"  elapsed: {elapsed:.1f}s  |  output tokens: {msg.usage.output_tokens}")
-    return response
+    log.append(f"  elapsed: {elapsed:.1f}s  |  output tokens: {response.usage.output_tokens}")
+
+    result = response.parsed_output
+    if result is None:
+        log.append("  WARNING: structured output returned None")
+        return ProofAttempt(tactics="Admitted.")
+    return result
 
 
-def extract_code(text: str) -> str:
-    """Extract Coq source from structured model output.
+# ── fiat-crypto checkout & coqc ───────────────────────────────────────────────
 
-    Tries, in order:
-      1. <code>...</code> XML tags
-      2. ```...``` markdown fences
-      3. Heuristic: first line that looks like Coq source
-    """
-    # 1. XML <code> tag (preferred)
-    m = re.search(r"<code>\s*\n?(.*?)\s*</code>", text, re.DOTALL)
-    if m:
-        return m.group(1).strip()
+def _patch_compat(content: str) -> str:
+    """Patch known Coq 8.19 incompatibilities from old challenge files."""
+    # Omega module removed in 8.18+; the omega tactic is still built-in
+    content = re.sub(r'(?m)^\s*Require\s+Import\s+Omega\.\s*$\n?', '', content)
+    # SearchAbout removed in 8.17; replaced by Search
+    content = re.sub(r'\bSearchAbout\b', 'Search', content)
+    return content
 
-    # 2. Markdown fences
-    m = re.search(r"```[a-z]*\n(.*?)```", text, re.DOTALL)
-    if m:
-        return m.group(1).strip()
+def _get_coq_flags(repo_dir: Path) -> list[str]:
+    """Parse _CoqProject for -R / -Q / -I flags."""
+    cp = repo_dir / "_CoqProject"
+    if not cp.exists():
+        return []
+    flags: list[str] = []
+    for line in cp.read_text().splitlines():
+        parts = line.strip().split()
+        if parts and parts[0] in ("-R", "-Q", "-I") and len(parts) >= 3:
+            flags.extend(parts[:3])
+    return flags
 
-    # 3. Fallback: strip leading prose, find first Coq-like line
-    text = text.strip()
-    coq_start = re.compile(
-        r"^(Require|From|Set|Unset|Local|Global|Import|Export|\(\*"
-        r"|Lemma|Theorem|Definition|Fixpoint|CoFixpoint|Inductive"
-        r"|CoInductive|Record|Class|Instance|Section|Module|End"
-        r"|Corollary|Proposition|Remark|Fact|Notation|Ltac"
-        r"|Program|Obligation|Next\s+Obligation)",
-        re.MULTILINE,
-    )
-    m = coq_start.search(text)
-    if m and m.start() > 0:
-        text = text[m.start():]
+def _checkout_commit(commit: str, log: list[str]) -> Path | None:
+    """Clone fiat-crypto locally at a specific commit into /tmp. Returns the path."""
+    if not FIAT_CRYPTO_DIR.exists():
+        log.append(f"  fiat-crypto not mounted at {FIAT_CRYPTO_DIR}")
+        return None
 
-    return text.strip()
+    tmpdir = Path(f"/tmp/fc_{commit[:8]}")
+    if tmpdir.exists():
+        shutil.rmtree(tmpdir)
 
-
-def run_coqc(attempt_path: Path, log: list[str]) -> str:
-    """Run coqc and return 'PASS', 'FAIL', or 'ERROR'."""
     try:
+        subprocess.run(
+            ["git", "clone", "--local", "--shared", "--no-checkout",
+             str(FIAT_CRYPTO_DIR), str(tmpdir)],
+            check=True, capture_output=True, timeout=120,
+        )
+        subprocess.run(
+            ["git", "-C", str(tmpdir), "checkout", commit, "--quiet"],
+            check=True, capture_output=True, timeout=120,
+        )
+    except subprocess.CalledProcessError as e:
+        log.append(f"  git checkout failed: {e.stderr.decode()[:200]}")
+        return None
+
+    return tmpdir
+
+
+def run_coqc_challenge(attempt_path: Path, meta: dict, log: list[str]) -> str:
+    """
+    Place a renamed copy of attempt.v in a fresh checkout of fiat-crypto at
+    the challenge's commit, then run coqc with the repo's load-path flags.
+    """
+    commit    = meta["commit_hash"]
+    file_path = Path(meta["file_path"])   # e.g. src/Galois/BaseSystem.v
+
+    log.append(f"  checking out fiat-crypto @ {commit[:8]}…")
+    repo = _checkout_commit(commit, log)
+    if repo is None:
+        return "ERROR"
+
+    try:
+        content           = attempt_path.read_text()
+        challenge_content = _patch_compat(content)
+
+        challenge_name = file_path.stem + "_challenge.v"
+        challenge_path = repo / file_path.parent / challenge_name
+        challenge_path.write_text(challenge_content)
+
+        flags = _get_coq_flags(repo)
+
+        log.append(f"  coqc flags: {' '.join(flags)}")
+        log.append(f"  target: {file_path.parent / challenge_name}")
+
         result = subprocess.run(
-            [COQC, str(attempt_path)],
-            capture_output=True, text=True, timeout=120,
+            [COQC] + flags + [str(challenge_path)],
+            capture_output=True, text=True, timeout=300,
+            cwd=str(repo),
         )
         if result.returncode == 0:
             log.append("  coqc: PASS ✓")
             return "PASS"
         else:
-            short = (result.stderr or result.stdout)[:400].strip()
+            short = (result.stderr or result.stdout)[:500].strip()
             log.append(f"  coqc: FAIL\n    {short}")
             return "FAIL"
+
     except subprocess.TimeoutExpired:
-        log.append("  coqc: TIMEOUT (>120s)")
+        log.append("  coqc: TIMEOUT (>300s)")
         return "TIMEOUT"
     except FileNotFoundError:
-        log.append("  coqc: not found on PATH")
+        log.append(f"  coqc: not found at {COQC}")
         return "ERROR"
+    finally:
+        shutil.rmtree(repo, ignore_errors=True)
 
+
+# ── Main loop ─────────────────────────────────────────────────────────────────
 
 def run_condition(slots: list[Path], condition: str,
                   prompt_fn, challenge_file: str, log_lines: list[str],
@@ -207,54 +275,36 @@ def run_condition(slots: list[Path], condition: str,
         log_lines.append(f"[{condition}] {slot.name}")
         log_lines.append(f"Declaration : {decl}")
         log_lines.append(f"File        : {meta.get('file_path','')}")
-        log_lines.append(f"Instructions: {meta.get('instructions','')}")
+        log_lines.append(f"Commit      : {meta.get('commit_hash','')[:12]}")
 
-        # Show the Admitted context (±10 lines around it)
-        lines = content.splitlines()
-        adm_idx = next((i for i, l in enumerate(lines) if "Admitted" in l), None)
-        if adm_idx is not None:
-            ctx_start = max(0, adm_idx - 8)
-            ctx_end   = min(len(lines), adm_idx + 4)
-            ctx = "\n".join(f"  {i+1:>4} | {lines[i]}" for i in range(ctx_start, ctx_end))
-            log_lines.append(f"\nProof context around Admitted (lines {ctx_start+1}–{ctx_end}):")
-            log_lines.append(ctx)
+        # Show proof context around the target Admitted.
+        decl_pos = content.find(decl)
+        if decl_pos != -1:
+            m = re.search(r'(?m)^\s*Admitted\.\s*$', content[decl_pos:])
+            if m:
+                abs_line = content[:decl_pos + m.start()].count('\n')
+                lines = content.splitlines()
+                ctx_start = max(0, abs_line - 6)
+                ctx_end   = min(len(lines), abs_line + 3)
+                ctx = "\n".join(f"  {i+1:>4} | {lines[i]}"
+                                for i in range(ctx_start, ctx_end))
+                log_lines.append(f"\nProof context (lines {ctx_start+1}–{ctx_end}):")
+                log_lines.append(ctx)
 
-        # Call the API
-        prompt   = prompt_fn(decl, content)
-        response = call_claude(prompt, slot.name, log_lines)
+        # Generate tactics
+        prompt = prompt_fn(decl, content)
+        proof  = call_claude(prompt, log_lines)
 
-        # Log model reasoning if present
-        reasoning_match = re.search(r"<reasoning>\s*\n?(.*?)\s*</reasoning>", response, re.DOTALL)
-        if reasoning_match:
-            log_lines.append(f"\nModel reasoning:")
-            log_lines.append(f"  {reasoning_match.group(1).strip()}")
+        log_lines.append(f"\nTactics returned:\n{proof.tactics.strip()}")
 
-        completed = extract_code(response)
-
-        # Write attempt.v
+        # Splice tactics into original file → attempt.v
+        completed    = patch_admitted(content, decl, proof.tactics)
         attempt_path = slot / "attempt.v"
         attempt_path.write_text(completed)
-        log_lines.append(f"\nModel response written to: attempt.v")
+        log_lines.append(f"\nattempt.v written")
 
-        # Show what the model filled in — diff the Admitted line(s)
-        orig_lines = content.splitlines()
-        new_lines  = completed.splitlines()
-        adm_new = next((i for i, l in enumerate(new_lines) if "Admitted" in l), None)
-        if adm_new is None:
-            # Find where proof diverges
-            for i, (ol, nl) in enumerate(zip(orig_lines, new_lines)):
-                if ol != nl:
-                    snippet = "\n".join(
-                        f"  {j+1:>4} | {new_lines[j]}" for j in range(max(0,i-2), min(len(new_lines),i+8))
-                    )
-                    log_lines.append(f"\nModel filled proof (diverges at line {i+1}):")
-                    log_lines.append(snippet)
-                    break
-        else:
-            log_lines.append(f"\n  Model kept Admitted at line {adm_new+1} (could not complete)")
-
-        # coqc check
-        verdict = run_coqc(attempt_path, log_lines)
+        # Compile against fiat-crypto at the challenge's commit
+        verdict = run_coqc_challenge(attempt_path, meta, log_lines)
         results[slot.name] = verdict
 
     return results
@@ -263,37 +313,36 @@ def run_condition(slots: list[Path], condition: str,
 # ── Main ─────────────────────────────────────────────────────────────────────
 
 def main(
-    max_challenges: int = typer.Option(3, "--max-challenges", "-n", help="Max challenges per condition (0 = all)"),
+    max_challenges: int = typer.Option(3, "--max-challenges", "-n",
+                                       help="Max challenges per condition (0 = all)"),
 ):
     limit = max_challenges if max_challenges > 0 else None
 
     log_lines: list[str] = [
         "=" * 64,
         "PROOF COMPLETION EXPERIMENT — Claude API",
-        f"Model: {MODEL}",
-        f"Max challenges: {limit or 'all'}",
-        f"Date : {time.strftime('%Y-%m-%d %H:%M:%S')}",
+        f"Model : {MODEL}",
+        f"Max   : {limit or 'all'}",
+        f"Date  : {time.strftime('%Y-%m-%d %H:%M:%S')}",
         "=" * 64,
     ]
 
-    # Condition B — last 3 tactics removed (easier)
+    # Condition B — last 3 tactics removed
     log_lines.append("\n\n" + "━"*64)
     log_lines.append("CONDITION B: Last 3 tactics removed (experiments3)")
     log_lines.append("━"*64)
-    slots_b = sorted(EXP_B.iterdir())
     results_b = run_condition(
-        slots_b, "B", make_prompt_partial, "challenge3.v", log_lines,
-        max_challenges=limit,
+        list(EXP_B.iterdir()), "B", make_prompt_partial, "challenge3.v",
+        log_lines, max_challenges=limit,
     )
 
-    # Condition A — full Admitted (harder)
+    # Condition A — full Admitted
     log_lines.append("\n\n" + "━"*64)
     log_lines.append("CONDITION A: Full Admitted (admitted-proofs)")
     log_lines.append("━"*64)
-    slots_a = sorted(EXP_A.iterdir())
     results_a = run_condition(
-        slots_a, "A", make_prompt_full, "challenge.v", log_lines,
-        max_challenges=limit,
+        list(EXP_A.iterdir()), "A", make_prompt_full, "challenge.v",
+        log_lines, max_challenges=limit,
     )
 
     # Summary
@@ -302,10 +351,10 @@ def main(
     log_lines.append("="*64)
 
     for label, results in [("B (last 3 tactics)", results_b), ("A (full Admitted)", results_a)]:
-        total = len(results)
+        total  = len(results)
         passes = sum(1 for v in results.values() if v == "PASS")
         fails  = sum(1 for v in results.values() if v == "FAIL")
-        errors = sum(1 for v in results.values() if v in ("TIMEOUT","ERROR"))
+        errors = sum(1 for v in results.values() if v in ("TIMEOUT", "ERROR"))
         log_lines.append(f"\nCondition {label}:")
         log_lines.append(f"  Total   : {total}")
         log_lines.append(f"  PASS    : {passes}")

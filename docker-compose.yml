@@ -1,0 +1,18 @@
+services:
+  experiment:
+    build: .
+    # Pass the API key from the host environment.
+    # Either: export ANTHROPIC_API_KEY=sk-ant-... before running
+    # Or:     place ANTHROPIC_API_KEY=... in git-history-evals/.env
+    #         (docker-compose reads .env in the same directory automatically)
+    environment:
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+    # Mount experiments/ so challenge files are read from the host
+    # and attempt.v + log files are written back to the host.
+    volumes:
+      - ./experiments:/workspace/experiments
+    # Override max-challenges at runtime:
+    #   docker-compose run experiment --max-challenges 0   (all)
+    command: >
+      python3 /workspace/experiments/run_experiment.py
+      --max-challenges 3
