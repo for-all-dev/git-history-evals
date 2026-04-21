@@ -24,6 +24,22 @@ class ProofMetrics(BaseModel):
     proof_chars: int = Field(description="Character length of the proof body")
     proof_lines: int = Field(description="Line count of the proof body")
     ends_with_admitted: bool = Field(description="True if the proof terminates with Admitted.")
+    vo_bytes: int | None = Field(
+        default=None,
+        description="Size in bytes of the compiled .vo artifact produced by coqc, if available."
+    )
+    compile_time_s: float | None = Field(
+        default=None,
+        description="Wall-clock seconds taken by coqc to compile the proof, if measured."
+    )
+    assumptions: list[str] | None = Field(
+        default=None,
+        description="Axioms/assumptions the closed proof depends on (e.g. from `Print Assumptions`)."
+    )
+    n_assumptions: int | None = Field(
+        default=None,
+        description="Derived count of entries in `assumptions`; populated by helpers, not the model."
+    )
 
 
 # ── Per-run result ────────────────────────────────────────────────────────────
@@ -47,6 +63,28 @@ class ExperimentResult(BaseModel):
     )
     inference_time_s: float = Field(description="Wall-clock seconds for Claude API call")
     output_tokens: int = Field(description="Output tokens returned by Claude")
+
+    # Mode + agent-loop bookkeeping
+    mode: Literal["baseline", "agent"] = Field(
+        default="baseline",
+        description="'baseline' = single-shot completion; 'agent' = multi-turn agent loop."
+    )
+    agent_n_turns: int | None = Field(
+        default=None,
+        description="Number of agent turns taken; None for baseline runs."
+    )
+    agent_give_up_reason: str | None = Field(
+        default=None,
+        description="Reason the agent stopped (e.g. 'max_turns', 'compile_success', 'no_progress')."
+    )
+    agent_total_input_tokens: int | None = Field(
+        default=None,
+        description="Sum of input tokens across all agent turns; None for baseline runs."
+    )
+    agent_total_output_tokens: int | None = Field(
+        default=None,
+        description="Sum of output tokens across all agent turns; None for baseline runs."
+    )
 
     # Proof quality
     human_metrics: ProofMetrics | None = Field(
@@ -91,6 +129,10 @@ class DeletionConditionSummary(BaseModel):
     mean_output_tokens: float
     mean_tactic_edit_distance: float | None = None
     mean_normalized_edit_distance: float | None = None
+    mean_vo_bytes: float | None = None
+    mean_compile_time_s: float | None = None
+    mean_n_assumptions: float | None = None
+    mean_agent_n_turns: float | None = None
 
 
 class ExperimentSummary(BaseModel):
@@ -101,12 +143,15 @@ class ExperimentSummary(BaseModel):
     n_total_runs: int
     conditions: list[DeletionConditionSummary]
 
-    # Faithfulness score: Pearson r between deletion_size and pass_rate
-    # (should be strongly negative for a faithful eval)
-    faithfulness_correlation: float | None = Field(
-        default=None,
+    # Faithfulness score: Pearson r between deletion_size and pass_rate,
+    # computed separately for each mode ("baseline", "agent").
+    # Negative = harder deletions → lower pass rate (expected for faithful eval).
+    # Near zero or positive = possible memorization / non-monotonic degradation.
+    faithfulness_by_mode: dict[str, float | None] = Field(
+        default_factory=dict,
         description=(
-            "Pearson r between deletion_size and pass_rate across B conditions. "
+            "Pearson r between deletion_size and pass_rate across B conditions, "
+            "keyed by mode ('baseline', 'agent'). "
             "Negative = harder deletions → lower pass rate (expected for faithful eval). "
             "Near zero or positive = possible memorization / non-monotonic degradation."
         )
