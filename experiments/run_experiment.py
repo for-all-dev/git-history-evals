@@ -1,12 +1,3 @@
-# /// script
-# requires-python = ">=3.11"
-# dependencies = [
-#     "anthropic",
-#     "python-dotenv",
-#     "typer",
-#     "pydantic",
-# ]
-# ///
 """
 Progressive-deletion proof completion experiment using the Claude API.
 
