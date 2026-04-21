@@ -2361,29 +2361,31 @@ Module Fancy.
           of_prefancy_ident idc x = Some i ->
           spec (projT1 i) (Tuple.map ctx (projT2 i)) cc mod wordmax = (cinterp f (cinterp x2)).
       inversion 1; inversion 1; cbn [of_prefancy_ident].
-          { intros; hammer.
-            cbv [of_prefancy_ident] in *.
-            repeat match goal with
-                   | _ => progress cbn [fst snd] in *
-                   | _ => progress hammer
-                   | _ => progress LanguageWf.Compilers.expr.inversion_wf_one_constr
-                   | H : { _ | _ } |- _ => destruct H
-                   | H : _ /\\/ _ |- _ => destruct H
-                   | H : upper _ = _ |- _ => rewrite H
-                   | _ => rewrite cc_spec_c by auto
-                   | _ => rewrite cast_mod by (cbv; congruence)
-                   | H : _ |- _ =>
-                     apply LanguageInversion.Compilers.expr.invert_Ident_Some in H
-                   | H : _ |- _ =>
-                     apply LanguageInversion.Compilers.expr.invert_App_Some in H
-                   | _ => erewrite <-of_prefancy_scalar_correct with (ctx0:= ctx) by eauto
-                   end.
-            cbn. cbv [Z.add_with_carry].
-            autorewrite with zsimplify_fast.
-            erewrite of_prefancy_scalar_correct with (e2:=_) by eauto.
-            rewrite cast_mod by (cbv; congruence).
-            rewrite Z.mod_mod by lia.
-            reflexivity. }
+              { intros; hammer.
+                cbv [of_prefancy_ident] in *.
+                repeat match goal with
+                       | _ => progress cbn [fst snd] in *
+                       | _ => progress hammer
+                       | _ => progress LanguageWf.Compilers.expr.inversion_wf_one_constr
+                       | H : { _ | _ } |- _ => destruct H
+                       | H : _ /\  _ |- _ => destruct H
+                       | H : upper _ = _ |- _ => rewrite H
+                       | _ => rewrite cast_mod by (cbv; congruence)
+                       | H : _ |- _ =>
+                         apply LanguageInversion.Compilers.expr.invert_Ident_Some in H
+                       | H : _ |- _ =>
+                         apply LanguageInversion.Compilers.expr.invert_App_Some in H
+                       | _ => erewrite <-of_prefancy_scalar_correct with (ctx0:= ctx) by eauto
+                       end.
+                cbn. cbv [Z.add_with_carry].
+                autorewrite with zsimplify_fast.
+                repeat match goal with
+                       | |- context [cinterp ?e] =>
+                         erewrite of_prefancy_scalar_correct with (e2:=e) by eauto
+                       end.
+                rewrite Z.add_0_r.
+                rewrite Z.mod_mod by lia.
+                reflexivity. }
       Qed.
       Lemma of_prefancy_identZZ_correct' {s} idc:
         forall (x : @cexpr var _) i ctx G cc cctx x2 f,

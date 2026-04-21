@@ -1,108 +1,18 @@
 ================================================================
-PROOF COMPLETION EXPERIMENT — Claude API
-Model : claude-sonnet-4-6
-Max   : 3
-Date  : 2026-04-17 15:39:16
+PROGRESSIVE DELETION PROOF EXPERIMENT — Claude API
+Model         : claude-sonnet-4-6
+Max challenges: 3
+B sizes       : [3]
+Date          : 2026-04-21 03:37:37
 ================================================================
 
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-CONDITION B: Last 3 tactics removed (experiments3)
+CONDITION B3: Last 3 tactics removed
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 ════════════════════════════════════════════════════════════════
-[B] 01-of_prefancy_identZ_correct
-Declaration : of_prefancy_identZ_correct
-File        : src/Experiments/NewPipeline/Toplevel2.v
-Commit      : b9f28afec4f3
-
-Proof context (lines 2749–2757):
-  2749 | 
-  2750 | 
-  2751 |         Context (reg : Type) (error_reg : reg) (reg_eqb : reg -> reg -> bool).
-  2752 |         
-  2753 |         Lemma allocate_correct cc ctx e reg_list name_to_reg :
-  2754 |           interp reg_eqb wordmax cc_spec (allocate reg name name_eqb error_reg e reg_list name_to_reg) cc ctx = interp name_eqb wordmax cc_spec e cc (fun n : name => ctx (name_to_reg n)).
-  2755 |         Admitted.
-  2756 |     End with_name.
-  2757 | 
-
-  [API call: claude-sonnet-4-6]
-  elapsed: 9.7s  |  output tokens: 332
-
-Tactics returned:
-all: repeat match goal with
-                 | H : LanguageWf.Compilers.expr.wf _ ?x ?e |- context [cinterp ?e] =>
-                   erewrite <-of_prefancy_scalar_correct with (e1:=x) (e2:=e) by eauto
-                 end.
-        all: autorewrite with zsimplify_fast.
-        all: try reflexivity.
-        all: try (rewrite Z.add_modulo_correct; break_innermost_match; Z.ltb_to_lt; try omega).
-        all: try (rewrite Z.zselect_correct; break_innermost_match; try omega).
-        all: try (rewrite cc_m_zselect by auto; rewrite Z.zselect_correct; break_innermost_match; try omega).
-        all: try (rewrite cc_l_zselect; rewrite Z.zselect_correct; break_innermost_match; try omega).
-        all: try (apply (f_equal2 Z.modulo); try apply (f_equal2 Z.div); ring).
-        all: try (split; try apply (f_equal2 Z.modulo); try apply (f_equal2 Z.div); ring).
-      Qed.
-
-attempt.v written
-  checking out fiat-crypto @ b9f28afe…
-  coqc flags: -R src Crypto -R bbv/theories bbv
-  target: src/Experiments/NewPipeline/Toplevel2_challenge.v
-  coqc: FAIL
-    Warning: Cannot open bbv/theories [cannot-open-path,filesystem,default]
-File "/tmp/fc_b9f28afe/src/Experiments/NewPipeline/Toplevel2_challenge.v", line 6, characters 0-35:
-Error: Cannot find a physical path bound to logical path
-Crypto.Util.Strings.String.
-
-════════════════════════════════════════════════════════════════
-[B] 02-pull_cast_genericize_op
-Declaration : pull_cast_genericize_op
-File        : src/Compilers/Z/Bounds/InterpretationLemmas/PullCast.v
-Commit      : f2814cf2ba24
-
-Proof context (lines 144–150):
-   144 |       repeat first [ progress simpl in *
-   145 |                    | progress destruct_head unit
-   146 |                    | progress destruct_head True
-   147 |                    | progress cbv [unzify_op cast_back_flat_const lift_op Bounds.is_bounded_by' ZRange.is_bounded_pose proof (is_bounded_by_interp_op t tR opc bs).
-   148 | unfold interp_op in *.
-   149 | rewrite Zinterp_op_genericize_op.
-   150 |   Admitted.
-
-  [API call: claude-sonnet-4-6]
-  rate-limited (attempt 1), waiting 60s…
-  elapsed: 89.4s  |  output tokens: 270
-
-Tactics returned:
-pose proof (is_bounded_by_interp_op t tR opc bs).
-  unfold interp_op in *.
-  rewrite Zinterp_op_genericize_op.
-  generalize dependent (Zinterp_op t tR opc).
-  generalize dependent (Bounds.interp_op opc bs); simpl; intros.
-  repeat (destruct_one_head flat_type; try solve [ inversion opc ]);
-    repeat first [ progress simpl in *
-                 | progress destruct_head unit
-                 | progress destruct_head True
-                 | progress cbv [unzify_op cast_back_flat_const lift_op Bounds.is_bounded_by' ZRange.is_bounded_by] in *
-                 | progress destruct_head prod
-                 | progress destruct_head and
-                 | rewrite interpToZ_cast_const_small by assumption
-                 | rewrite ZToInterp_cast_const_small by assumption
-                 | reflexivity ].
-Qed.
-
-attempt.v written
-  checking out fiat-crypto @ f2814cf2…
-  coqc flags: -R src Crypto -R Bedrock Bedrock
-  target: src/Compilers/Z/Bounds/InterpretationLemmas/PullCast_challenge.v
-  coqc: FAIL
-    File "/tmp/fc_f2814cf2/src/Compilers/Z/Bounds/InterpretationLemmas/PullCast_challenge.v", line 3, characters 0-41:
-Error: Cannot find a physical path bound to logical path
-Crypto.Compilers.Z.Syntax.
-
-════════════════════════════════════════════════════════════════
-[B] 03-add_same_length
+[B] 03-add_same_length  (deletion=3)
 Declaration : add_same_length
 File        : src/Galois/BaseSystem.v
 Commit      : 612d72426483
@@ -119,188 +29,40 @@ Proof context (lines 296–304):
    304 |   Lemma mul_bi'_add : forall us n vs l, (length us = l) -> (length vs = l) ->
 
   [API call: claude-sonnet-4-6]
-  elapsed: 5.0s  |  output tokens: 91
+  elapsed: 3.0s  |  output tokens: 51
 
 Tactics returned:
-replace l with (length (vs ++ x0 :: nil)) by (apply H0).
-        rewrite app_length; simpl; omega.
-        replace l with (length (us ++ x :: nil)) by (apply H).
-        rewrite app_length; simpl; omega.
-      }
+replace l with (length (a :: us)) by (apply H).
+      rewrite cons_length; simpl; auto.
     }
+  }
   Qed.
 
-attempt.v written
+attempt written to attempt_del3.v
   checking out fiat-crypto @ 612d7242…
   coqc flags: -R src Crypto -R fiat/src Fiat -R bedrock/Bedrock Bedrock
   target: src/Galois/BaseSystem_challenge.v
   coqc: FAIL
-    Warning: Cannot open fiat/src [cannot-open-path,filesystem,default]
-Warning: Cannot open bedrock/Bedrock [cannot-open-path,filesystem,default]
+    Warning: Cannot open fiat/src [cannot-open-path,filesystem]
+Warning: Cannot open bedrock/Bedrock [cannot-open-path,filesystem]
 File "/tmp/fc_612d7242/src/Galois/BaseSystem_challenge.v", line 53, characters 2-33:
 Warning: Adding and removing hints in the core database implicitly is
 deprecated. Please specify a hint database.
-[implicit-core-hint-db,deprecated-since-8.10,deprecated,default]
-File "/tmp/fc_612d7242/src/Galois/BaseSystem_challenge.v", line 113, characters 12-30:
-Error:
-
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-CONDITION A: Full Admitted (admitted-proofs)
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-════════════════════════════════════════════════════════════════
-[A] 01-of_prefancy_identZ_correct
-Declaration : of_prefancy_identZ_correct
-File        : src/Experiments/NewPipeline/Toplevel2.v
-Commit      : b9f28afec4f3
-
-Proof context (lines 2357–2365):
-  2357 |           (forall t v1 v2, In (existT _ (type.base t) (v1, v2)) G -> interp_base ctx cctx v1 = v2) ->
-  2358 |           (forall v1 v2, In (existZ (v1, v2)) G -> v2 mod wordmax = v2) ->
-  2359 |           (forall v1 v2, In (existZZ (v1, v2)) G -> fst v2 mod wordmax = fst v2) ->
-  2360 |           (forall v1 v2, In (existZZ (v1, v2)) G -> snd v2 mod 2 = snd v2) ->
-  2361 |           of_prefancy_ident idc x = Some i ->
-  2362 |           spec (projT1 i) (Tuple.map ctx (projT2 i)) cc mod wordmax = (cinterp f (cinterp x2)).
-  2363 |       Admitted.
-  2364 |       Lemma of_prefancy_identZZ_correct' {s} idc:
-  2365 |         forall (x : @cexpr var _) i ctx G cc cctx x2 f,
-
-  [API call: claude-sonnet-4-6]
-  rate-limited (attempt 1), waiting 60s…
-  elapsed: 74.8s  |  output tokens: 411
-
-Tactics returned:
-inversion 1; inversion 1; cbn [of_prefancy_ident].
-    { intros; hammer.
-      cbv [of_prefancy_ident] in *.
-      repeat match goal with
-             | _ => progress cbn [fst snd] in *
-             | _ => progress hammer
-             | _ => progress LanguageWf.Compilers.expr.inversion_wf_one_constr
-             | H : { _ | _ } |- _ => destruct H
-             | H : _ /\\/ _ |- _ => destruct H
-             | H : upper _ = _ |- _ => rewrite H
-             | _ => rewrite cc_spec_c by auto
-             | _ => rewrite cast_mod by (cbv; congruence)
-             | H : _ |- _ =>
-               apply LanguageInversion.Compilers.expr.invert_Ident_Some in H
-             | H : _ |- _ =>
-               apply LanguageInversion.Compilers.expr.invert_App_Some in H
-             | _ => erewrite <-of_prefancy_scalar_correct with (ctx0:= ctx) by eauto
-             end.
-      cbn. cbv [Z.add_with_carry].
-      autorewrite with zsimplify_fast.
-      erewrite of_prefancy_scalar_correct with (e2:=_) by eauto.
-      rewrite cast_mod by (cbv; congruence).
-      rewrite Z.mod_mod by lia.
-      reflexivity. }
-Qed.
-
-attempt.v written
-  checking out fiat-crypto @ b9f28afe…
-  coqc flags: -R src Crypto -R bbv/theories bbv
-  target: src/Experiments/NewPipeline/Toplevel2_challenge.v
-  coqc: FAIL
-    Warning: Cannot open bbv/theories [cannot-open-path,filesystem,default]
-File "/tmp/fc_b9f28afe/src/Experiments/NewPipeline/Toplevel2_challenge.v", line 6, characters 0-35:
-Error: Cannot find a physical path bound to logical path
-Crypto.Util.Strings.String.
-
-════════════════════════════════════════════════════════════════
-[A] 02-pull_cast_genericize_op
-Declaration : pull_cast_genericize_op
-File        : src/Compilers/Z/Bounds/InterpretationLemmas/PullCast.v
-Commit      : f2814cf2ba24
-
-Proof context (lines 236–243):
-   236 |                          end
-   237 |                        | progress Z.rewrite_mod_small
-   238 |                        | progress match goal with
-   239 |                                   | [ H : context[?x mod _] |- _ ]
-   240 |                                     => revert H; progress Z.rewrite_mod_small; intro
-   241 |                                   end ].
-   242 |   Admitted.
-   243 | End with_round_up.
-
-  [API call: claude-sonnet-4-6]
-  rate-limited (attempt 1), waiting 60s…
-  elapsed: 85.5s  |  output tokens: 11
-
-Tactics returned:
-Admitted.
-
-attempt.v written
-  checking out fiat-crypto @ f2814cf2…
-  coqc flags: -R src Crypto -R Bedrock Bedrock
-  target: src/Compilers/Z/Bounds/InterpretationLemmas/PullCast_challenge.v
-  coqc: FAIL
-    File "/tmp/fc_f2814cf2/src/Compilers/Z/Bounds/InterpretationLemmas/PullCast_challenge.v", line 3, characters 0-41:
-Error: Cannot find a physical path bound to logical path
-Crypto.Compilers.Z.Syntax.
-
-════════════════════════════════════════════════════════════════
-[A] 03-add_same_length
-Declaration : add_same_length
-File        : src/Galois/BaseSystem.v
-Commit      : 612d72426483
-
-Proof context (lines 264–272):
-   264 |   Proof.
-   265 |     unfold mul_bi'; auto.
-   266 |   Qed.
-   267 | 
-   268 |   Lemma add_same_length : forall us vs l, (length us = l) -> (length vs = l) ->
-   269 |     length (us .+ vs) = l.
-   270 |   Admitted.
-   271 | 
-   272 |   Lemma add_app_same_length : forall us vs a b l, (length (us ++ a :: nil) = l) 
-
-  [API call: claude-sonnet-4-6]
-  elapsed: 9.5s  |  output tokens: 60
-
-Tactics returned:
-intros us vs l H H0. subst. generalize dependent vs. induction us; destruct vs; simpl; intros; try omega.
-  apply eq_S. apply IHus. omega.
-Qed.
-
-attempt.v written
-  checking out fiat-crypto @ 612d7242…
-  coqc flags: -R src Crypto -R fiat/src Fiat -R bedrock/Bedrock Bedrock
-  target: src/Galois/BaseSystem_challenge.v
-  coqc: FAIL
-    Warning: Cannot open fiat/src [cannot-open-path,filesystem,default]
-Warning: Cannot open bedrock/Bedrock [cannot-open-path,filesystem,default]
+[implicit-core-hint-db,deprecated]
 File "/tmp/fc_612d7242/src/Galois/BaseSystem_challenge.v", line 53, characters 2-33:
-Warning: Adding and removing hints in the core database implicitly is
-deprecated. Please specify a hint database.
-[implicit-core-hint-db,deprecated-since-8.10,deprecated,default]
-File "/tmp/fc_612d7242/src/Galois/BaseSystem_challenge.v", line 113, characters 12-30:
-Error:
+Warning: The default value for hint locality is currently "local" in a
+section and "global" otherwise, but is scheduled to change in a future
+release. For the time being, adding hints outside of sections without
+specifying an explicit locality attribute is therefore deprecated. It is
+recommended to use "export" whenever possible. Use the attributes #[local],
+#[global] and #[export] depending on your choice. For example: "#[export]
+Hint Unfold foo : bar." [deprecated-hint-without-locality,deprecated]
+File "/tmp/fc_612d7242/src/Galois/BaseSystem_challenge.v", line 279, characters 8-18:
+Error: The reference rinduction was not found in the current environment.
 
 
 ================================================================
 SUMMARY
 ================================================================
 
-Condition B (last 3 tactics):
-  Total   : 3
-  PASS    : 0
-  FAIL    : 3
-  ERR/TIM : 0
-
-  Per-challenge:
-    01-of_prefancy_identZ_correct                      FAIL
-    02-pull_cast_genericize_op                         FAIL
-    03-add_same_length                                 FAIL
-
-Condition A (full Admitted):
-  Total   : 3
-  PASS    : 0
-  FAIL    : 3
-  ERR/TIM : 0
-
-  Per-challenge:
-    01-of_prefancy_identZ_correct                      FAIL
-    02-pull_cast_genericize_op                         FAIL
-    03-add_same_length                                 FAIL
+Condition B (deletion=3): 0/1 PASS  [pass_rate=0%  mean_time=3.01s  mean_tokens=51  mean_ned=0.3684]

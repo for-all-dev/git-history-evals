@@ -267,7 +267,7 @@ Module BaseSystem (Import B:BaseCoefs).
 
   Lemma add_same_length : forall us vs l, (length us = l) -> (length vs = l) ->
     length (us .+ vs) = l.
-  intros us vs l H H0. subst. generalize dependent vs. induction us; destruct vs; simpl; intros; try omega.
+  intros us vs l H H0. subst. generalize dependent vs. induction us; intros; destruct vs; simpl in *; try omega.
     apply eq_S. apply IHus. omega.
   Qed.
   Lemma add_app_same_length : forall us vs a b l, (length (us ++ a :: nil) = l) 

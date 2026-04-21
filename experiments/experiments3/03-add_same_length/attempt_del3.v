@@ -300,11 +300,9 @@ rewrite cons_length; simpl; auto.
   Admitted.:: nil) = l) ->
     (us ++ a :: nil) .+ (vs ++ b :: nil) = (us .+ vs) ++ (a + b) :: nil.
   replace l with (length (a :: us)) by (apply H).
-          rewrite cons_length; simpl; auto.
-          replace l with (length (a :: us)) by (apply H).
-          rewrite cons_length; simpl; auto.
-        }
+        rewrite cons_length; simpl; auto.
       }
+    }
     Qed.
   Lemma mul_bi'_add : forall us n vs l, (length us = l) -> (length vs = l) ->
     mul_bi' n (rev (us .+ vs)) = 

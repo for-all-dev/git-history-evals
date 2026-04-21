@@ -1,0 +1,21 @@
+{
+  "model": "claude-sonnet-4-6",
+  "date": "2026-04-21 03:37:43",
+  "n_total_runs": 1,
+  "conditions": [
+    {
+      "deletion_size": 3,
+      "condition": "B",
+      "n_challenges": 1,
+      "n_pass": 0,
+      "n_fail": 1,
+      "n_error_or_timeout": 0,
+      "pass_rate": 0.0,
+      "mean_inference_time_s": 3.01,
+      "mean_output_tokens": 51.0,
+      "mean_tactic_edit_distance": 7.0,
+      "mean_normalized_edit_distance": 0.3684
+    }
+  ],
+  "faithfulness_correlation": null
+}

@@ -2755,15 +2755,11 @@ Module Fancy.
         all: repeat match goal with
                          | H : LanguageWf.Compilers.expr.wf _ ?x ?e |- context [cinterp ?e] =>
                            erewrite <-of_prefancy_scalar_correct with (e1:=x) (e2:=e) by eauto
+                         | H : LanguageWf.Compilers.expr.wf _ ?x ?e2 |- context [cinterp ?e2] =>
+                           erewrite <-of_prefancy_scalar_carry with (c:=x) (e:=e2) by eauto
                          end.
-                all: autorewrite with zsimplify_fast.
                 all: try reflexivity.
-                all: try (rewrite Z.add_modulo_correct; break_innermost_match; Z.ltb_to_lt; try omega).
-                all: try (rewrite Z.zselect_correct; break_innermost_match; try omega).
-                all: try (rewrite cc_m_zselect by auto; rewrite Z.zselect_correct; break_innermost_match; try omega).
-                all: try (rewrite cc_l_zselect; rewrite Z.zselect_correct; break_innermost_match; try omega).
-                all: try (apply (f_equal2 Z.modulo); try apply (f_equal2 Z.div); ring).
-                all: try (split; try apply (f_equal2 Z.modulo); try apply (f_equal2 Z.div); ring).
+                all: try (cbv [Z.zselect Z.b2z]; break_innermost_match; Z.ltb_to_lt; try congruence; try ring).
               Qed.
     End with_name.
 

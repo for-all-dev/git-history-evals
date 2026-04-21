@@ -2,12 +2,11 @@ FROM coqorg/coq:8.14.1
 
 USER root
 
-# Install Python 3, pip, and git
+# Install Python 3 (venv) and git — pip comes bundled inside the venv
 RUN apt-get update \
- && apt-get install -y python3 python3-pip python3-venv git \
+ && apt-get install -y python3 python3-venv git \
  && rm -rf /var/lib/apt/lists/*
 
-# Use a venv to avoid externally-managed-environment errors on Debian 12+
 RUN python3 -m venv /opt/venv
 ENV PATH="/opt/venv/bin:$PATH"
 
@@ -18,8 +17,12 @@ RUN /opt/venv/bin/pip install --no-cache-dir \
     typer \
     pydantic
 
-# Make coqc available on PATH without needing opam init
-RUN ln -s "$(find /home/coq/.opam -name coqc -type f | head -1)" /usr/local/bin/coqc
+# Make Coq tools available on PATH without needing opam init
+RUN COQBIN=$(dirname "$(find /home/coq/.opam -name coqc -type f | head -1)") && \
+    ln -s "$COQBIN/coqc"         /usr/local/bin/coqc         && \
+    ln -s "$COQBIN/coq_makefile" /usr/local/bin/coq_makefile && \
+    ln -s "$COQBIN/coqdep"       /usr/local/bin/coqdep       && \
+    ln -s "$COQBIN/coqtop"       /usr/local/bin/coqtop
 
 WORKDIR /workspace
 
