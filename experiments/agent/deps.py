@@ -8,28 +8,28 @@ tools look up paths (`slot_dir`, `repo_dir`, `rel_target`, `attempt_path`),
 the declaration under proof (`decl`), the Coq include flags (`coq_flags`),
 and the `make` timeout off this object, and append transcript events to `log`.
 
-It is intentionally a plain `dataclasses.dataclass` rather than a
-`pydantic.BaseModel`: these are pure in-process data, not validated I/O at a
-trust boundary, so runtime validation buys nothing. pydantic-ai accepts any
-deps type for `RunContext`, so there is no framework-side reason to pay for
-`BaseModel`. This module also deliberately does NOT import `pydantic_ai` — it
-stays as standalone data so it can be imported from anywhere (tests,
-orchestration, tools) without pulling the agent framework in.
+It is a `pydantic.BaseModel` for consistency with the rest of `experiments/`
+(`metrics.py`, `shared/compile.py`'s `CompileResult`) and idiomatic pydantic-ai
+usage. Construction validates that paths are `Path` instances rather than
+stray strings — cheap insurance against a tool reading the wrong field.
+This module deliberately does NOT import `pydantic_ai`: it stays as
+standalone data so it can be imported from anywhere (tests, orchestration,
+tools) without pulling the agent framework in.
 """
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
 from pathlib import Path
 
+from pydantic import BaseModel, Field
 
-@dataclass
-class AgentDeps:
-    slot_dir: Path
-    repo_dir: Path
-    rel_target: Path
-    decl: str
-    attempt_path: Path
-    coq_flags: list[str]
-    make_timeout_s: int = 600
-    log: list[str] = field(default_factory=list)
+
+class AgentDeps(BaseModel):
+    slot_dir: Path = Field(description="Per-slot directory: holds challenge.v, meta.json, attempt files.")
+    repo_dir: Path = Field(description="Per-commit fiat-crypto checkout the agent compiles against.")
+    rel_target: Path = Field(description="File inside repo_dir the agent edits, relative to repo_dir.")
+    decl: str = Field(description="Coq declaration under proof.")
+    attempt_path: Path = Field(description="Where write_proof persists the spliced result.")
+    coq_flags: list[str] = Field(description="Project _CoqProject -R/-Q/-I flags for coqc/coqtop invocations.")
+    make_timeout_s: int = Field(default=600, description="Per-compile timeout passed to subprocess.run.")
+    log: list[str] = Field(default_factory=list, description="Append-only event log for transcript reconstruction.")
