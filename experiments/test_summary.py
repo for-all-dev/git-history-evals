@@ -157,7 +157,7 @@ def test_summary_cli(tmp_path: Path) -> None:
 
     # Pearson r: with deletion_sizes [3, 7, 15] and pass_rates [1.0, 0.5, 0.0]
     # correlation should be strongly negative and finite.
-    faith = summary["faithfulness_correlation"]
+    faith = summary["faithfulness_by_mode"]
     assert "baseline" in faith
     r = faith["baseline"]
     assert r is not None

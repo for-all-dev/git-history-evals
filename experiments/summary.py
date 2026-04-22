@@ -164,7 +164,7 @@ def aggregate(records: list[dict[str, Any]]) -> dict[str, Any]:
     return {
         "n_total_runs": len(records),
         "groups": group_summaries,
-        "faithfulness_correlation": faithfulness,
+        "faithfulness_by_mode": faithfulness,
     }
 
 
@@ -214,7 +214,7 @@ def render_markdown(summary: dict[str, Any]) -> str:
         for g in sorted(groups_by_mode[mode], key=lambda x: x["deletion_size"]):
             row = [_fmt_cell(g[key]) for key, _ in _COLUMNS]
             out.append("| " + " | ".join(row) + " |")
-        r = summary["faithfulness_correlation"].get(mode)
+        r = summary["faithfulness_by_mode"].get(mode)
         out.append("")
         out.append(f"Faithfulness correlation (Pearson r, deletion_size vs pass_rate): **{_fmt_cell(r)}**")
         out.append("")
