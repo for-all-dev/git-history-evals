@@ -3,12 +3,17 @@ Cross-run aggregator for ExperimentResult JSONL files.
 
 Reads one or more JSONL files produced by run_experiment.py (or the eventual
 agent runner) and emits:
-  * a JSON summary with per-(mode, deletion_size) aggregate metrics, and
-  * an optional Markdown table (one table per mode).
+  * a JSON summary with per-(mode, deletion_size) aggregate metrics,
+  * a `baseline_vs_agent` section with per-deletion-size deltas, and
+  * an optional Markdown rendering with three tables (baseline, agent,
+    baseline-vs-agent).
 
-This is the first cut — see issue #13. Drift-and-cross-mode comparisons live
-in the follow-up (#25). Depends only on stdlib + fields already defined in
-experiments/metrics.py (schema extended in #4).
+The drift columns (mean_vo_bytes_ratio, mean_compile_time_ratio,
+mean_n_assumptions_diff, mean_proof_{chars,lines}_ratio,
+mean_tactic_count_ratio) directly answer the "more/less <perf characteristic>
+than the original human data" question. Pearson r per drift metric vs
+deletion_size lives under `drift_faithfulness` as a per-mode honesty check
+against memorization. See issues #13 and #25.
 
 Usage:
     python3 summary.py --inputs <glob> [--out summary.json] [--markdown summary.md]
@@ -87,6 +92,53 @@ def _nested(rec: dict[str, Any], *path: str) -> Any:
     return cur
 
 
+# Drift metrics we want to report on each per-(mode, deletion_size) row plus
+# under drift_faithfulness. Each entry is (output_key, kind, llm_field,
+# human_field). Kind is "ratio" (per-record llm/human then mean the ratios,
+# skip when either side is missing or denominator is 0) or "diff" (per-record
+# llm − human then mean the diffs, skip when either side is missing).
+_DRIFT_FIELDS: list[tuple[str, str, str, str]] = [
+    ("mean_vo_bytes_ratio",      "ratio", "vo_bytes",      "vo_bytes"),
+    ("mean_compile_time_ratio",  "ratio", "compile_time_s", "compile_time_s"),
+    ("mean_n_assumptions_diff",  "diff",  "n_assumptions", "n_assumptions"),
+    ("mean_proof_chars_ratio",   "ratio", "proof_chars",   "proof_chars"),
+    ("mean_proof_lines_ratio",   "ratio", "proof_lines",   "proof_lines"),
+    ("mean_tactic_count_ratio",  "ratio", "tactic_count",  "tactic_count"),
+]
+
+
+def _drift_value(
+    rs: list[dict[str, Any]],
+    kind: str,
+    llm_field: str,
+    human_field: str,
+) -> float | None:
+    """Compute the per-group drift statistic across a list of records.
+
+    For "ratio": skip a record if either side is missing/None or denominator
+    is 0; otherwise append llm/human and return the mean of the ratios.
+    For "diff": skip a record if either side is missing/None; otherwise append
+    llm − human and return the mean.
+    """
+    vals: list[float] = []
+    for r in rs:
+        llm = _nested(r, "llm_metrics", llm_field)
+        human = _nested(r, "human_metrics", human_field)
+        if llm is None or human is None:
+            continue
+        llm_f = float(llm)
+        human_f = float(human)
+        if kind == "ratio":
+            if human_f == 0:
+                continue
+            vals.append(llm_f / human_f)
+        elif kind == "diff":
+            vals.append(llm_f - human_f)
+        else:  # pragma: no cover - defensive
+            raise ValueError(f"unknown drift kind: {kind!r}")
+    return _mean(vals)
+
+
 # ── Aggregation ───────────────────────────────────────────────────────────────
 
 def aggregate(records: list[dict[str, Any]]) -> dict[str, Any]:
@@ -116,8 +168,8 @@ def aggregate(records: list[dict[str, Any]]) -> dict[str, Any]:
             for r in rs if r.get("normalized_edit_distance") is not None
         ]
 
-        # Compile / VO metrics come from llm_metrics; human ratio compares LLM
-        # vs ground-truth human vo_bytes to flag suspiciously-small artifacts.
+        # Compile / VO metrics come from llm_metrics; the human_ratio column
+        # kept for backward compatibility with issue #13's output shape.
         vo_bytes_vals: list[float] = []
         vo_ratio_vals: list[float] = []
         compile_time_vals: list[float] = []
@@ -136,7 +188,7 @@ def aggregate(records: list[dict[str, Any]]) -> dict[str, Any]:
             if nassum is not None:
                 n_assumptions_vals.append(float(nassum))
 
-        group_summaries.append({
+        row: dict[str, Any] = {
             "mode": mode,
             "deletion_size": dsize,
             "n_total": n_total,
@@ -149,39 +201,132 @@ def aggregate(records: list[dict[str, Any]]) -> dict[str, Any]:
             "mean_vo_bytes_human_ratio": _mean(vo_ratio_vals),
             "mean_compile_time_s": _mean(compile_time_vals),
             "mean_n_assumptions": _mean(n_assumptions_vals),
-        })
+        }
+
+        # Drift metrics: per-record llm-vs-human ratio/diff, then mean.
+        for out_key, kind, llm_field, human_field in _DRIFT_FIELDS:
+            row[out_key] = _drift_value(rs, kind, llm_field, human_field)
+
+        # Agent-only column; None for baseline rows so downstream consumers
+        # don't have to guard against KeyError.
+        if mode == "agent":
+            n_turns = [
+                float(r["agent_n_turns"]) for r in rs
+                if r.get("agent_n_turns") is not None
+            ]
+            row["mean_agent_n_turns"] = _mean(n_turns)
+        else:
+            row["mean_agent_n_turns"] = None
+
+        group_summaries.append(row)
 
     # Per-mode Pearson r between deletion_size and pass_rate.
-    faithfulness: dict[str, float | None] = {}
     by_mode: dict[str, list[dict[str, Any]]] = defaultdict(list)
     for g in group_summaries:
         by_mode[g["mode"]].append(g)
+
+    faithfulness: dict[str, float | None] = {}
     for mode, gs in by_mode.items():
         xs = [float(g["deletion_size"]) for g in gs if g["n_total"] > 0]
         ys = [float(g["pass_rate"]) for g in gs if g["n_total"] > 0]
         faithfulness[mode] = _pearson_r(xs, ys)
 
+    # Per-metric Pearson r across deletion sizes, per mode. For each drift
+    # metric (plus pass_rate and normalized_edit_distance, which are the two
+    # headline non-drift signals) we emit {metric: {mode: r|None}}.
+    drift_metric_keys: list[str] = [k for k, _, _, _ in _DRIFT_FIELDS]
+    drift_metric_keys.extend(["pass_rate", "mean_normalized_edit_distance"])
+    drift_faithfulness: dict[str, dict[str, float | None]] = {}
+    for metric in drift_metric_keys:
+        drift_faithfulness[metric] = {}
+        for mode, gs in by_mode.items():
+            pairs: list[tuple[float, float]] = [
+                (float(g["deletion_size"]), float(g[metric]))
+                for g in gs if g.get(metric) is not None and g["n_total"] > 0
+            ]
+            if len(pairs) >= 3:
+                xs = [p[0] for p in pairs]
+                ys = [p[1] for p in pairs]
+                drift_faithfulness[metric][mode] = _pearson_r(xs, ys)
+            else:
+                drift_faithfulness[metric][mode] = None
+
+    # Baseline-vs-agent per deletion_size: only emit rows where BOTH modes
+    # have at least one result at that deletion_size.
+    baseline_by_dsize = {g["deletion_size"]: g for g in by_mode.get("baseline", [])}
+    agent_by_dsize    = {g["deletion_size"]: g for g in by_mode.get("agent", [])}
+    shared_dsizes = sorted(set(baseline_by_dsize) & set(agent_by_dsize))
+    baseline_vs_agent: list[dict[str, Any]] = []
+    for dsize in shared_dsizes:
+        b = baseline_by_dsize[dsize]
+        a = agent_by_dsize[dsize]
+        if b["n_total"] == 0 or a["n_total"] == 0:
+            continue
+        baseline_vs_agent.append({
+            "deletion_size": dsize,
+            "baseline_n_total": b["n_total"],
+            "agent_n_total":    a["n_total"],
+            "delta_pass_rate":  round(a["pass_rate"] - b["pass_rate"], 4),
+            "delta_normalized_edit_distance": _delta(
+                a.get("mean_normalized_edit_distance"),
+                b.get("mean_normalized_edit_distance"),
+            ),
+            "delta_mean_agent_n_turns": a.get("mean_agent_n_turns"),
+        })
+
     return {
         "n_total_runs": len(records),
         "groups": group_summaries,
         "faithfulness_by_mode": faithfulness,
+        "drift_faithfulness": drift_faithfulness,
+        "baseline_vs_agent": baseline_vs_agent,
     }
+
+
+def _delta(a: float | None, b: float | None) -> float | None:
+    if a is None or b is None:
+        return None
+    return round(a - b, 4)
 
 
 # ── Rendering ─────────────────────────────────────────────────────────────────
 
-_COLUMNS: list[tuple[str, str]] = [
-    ("deletion_size",                "deletion_size"),
-    ("n_total",                      "n_total"),
-    ("n_pass",                       "n_pass"),
-    ("pass_rate",                    "pass_rate"),
-    ("mean_inference_time_s",        "mean_inference_time_s"),
-    ("mean_output_tokens",           "mean_output_tokens"),
+# Columns shared by both baseline and agent tables.
+_BASE_COLUMNS: list[tuple[str, str]] = [
+    ("deletion_size",                 "deletion_size"),
+    ("n_total",                       "n_total"),
+    ("n_pass",                        "n_pass"),
+    ("pass_rate",                     "pass_rate"),
+    ("mean_inference_time_s",         "mean_inference_time_s"),
+    ("mean_output_tokens",            "mean_output_tokens"),
     ("mean_normalized_edit_distance", "mean_norm_edit_dist"),
-    ("mean_vo_bytes",                "mean_vo_bytes"),
-    ("mean_vo_bytes_human_ratio",    "mean_vo_ratio"),
-    ("mean_compile_time_s",          "mean_compile_s"),
-    ("mean_n_assumptions",           "mean_n_assumptions"),
+    ("mean_vo_bytes",                 "mean_vo_bytes"),
+    ("mean_vo_bytes_human_ratio",     "mean_vo_ratio"),
+    ("mean_compile_time_s",           "mean_compile_s"),
+    ("mean_n_assumptions",            "mean_n_assumptions"),
+    ("mean_vo_bytes_ratio",           "vo_bytes_ratio"),
+    ("mean_compile_time_ratio",       "compile_time_ratio"),
+    ("mean_n_assumptions_diff",       "n_assumptions_diff"),
+    ("mean_proof_chars_ratio",        "proof_chars_ratio"),
+    ("mean_proof_lines_ratio",        "proof_lines_ratio"),
+    ("mean_tactic_count_ratio",       "tactic_count_ratio"),
+]
+
+# Backward-compat alias for tests / external callers that imported _COLUMNS.
+_COLUMNS: list[tuple[str, str]] = _BASE_COLUMNS
+
+# Agent table adds the turn-count column.
+_AGENT_COLUMNS: list[tuple[str, str]] = _BASE_COLUMNS + [
+    ("mean_agent_n_turns", "mean_agent_n_turns"),
+]
+
+_CMP_COLUMNS: list[tuple[str, str]] = [
+    ("deletion_size",                    "deletion_size"),
+    ("baseline_n_total",                 "baseline_n"),
+    ("agent_n_total",                    "agent_n"),
+    ("delta_pass_rate",                  "Δpass_rate"),
+    ("delta_normalized_edit_distance",   "Δnorm_edit_dist"),
+    ("delta_mean_agent_n_turns",         "Δmean_agent_n_turns"),
 ]
 
 
@@ -193,8 +338,35 @@ def _fmt_cell(v: Any) -> str:
     return str(v)
 
 
+def _render_mode_table(
+    out: list[str],
+    mode: str,
+    rows: list[dict[str, Any]],
+    columns: list[tuple[str, str]],
+    faithfulness_r: float | None,
+) -> None:
+    out.append(f"## mode = `{mode}`")
+    out.append("")
+    headers = [label for _, label in columns]
+    out.append("| " + " | ".join(headers) + " |")
+    out.append("|" + "|".join(["---"] * len(headers)) + "|")
+    for g in sorted(rows, key=lambda x: x["deletion_size"]):
+        row = [_fmt_cell(g.get(key)) for key, _ in columns]
+        out.append("| " + " | ".join(row) + " |")
+    out.append("")
+    out.append(
+        "Faithfulness correlation (Pearson r, deletion_size vs pass_rate): "
+        f"**{_fmt_cell(faithfulness_r)}**"
+    )
+    out.append("")
+
+
 def render_markdown(summary: dict[str, Any]) -> str:
-    """Render one Markdown table per mode plus a Pearson r block."""
+    """Render three Markdown tables: baseline, agent, baseline-vs-agent.
+
+    Also includes a drift-faithfulness block listing Pearson r per metric per
+    mode.
+    """
     groups_by_mode: dict[str, list[dict[str, Any]]] = defaultdict(list)
     for g in summary["groups"]:
         groups_by_mode[g["mode"]].append(g)
@@ -205,18 +377,65 @@ def render_markdown(summary: dict[str, Any]) -> str:
     out.append(f"Total runs: **{summary['n_total_runs']}**")
     out.append("")
 
-    for mode in sorted(groups_by_mode):
-        out.append(f"## mode = `{mode}`")
-        out.append("")
-        headers = [label for _, label in _COLUMNS]
+    # Baseline table (if present).
+    if "baseline" in groups_by_mode:
+        _render_mode_table(
+            out,
+            "baseline",
+            groups_by_mode["baseline"],
+            _BASE_COLUMNS,
+            summary["faithfulness_by_mode"].get("baseline"),
+        )
+
+    # Agent table (if present). Rendered even when baseline is absent.
+    if "agent" in groups_by_mode:
+        _render_mode_table(
+            out,
+            "agent",
+            groups_by_mode["agent"],
+            _AGENT_COLUMNS,
+            summary["faithfulness_by_mode"].get("agent"),
+        )
+
+    # Any other modes (future-proofing) render with base columns.
+    for mode in sorted(m for m in groups_by_mode if m not in ("baseline", "agent")):
+        _render_mode_table(
+            out,
+            mode,
+            groups_by_mode[mode],
+            _BASE_COLUMNS,
+            summary["faithfulness_by_mode"].get(mode),
+        )
+
+    # Baseline-vs-agent comparison table.
+    out.append("## baseline vs agent")
+    out.append("")
+    cmp_rows = summary.get("baseline_vs_agent") or []
+    if cmp_rows:
+        headers = [label for _, label in _CMP_COLUMNS]
         out.append("| " + " | ".join(headers) + " |")
         out.append("|" + "|".join(["---"] * len(headers)) + "|")
-        for g in sorted(groups_by_mode[mode], key=lambda x: x["deletion_size"]):
-            row = [_fmt_cell(g[key]) for key, _ in _COLUMNS]
-            out.append("| " + " | ".join(row) + " |")
-        r = summary["faithfulness_by_mode"].get(mode)
+        for row in sorted(cmp_rows, key=lambda x: x["deletion_size"]):
+            cells = [_fmt_cell(row.get(key)) for key, _ in _CMP_COLUMNS]
+            out.append("| " + " | ".join(cells) + " |")
+    else:
+        out.append("_No shared deletion sizes between baseline and agent runs._")
+    out.append("")
+
+    # Per-metric drift faithfulness (Pearson r vs deletion_size, per mode).
+    drift_faith = summary.get("drift_faithfulness") or {}
+    if drift_faith:
+        out.append("## drift faithfulness (Pearson r vs deletion_size)")
         out.append("")
-        out.append(f"Faithfulness correlation (Pearson r, deletion_size vs pass_rate): **{_fmt_cell(r)}**")
+        modes = sorted({m for per_mode in drift_faith.values() for m in per_mode})
+        headers = ["metric"] + modes
+        out.append("| " + " | ".join(headers) + " |")
+        out.append("|" + "|".join(["---"] * len(headers)) + "|")
+        for metric in sorted(drift_faith):
+            cells = [metric] + [
+                _fmt_cell(drift_faith[metric].get(mode)) for mode in modes
+            ]
+            out.append("| " + " | ".join(cells) + " |")
         out.append("")
 
     return "\n".join(out).rstrip() + "\n"
@@ -229,7 +448,8 @@ def _parser() -> argparse.ArgumentParser:
         prog="summary.py",
         description=(
             "Aggregate ExperimentResult JSONL files into a per-(mode, deletion_size) "
-            "summary with Pearson-r faithfulness score."
+            "summary with drift metrics, baseline-vs-agent comparison, and Pearson-r "
+            "faithfulness scores."
         ),
     )
     p.add_argument(
