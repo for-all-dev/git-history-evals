@@ -14,10 +14,11 @@ For each challenge the script:
   1. Reads the challenge file and meta.json
   2. Calls claude-sonnet-4-6 to produce only the missing tactics
   3. Splices the tactics into the original file, writing attempt_delN.v
-  4. Clones fiat-crypto at the challenge's commit into /tmp, places a
-     renamed copy of attempt_delN.v (<stem>_challenge.v), then runs coqc
+  4. Clones fiat-crypto at the challenge's commit into /tmp, places the
+     attempt file at its original path in the repo, then drives the
+     repo's Makefile via shared.compile.run_make_target
   5. Computes proof metrics (human vs LLM) and tactic edit distance
-  6. Appends one JSON record per run to experiment-results.jsonl
+  6. Appends one JSON record per run to <results_dir>/baseline.jsonl
   7. Writes a human-readable log to experiment-log.txt
 """
 
@@ -60,6 +61,17 @@ from metrics import (
     ExperimentSummary,
     ProofMetrics,
 )
+from shared.splice import patch_admitted
+from shared.prompts import (
+    SYS_PROMPT_BASELINE,
+    make_prompt_full,
+    make_prompt_partial,
+)
+from shared.compile import (
+    print_assumptions,
+    run_make_target,
+    vo_bytes,
+)
 
 # ── Config ────────────────────────────────────────────────────────────────────
 
@@ -67,10 +79,28 @@ BASE             = Path(__file__).parent
 EXP_A            = BASE / "admitted-proofs"
 EXP_B            = BASE / "experiments3"
 LOG              = BASE / "experiment-log.txt"
-RESULTS_JSONL    = BASE / "experiment-results.jsonl"
 MODEL            = "claude-sonnet-4-6"
-COQC             = "coqc"
 FIAT_CRYPTO_DIR  = Path(os.environ.get("FIAT_CRYPTO_DIR", "/data/fiat-crypto"))
+
+
+def _resolve_results_dir() -> Path:
+    """Return the per-run results directory.
+
+    Inside a container (detected via ``/.dockerenv`` or ``RUNNING_IN_DOCKER``),
+    this is ``/results/${RUN_ID}``. Otherwise it is
+    ``experiments/results/${RUN_ID}``. ``RUN_ID`` defaults to a timestamp if
+    unset, so ad-hoc local runs still get their own directory.
+    """
+    run_id = os.environ.get("RUN_ID") or time.strftime("%Y%m%d-%H%M%S")
+    in_container = Path("/.dockerenv").exists() or bool(os.environ.get("RUNNING_IN_DOCKER"))
+    root = Path("/results") if in_container else (BASE / "results")
+    out = root / run_id
+    out.mkdir(parents=True, exist_ok=True)
+    return out
+
+
+RESULTS_DIR   = _resolve_results_dir()
+RESULTS_JSONL = RESULTS_DIR / "baseline.jsonl"
 
 client = anthropic.Anthropic()
 
@@ -79,61 +109,6 @@ client = anthropic.Anthropic()
 
 class ProofAttempt(BaseModel):
     tactics: str    # tactic lines replacing Admitted., ending with Qed. or Admitted.
-
-
-# ── Prompts ───────────────────────────────────────────────────────────────────
-
-SYS_PROMPT = """\
-You are an expert Coq proof engineer. Your task is to supply the missing \
-tactic lines that complete a proof.
-
-Output ONLY the tactic lines themselves — do not repeat any surrounding \
-Lemma/Theorem/Definition header, do not include the opening `Proof.`, \
-and do not include anything outside the proof body.
-
-End with `Qed.` (or `Defined.` if the original used `Defined.`).
-If you genuinely cannot determine the proof, write just `Admitted.`.
-Do not hallucinate tactics.
-"""
-
-def make_prompt_full(decl: str, file_content: str) -> str:
-    return (
-        f"The proof of `{decl}` is replaced entirely by `Admitted.`.\n"
-        f"Write the complete tactic proof body (tactics only, ending with Qed.).\n\n"
-        f"FILE:\n{file_content}"
-    )
-
-def make_prompt_partial(decl: str, file_content: str, n: int) -> str:
-    return (
-        f"The last {n} tactic sentences of the proof of `{decl}` have been removed "
-        f"and replaced with `Admitted.`.\n"
-        f"Write only those missing tactic lines (ending with Qed.) to complete the proof.\n\n"
-        f"FILE:\n{file_content}"
-    )
-
-
-# ── Helpers ───────────────────────────────────────────────────────────────────
-
-def patch_admitted(content: str, decl: str, tactics: str) -> str:
-    """Replace the first standalone Admitted. after `decl` with the supplied tactics."""
-    decl_pos = content.find(decl)
-    if decl_pos == -1:
-        return content
-
-    search_region = content[decl_pos:]
-    m = re.search(r'(?m)^\s*Admitted\.\s*$', search_region)
-    if m is None:
-        return content
-
-    abs_start = decl_pos + m.start()
-    abs_end   = decl_pos + m.end()
-
-    indent = re.match(r'(\s*)', content[abs_start:]).group(1)
-    replacement = "\n".join(
-        indent + line if line.strip() else line
-        for line in tactics.strip().splitlines()
-    )
-    return content[:abs_start] + replacement + content[abs_end:]
 
 
 def call_claude(prompt: str, log: list[str]) -> tuple[ProofAttempt, float, int]:
@@ -146,7 +121,7 @@ def call_claude(prompt: str, log: list[str]) -> tuple[ProofAttempt, float, int]:
                 model=MODEL,
                 max_tokens=4096,
                 temperature=0,
-                system=SYS_PROMPT,
+                system=SYS_PROMPT_BASELINE,
                 messages=[{"role": "user", "content": prompt}],
                 output_format=ProofAttempt,
             )
@@ -189,46 +164,7 @@ def compute_proof_metrics(content: str, decl: str) -> ProofMetrics | None:
     )
 
 
-# ── fiat-crypto checkout & coqc ───────────────────────────────────────────────
-
-def _patch_compat(content: str) -> str:
-    content = re.sub(r'(?m)^\s*Require\s+Import\s+Omega\.\s*$\n?', '', content)
-    content = re.sub(r'\bSearchAbout\b', 'Search', content)
-    content = re.sub(r'\bNPeano\.Nat\.', 'Nat.', content)
-    content = re.sub(r'\bNPeano\.', 'Nat.', content)
-    content = _fix_admitted_qed(content)
-    return content
-
-def _fix_admitted_qed(content: str) -> str:
-    lines = content.splitlines(keepends=True)
-    in_proof = False
-    has_admit = False
-    result = list(lines)
-    for i, line in enumerate(lines):
-        stripped = line.strip()
-        if stripped == 'Proof.':
-            in_proof = True
-            has_admit = False
-        elif in_proof:
-            if re.search(r'\badmit\b', stripped) and not stripped.startswith('Admitted'):
-                has_admit = True
-            if stripped in ('Qed.', 'Defined.', 'Admitted.'):
-                if has_admit and stripped == 'Qed.':
-                    result[i] = line.replace('Qed.', 'Admitted.')
-                in_proof = False
-                has_admit = False
-    return ''.join(result)
-
-def _get_coq_flags(repo_dir: Path) -> list[str]:
-    cp = repo_dir / "_CoqProject"
-    if not cp.exists():
-        return []
-    flags: list[str] = []
-    for line in cp.read_text().splitlines():
-        parts = line.strip().split()
-        if parts and parts[0] in ("-R", "-Q", "-I") and len(parts) >= 3:
-            flags.extend(parts[:3])
-    return flags
+# ── fiat-crypto checkout & compile ───────────────────────────────────────────
 
 def _checkout_commit(commit: str, log: list[str]) -> Path | None:
     if not FIAT_CRYPTO_DIR.exists():
@@ -252,47 +188,92 @@ def _checkout_commit(commit: str, log: list[str]) -> Path | None:
         return None
     return tmpdir
 
-def run_coqc_challenge(attempt_path: Path, meta: dict, log: list[str]) -> str:
-    commit    = meta["commit_hash"]
-    file_path = Path(meta["file_path"])
 
-    log.append(f"  checking out fiat-crypto @ {commit[:8]}…")
+class _CompileOutcome(BaseModel):
+    """Internal bundle returned by _compile_in_repo."""
+    verdict: str
+    vo_bytes: int | None = None
+    compile_time_s: float | None = None
+    assumptions: list[str] | None = None
+
+
+def _compile_in_repo(
+    repo: Path,
+    rel_target: Path,
+    source_content: str,
+    decl: str | None,
+    log: list[str],
+) -> _CompileOutcome:
+    """Write ``source_content`` to ``repo/rel_target`` and drive the repo Makefile.
+
+    On success (``ok``), also populates vo_bytes, compile_time_s, and — if
+    ``decl`` is provided — the axioms via ``print_assumptions``. Verdicts
+    mirror the legacy mapping: PASS / FAIL / TIMEOUT / ERROR.
+    """
+    target_path = repo / rel_target
+    target_path.parent.mkdir(parents=True, exist_ok=True)
+    target_path.write_text(source_content)
+
+    log.append(f"  make target: {rel_target.with_suffix('.vo')}")
+    try:
+        result = run_make_target(repo, rel_target)
+    except Exception as e:  # pragma: no cover - defensive
+        log.append(f"  run_make_target raised: {e}")
+        return _CompileOutcome(verdict="ERROR")
+
+    if result.ok:
+        log.append(f"  make: PASS ✓ ({result.elapsed_s:.1f}s)")
+        size = vo_bytes(repo, rel_target)
+        axioms: list[str] | None = None
+        if decl:
+            axioms = print_assumptions(repo, rel_target, decl)
+        return _CompileOutcome(
+            verdict="PASS",
+            vo_bytes=size,
+            compile_time_s=round(result.elapsed_s, 3),
+            assumptions=axioms,
+        )
+
+    # Map non-ok outcomes to legacy verdicts.
+    if result.exit_code == 124:
+        log.append(f"  make: TIMEOUT")
+        return _CompileOutcome(verdict="TIMEOUT")
+    if result.exit_code == 127:
+        log.append(f"  make: ERROR ({result.stderr[:200]})")
+        return _CompileOutcome(verdict="ERROR")
+    short = (result.stderr or result.stdout)[:2000].strip()
+    log.append(f"  make: FAIL\n    {short}")
+    return _CompileOutcome(verdict="FAIL")
+
+
+# ── Human-proof compilation cache (keyed by commit SHA) ──────────────────────
+
+_human_metrics_cache: dict[str, _CompileOutcome] = {}
+
+
+def _compile_human_solution(
+    commit: str,
+    rel_target: Path,
+    solution_content: str,
+    decl: str,
+    log: list[str],
+) -> _CompileOutcome | None:
+    """Compile solution.v once per SHA and cache the outcome."""
+    cached = _human_metrics_cache.get(commit)
+    if cached is not None:
+        return cached
+
+    log.append(f"  [human] compiling solution.v @ {commit[:8]}…")
     repo = _checkout_commit(commit, log)
     if repo is None:
-        return "ERROR"
-
+        return None
     try:
-        content           = attempt_path.read_text()
-        challenge_content = _patch_compat(content)
-
-        challenge_name = file_path.stem + "_challenge.v"
-        challenge_path = repo / file_path.parent / challenge_name
-        challenge_path.write_text(challenge_content)
-
-        flags = _get_coq_flags(repo)
-        log.append(f"  coqc flags: {' '.join(flags)}")
-        log.append(f"  target: {file_path.parent / challenge_name}")
-
-        result = subprocess.run(
-            [COQC] + flags + [str(challenge_path)],
-            capture_output=True, text=True, timeout=300,
-            cwd=str(repo),
-        )
-        if result.returncode == 0:
-            log.append("  coqc: PASS ✓")
-            return "PASS"
-        else:
-            short = (result.stderr or result.stdout)[:2000].strip()
-            log.append(f"  coqc: FAIL\n    {short}")
-            return "FAIL"
-    except subprocess.TimeoutExpired:
-        log.append("  coqc: TIMEOUT (>300s)")
-        return "TIMEOUT"
-    except FileNotFoundError:
-        log.append(f"  coqc: not found at {COQC}")
-        return "ERROR"
+        outcome = _compile_in_repo(repo, rel_target, solution_content, decl, log)
     finally:
         shutil.rmtree(repo, ignore_errors=True)
+
+    _human_metrics_cache[commit] = outcome
+    return outcome
 
 
 # ── Per-slot runner ───────────────────────────────────────────────────────────
@@ -314,12 +295,14 @@ def run_slot(
     meta    = json.loads(meta_path.read_text())
     decl    = meta["declaration"]
     content = chal_path.read_text()
+    rel_target = Path(meta["file_path"])
+    commit = meta["commit_hash"]
 
     log_lines.append(f"\n{'═'*64}")
     log_lines.append(f"[{condition}] {slot.name}  (deletion={deletion_size})")
     log_lines.append(f"Declaration : {decl}")
     log_lines.append(f"File        : {meta.get('file_path','')}")
-    log_lines.append(f"Commit      : {meta.get('commit_hash','')[:12]}")
+    log_lines.append(f"Commit      : {commit[:12]}")
 
     # Show context around the Admitted. placeholder
     decl_pos = content.find(decl)
@@ -347,8 +330,17 @@ def run_slot(
     attempt_path.write_text(completed)
     log_lines.append(f"\nattempt written to {attempt_path.name}")
 
-    # Compile
-    verdict = run_coqc_challenge(attempt_path, meta, log_lines)
+    # Compile the LLM attempt in a fresh checkout of the commit.
+    log_lines.append(f"  checking out fiat-crypto @ {commit[:8]}…")
+    repo = _checkout_commit(commit, log_lines)
+    if repo is None:
+        outcome = _CompileOutcome(verdict="ERROR")
+    else:
+        try:
+            outcome = _compile_in_repo(repo, rel_target, completed, decl, log_lines)
+        finally:
+            shutil.rmtree(repo, ignore_errors=True)
+    verdict = outcome.verdict
 
     # Proof metrics
     solution_path = slot / "solution.v"
@@ -361,6 +353,27 @@ def run_slot(
         human_m = compute_proof_metrics(solution_path.read_text(), decl)
 
     llm_m = compute_proof_metrics(completed, decl)
+
+    # On PASS, populate the artifact-drift fields on llm_metrics and,
+    # via the per-SHA cache, on human_metrics.
+    if verdict == "PASS" and llm_m is not None:
+        llm_m.vo_bytes = outcome.vo_bytes
+        llm_m.compile_time_s = outcome.compile_time_s
+        llm_m.assumptions = outcome.assumptions
+        llm_m.n_assumptions = len(outcome.assumptions) if outcome.assumptions is not None else None
+
+        if human_m is not None and solution_path.exists():
+            human_outcome = _compile_human_solution(
+                commit, rel_target, solution_path.read_text(), decl, log_lines,
+            )
+            if human_outcome is not None and human_outcome.verdict == "PASS":
+                human_m.vo_bytes = human_outcome.vo_bytes
+                human_m.compile_time_s = human_outcome.compile_time_s
+                human_m.assumptions = human_outcome.assumptions
+                human_m.n_assumptions = (
+                    len(human_outcome.assumptions)
+                    if human_outcome.assumptions is not None else None
+                )
 
     if human_m and llm_m and solution_path.exists():
         h_sents = extract_proof_sentences(solution_path.read_text(), decl) or []
@@ -378,6 +391,7 @@ def run_slot(
         verdict=verdict,      # type: ignore[arg-type]
         inference_time_s=round(elapsed, 2),
         output_tokens=tokens,
+        mode="baseline",
         human_metrics=human_m,
         llm_metrics=llm_m,
         tactic_edit_distance=ted,
@@ -457,7 +471,10 @@ def _summarise(results: list[ExperimentResult]) -> ExperimentSummary:
             mean_normalized_edit_distance=round(statistics.mean(teds), 4) if teds else None,
         ))
 
-    # Faithfulness: Pearson r between deletion_size and pass_rate for Condition B
+    # Faithfulness: Pearson r between deletion_size and pass_rate for Condition B,
+    # computed per-mode. This runner only emits mode="baseline", but #4's schema
+    # stores the result in a dict keyed by mode.
+    faith_by_mode: dict[str, float | None] = {}
     b_conds = [c for c in conditions if c.condition == "B" and c.n_challenges > 0]
     faith_r: float | None = None
     if len(b_conds) >= 3:
@@ -468,19 +485,20 @@ def _summarise(results: list[ExperimentResult]) -> ExperimentSummary:
         num   = sum((x - xm) * (y - ym) for x, y in zip(xs, ys))
         denom = (sum((x - xm)**2 for x in xs) * sum((y - ym)**2 for y in ys)) ** 0.5
         faith_r = round(num / denom, 4) if denom > 0 else None
+    faith_by_mode["baseline"] = faith_r
 
     return ExperimentSummary(
         model=MODEL,
         date=time.strftime("%Y-%m-%d %H:%M:%S"),
         n_total_runs=len(results),
         conditions=conditions,
-        faithfulness_correlation=faith_r,
+        faithfulness_by_mode=faith_by_mode,
     )
 
 
 # ── Main ──────────────────────────────────────────────────────────────────────
 
-def main(
+def _main(
     max_challenges: int = typer.Option(
         3, "--max-challenges", "-n",
         help="Max challenges per condition/deletion-size (0 = all)",
@@ -506,6 +524,7 @@ def main(
         f"Model         : {MODEL}",
         f"Max challenges: {limit or 'all'}",
         f"B sizes       : {b_sizes}",
+        f"Results dir   : {RESULTS_DIR}",
         f"Date          : {time.strftime('%Y-%m-%d %H:%M:%S')}",
         "=" * 64,
     ]
@@ -564,14 +583,15 @@ def main(
             f"mean_ned={c.mean_normalized_edit_distance}]"
         )
 
-    if summary.faithfulness_correlation is not None:
+    baseline_r = summary.faithfulness_by_mode.get("baseline")
+    if baseline_r is not None:
         log_lines.append(
             f"\nFaithfulness (Pearson r, deletion_size vs pass_rate): "
-            f"{summary.faithfulness_correlation:+.4f}"
+            f"{baseline_r:+.4f}"
         )
         interp = (
             "← strongly negative: eval is faithful (harder = worse)"
-            if summary.faithfulness_correlation < -0.5 else
+            if baseline_r < -0.5 else
             "← weak correlation: possible memorization or insufficient data"
         )
         log_lines.append(f"  {interp}")
@@ -587,5 +607,10 @@ def main(
     print(f"Summary    → {summary_path}")
 
 
+def main() -> None:
+    """Console-script entry point (wired to ``eval-baseline`` in pyproject.toml)."""
+    typer.run(_main)
+
+
 if __name__ == "__main__":
-    typer.run(main)
+    main()
