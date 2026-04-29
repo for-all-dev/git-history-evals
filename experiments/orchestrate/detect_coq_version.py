@@ -131,11 +131,21 @@ _PARSERS: dict[str, Callable[[str], Optional[str]]] = {
 }
 
 
+def _normalize_coq_tag(version: str) -> str:
+    """Normalize a Coq version string to match coqorg/coq Docker Hub tags.
+
+    coqorg publishes tags without a trailing ``.0`` patch component:
+    ``8.20.0`` → ``8.20``, ``8.14.0`` → ``8.14``, ``8.15.2`` → ``8.15.2``.
+    """
+    import re as _re
+    return _re.sub(r"\.0$", "", version)
+
+
 def detect_from_contents(files: dict[str, str]) -> Optional[str]:
     """Apply detection precedence over a dict of ``{path: content}``.
 
     Keys absent from ``files`` are treated as missing (skipped silently).
-    Returns the detected version string (e.g. ``8.20.0`` or ``dev``), or
+    Returns the detected version string (e.g. ``8.20`` or ``dev``), or
     ``None`` if no step yielded a result.
     """
     for path in _PATHS:
@@ -144,7 +154,7 @@ def detect_from_contents(files: dict[str, str]) -> Optional[str]:
             continue
         result = _PARSERS[path](content)
         if result is not None:
-            return result
+            return result if result == "dev" else _normalize_coq_tag(result)
     return None
 
 
