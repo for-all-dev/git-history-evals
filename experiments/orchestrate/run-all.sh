@@ -208,7 +208,18 @@ preflight() {
   fi
 
   if [ -z "${ANTHROPIC_API_KEY:-}" ]; then
-    errors+=("ANTHROPIC_API_KEY is not set in the environment (required for agent mode; export it before re-running)")
+    for env_file in "${REPO_ROOT}/.env" "${EXPERIMENTS_ROOT}/.env"; do
+      if [ -f "${env_file}" ]; then
+        set -a
+        # shellcheck disable=SC1090
+        source "${env_file}"
+        set +a
+      fi
+    done
+  fi
+
+  if [ -z "${ANTHROPIC_API_KEY:-}" ]; then
+    errors+=("ANTHROPIC_API_KEY is not set in the environment or in <repo>/.env (export it or add ANTHROPIC_API_KEY=… to .env, then re-run)")
   fi
 
   if [ "${#errors[@]}" -gt 0 ]; then

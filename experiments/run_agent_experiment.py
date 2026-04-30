@@ -55,7 +55,7 @@ from metrics import (
 BASE = Path(__file__).parent
 EXP_A = BASE / "admitted-proofs"
 EXP_B = BASE / "experiments3"
-FIAT_CRYPTO_DIR = Path(os.environ.get("FIAT_CRYPTO_DIR", "/data/fiat-crypto"))
+FIAT_CRYPTO_DIR = Path(os.environ.get("FIAT_CRYPTO_DIR", BASE.parent / "data" / "fiat-crypto"))
 
 
 def _resolve_results_dir(explicit: str | None) -> Path:

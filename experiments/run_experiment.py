@@ -80,7 +80,7 @@ EXP_A            = BASE / "admitted-proofs"
 EXP_B            = BASE / "experiments3"
 LOG              = BASE / "experiment-log.txt"
 MODEL            = "claude-sonnet-4-6"
-FIAT_CRYPTO_DIR  = Path(os.environ.get("FIAT_CRYPTO_DIR", "/data/fiat-crypto"))
+FIAT_CRYPTO_DIR  = Path(os.environ.get("FIAT_CRYPTO_DIR", BASE.parent / "data" / "fiat-crypto"))
 
 
 def _resolve_results_dir() -> Path:
