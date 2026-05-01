@@ -73,6 +73,11 @@ COPY experiments/pyproject.toml experiments/uv.lock /work/experiments/
 RUN cd /work/experiments && \
     uv sync --locked --no-install-project --no-dev
 
+# /work was created implicitly by the COPY above as root; hand it over to
+# the coq user so downstream layers (deps.Dockerfile, commit.Dockerfile) can
+# write into it (e.g. `git clone /work/repo`).
+RUN chown -R coq:coq /work
+
 # Drop back to the unprivileged coq user before any runtime.
 USER coq
 WORKDIR /work
