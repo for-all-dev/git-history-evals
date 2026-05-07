@@ -134,9 +134,11 @@ run_docker_build() {
   cmd="$(docker_build_cmd)"
 
   # Assemble as an array so quoting of extra args is exact.
+  # --platform linux/amd64: coqorg/coq images are amd64-only; force this so
+  # COPY --from stages (e.g. uv) also resolve amd64 binaries on ARM hosts.
   local -a full=()
   # shellcheck disable=SC2206  # word-splitting of cmd is intentional
-  full=( ${cmd} -f "${dockerfile}" -t "${tag}" "$@" "${context}" )
+  full=( ${cmd} --platform linux/amd64 -f "${dockerfile}" -t "${tag}" "$@" "${context}" )
 
   if [ "${DRY_RUN}" -eq 1 ]; then
     log "DRY-RUN: ${full[*]}"
