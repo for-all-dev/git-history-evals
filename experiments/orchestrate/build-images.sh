@@ -279,7 +279,7 @@ detect_coq_version() {
   if [ ! -d "${FIAT_CRYPTO_REPO}" ]; then
     die "FIAT_CRYPTO_REPO not a directory: ${FIAT_CRYPTO_REPO}"
   fi
-  python3 "${DETECT_COQ_VERSION}" "${FIAT_CRYPTO_REPO}" "${sha}"
+  uv run --no-project --python 3 -- python "${DETECT_COQ_VERSION}" "${FIAT_CRYPTO_REPO}" "${sha}"
 }
 
 # ---------------------------------------------------------------------------
