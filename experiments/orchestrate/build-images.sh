@@ -360,8 +360,7 @@ run_all() {
   for sha in "${SHAS[@]}"; do
     coq="${COQ_VERSIONS[${sha}]:-}"
     if [ -z "${coq}" ]; then
-      warn "no coq version for ${sha}; skipping commit build"
-      phase3_rc=1
+      warn "no coq version for ${sha}; skipping commit build (not treated as failure)"
       continue
     fi
 

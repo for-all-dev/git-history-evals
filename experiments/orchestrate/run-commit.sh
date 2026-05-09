@@ -254,6 +254,13 @@ main() {
   local -a docker_cmd=(
     docker compose
     -f "${COMPOSE_FILE}"
+  )
+  # Source the repo-root .env so ${ANTHROPIC_API_KEY} substitutions in
+  # compose.yml resolve, even when the tmux pane's bash -lc didn't auto-load it.
+  if [ -f "${REPO_ROOT}/.env" ]; then
+    docker_cmd+=(--env-file "${REPO_ROOT}/.env")
+  fi
+  docker_cmd+=(
     run --rm
     --name "${container_name}"
     "${service}"

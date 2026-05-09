@@ -294,7 +294,7 @@ run_gen_compose() {
   local shas_csv="$1"
   local out="$2"
   local -a cmd=(
-    python3 "${GEN_COMPOSE_PY}"
+    uv run --no-project --python 3 -- python "${GEN_COMPOSE_PY}"
     --run-id "${RUN_ID}"
     --mode "${MODE}"
     --shas "${shas_csv}"

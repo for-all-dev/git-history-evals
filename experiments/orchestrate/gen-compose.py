@@ -53,13 +53,24 @@ from pathlib import Path
 # checkout baked by docker/commit.Dockerfile. The outer entry point
 # (``_command_for_mode`` below) handles mkdir/cd once; these fragments
 # only carry the per-mode runner invocation.
+# base.Dockerfile builds the venv with `uv sync --no-install-project`, so the
+# `eval-baseline`/`eval-agent` entry-point scripts aren't installed. Invoke the
+# top-level scripts directly via the prebuilt venv's Python, with the cwd set
+# to the read-only host mount where the source actually lives. PYTHONDONTWRITE
+# BYTECODE avoids spurious .pyc write attempts on the :ro bind.
+# base.Dockerfile builds the venv with `uv sync --no-install-project`, so the
+# `eval-baseline`/`eval-agent` entry-point scripts aren't installed. Invoke the
+# top-level scripts directly via the prebuilt venv's Python from the read-only
+# host mount. Both scripts read $RUN_ID from env (set by compose) and write to
+# /results/$RUN_ID/{baseline,agent}.jsonl automatically — no CLI flags needed.
+# PYTHONDONTWRITEBYTECODE avoids spurious .pyc writes on the :ro bind.
 _RUN_BASELINE = (
-    'uv run eval-baseline --run-id {run_id} '
-    '--out /results/{run_id}/baseline.jsonl'
+    'PYTHONDONTWRITEBYTECODE=1 /work/experiments/.venv/bin/python '
+    'run_experiment.py'
 )
 _RUN_AGENT = (
-    'uv run eval-agent --run-id {run_id} '
-    '--out /results/{run_id}/agent.jsonl'
+    'PYTHONDONTWRITEBYTECODE=1 /work/experiments/.venv/bin/python '
+    'run_agent_experiment.py'
 )
 
 
@@ -84,7 +95,15 @@ def _command_for_mode(mode: str, run_id: str) -> str:
     ``mkdir -p /results/<run_id> && cd /work`` is the shared prelude;
     the per-mode suffix chains one or both runners with ``&&``.
     """
-    prelude = f"mkdir -p /results/{run_id} && cd /work"
+    # The host source mount is :ro to prevent races between parallel SHA
+    # containers, but the runner writes `attempt_delN.v` next to challenge
+    # files. Copy host-experiments into a per-container writable scratch
+    # dir, then cd there so writes succeed and stay isolated.
+    prelude = (
+        f"mkdir -p /results/{run_id} && "
+        "cp -r /work/host-experiments /tmp/work-experiments && "
+        "cd /tmp/work-experiments"
+    )
     if mode == "baseline":
         runners = _RUN_BASELINE.format(run_id=run_id)
     elif mode == "agent":
@@ -177,7 +196,7 @@ def _emit_compose_yaml(
 
         lines.append(f"  cmt-{prefix}:")
         lines.append("    <<: *defaults")
-        lines.append(f"    image: fc-commit:{prefix}")
+        lines.append(f"    image: fc-commit:{sha.strip().lower()[:12]}")
         lines.append(f"    container_name: fc-run-{prefix}-{run_id}")
         lines.append("    environment:")
         # The literal ${ANTHROPIC_API_KEY} string: compose resolves at

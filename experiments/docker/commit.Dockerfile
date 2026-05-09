@@ -81,7 +81,20 @@ LABEL fiat_crypto_commit="${COMMIT}" \
       coq_version="${COQ_VERSION}"
 
 # /results is the named volume the orchestrator mounts to collect per-SHA
-# runner output (JSONL logs, compile reports).
+# runner output (JSONL logs, compile reports). Pre-create it owned by coq
+# so docker's empty-volume-init copies that ownership into the named volume
+# on first mount; otherwise the volume defaults to root and the runner's
+# `mkdir -p /results/<run_id>` fails under USER coq.
+USER root
+# 1. Pre-create /results owned by coq (see comment above re: empty-volume init).
+# 2. Make uv's managed Python tree world-readable: base.Dockerfile ran
+#    `uv sync` as root, so the interpreter landed in /root/.local/share/uv/...
+#    The chown -R coq:coq /work didn't reach /root, so the venv's symlinked
+#    python is unreadable to user coq, breaking `uv run`.
+RUN mkdir -p /results && chown coq:coq /results \
+ && chmod 755 /root \
+ && chmod -R a+rX /root/.local
+USER coq
 VOLUME /results
 
 # Default to an interactive shell; the orchestrator overrides with the
