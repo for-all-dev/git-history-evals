@@ -1,0 +1,368 @@
+name: proof-eval-20260509-134738
+
+x-defaults: &defaults
+  restart: "no"
+
+services:
+  cmt-03a7e18d:
+    <<: *defaults
+    image: fc-commit:03a7e18d0a8d
+    container_name: fc-run-03a7e18d-20260509-134738
+    environment:
+      ANTHROPIC_API_KEY: '${ANTHROPIC_API_KEY}'
+      RUN_CONFIG_JSON: "{\"commit\":\"03a7e18d0a8d3eaf78dda7198a5244a34b51ce0f\",\"slots\":[{\"condition\":\"A\",\"slot\":\"19-mul2_correct\",\"deletion_size\":-1,\"challenge_file\":\"challenge.v\"}]}"
+      RUN_ID: "20260509-134738"
+      MODE: "both"
+    volumes:
+      - "results-03a7e18d:/results"
+      - "/home/q/projects/git-history-evals/experiments:/work/host-experiments:ro"
+    command:
+      - "bash"
+      - "-lc"
+      - "mkdir -p /results/20260509-134738 && cp -r /work/host-experiments /tmp/work-experiments && cd /tmp/work-experiments && PYTHONDONTWRITEBYTECODE=1 /work/experiments/.venv/bin/python run_experiment.py && PYTHONDONTWRITEBYTECODE=1 /work/experiments/.venv/bin/python run_agent_experiment.py"
+  cmt-36db466a:
+    <<: *defaults
+    image: fc-commit:36db466a6296
+    container_name: fc-run-36db466a-20260509-134738
+    environment:
+      ANTHROPIC_API_KEY: '${ANTHROPIC_API_KEY}'
+      RUN_CONFIG_JSON: "{\"commit\":\"36db466a6296353dda50596d912afe8ffb6aeb4e\",\"slots\":[{\"condition\":\"A\",\"slot\":\"14-add_precomputed_partial\",\"deletion_size\":-1,\"challenge_file\":\"challenge.v\"}]}"
+      RUN_ID: "20260509-134738"
+      MODE: "both"
+    volumes:
+      - "results-36db466a:/results"
+      - "/home/q/projects/git-history-evals/experiments:/work/host-experiments:ro"
+    command:
+      - "bash"
+      - "-lc"
+      - "mkdir -p /results/20260509-134738 && cp -r /work/host-experiments /tmp/work-experiments && cd /tmp/work-experiments && PYTHONDONTWRITEBYTECODE=1 /work/experiments/.venv/bin/python run_experiment.py && PYTHONDONTWRITEBYTECODE=1 /work/experiments/.venv/bin/python run_agent_experiment.py"
+  cmt-549d05f1:
+    <<: *defaults
+    image: fc-commit:549d05f11053
+    container_name: fc-run-549d05f1-20260509-134738
+    environment:
+      ANTHROPIC_API_KEY: '${ANTHROPIC_API_KEY}'
+      RUN_CONFIG_JSON: "{\"commit\":\"549d05f1105340952ef9075381ae5fb5f3bffe13\",\"slots\":[{\"condition\":\"A\",\"slot\":\"10-lift_homomorphism\",\"deletion_size\":-1,\"challenge_file\":\"challenge.v\"}]}"
+      RUN_ID: "20260509-134738"
+      MODE: "both"
+    volumes:
+      - "results-549d05f1:/results"
+      - "/home/q/projects/git-history-evals/experiments:/work/host-experiments:ro"
+    command:
+      - "bash"
+      - "-lc"
+      - "mkdir -p /results/20260509-134738 && cp -r /work/host-experiments /tmp/work-experiments && cd /tmp/work-experiments && PYTHONDONTWRITEBYTECODE=1 /work/experiments/.venv/bin/python run_experiment.py && PYTHONDONTWRITEBYTECODE=1 /work/experiments/.venv/bin/python run_agent_experiment.py"
+  cmt-54c89602:
+    <<: *defaults
+    image: fc-commit:54c89602d50f
+    container_name: fc-run-54c89602-20260509-134738
+    environment:
+      ANTHROPIC_API_KEY: '${ANTHROPIC_API_KEY}'
+      RUN_CONFIG_JSON: "{\"commit\":\"54c89602d50fc4adc60931e34b8afe304b40da38\",\"slots\":[{\"condition\":\"A\",\"slot\":\"17-redc_loop_mod_N\",\"deletion_size\":-1,\"challenge_file\":\"challenge.v\"}]}"
+      RUN_ID: "20260509-134738"
+      MODE: "both"
+    volumes:
+      - "results-54c89602:/results"
+      - "/home/q/projects/git-history-evals/experiments:/work/host-experiments:ro"
+    command:
+      - "bash"
+      - "-lc"
+      - "mkdir -p /results/20260509-134738 && cp -r /work/host-experiments /tmp/work-experiments && cd /tmp/work-experiments && PYTHONDONTWRITEBYTECODE=1 /work/experiments/.venv/bin/python run_experiment.py && PYTHONDONTWRITEBYTECODE=1 /work/experiments/.venv/bin/python run_agent_experiment.py"
+  cmt-612d7242:
+    <<: *defaults
+    image: fc-commit:612d72426483
+    container_name: fc-run-612d7242-20260509-134738
+    environment:
+      ANTHROPIC_API_KEY: '${ANTHROPIC_API_KEY}'
+      RUN_CONFIG_JSON: "{\"commit\":\"612d7242648366fd9eb6a9c4c5444a48cd192d1a\",\"slots\":[{\"condition\":\"A\",\"slot\":\"03-add_same_length\",\"deletion_size\":-1,\"challenge_file\":\"challenge.v\"},{\"condition\":\"B\",\"slot\":\"03-add_same_length\",\"deletion_size\":3,\"challenge_file\":\"challenge3.v\"},{\"condition\":\"B\",\"slot\":\"03-add_same_length\",\"deletion_size\":5,\"challenge_file\":\"challenge5.v\"},{\"condition\":\"B\",\"slot\":\"03-add_same_length\",\"deletion_size\":7,\"challenge_file\":\"challenge7.v\"},{\"condition\":\"B\",\"slot\":\"03-add_same_length\",\"deletion_size\":10,\"challenge_file\":\"challenge10.v\"},{\"condition\":\"B\",\"slot\":\"03-add_same_length\",\"deletion_size\":15,\"challenge_file\":\"challenge15.v\"}]}"
+      RUN_ID: "20260509-134738"
+      MODE: "both"
+    volumes:
+      - "results-612d7242:/results"
+      - "/home/q/projects/git-history-evals/experiments:/work/host-experiments:ro"
+    command:
+      - "bash"
+      - "-lc"
+      - "mkdir -p /results/20260509-134738 && cp -r /work/host-experiments /tmp/work-experiments && cd /tmp/work-experiments && PYTHONDONTWRITEBYTECODE=1 /work/experiments/.venv/bin/python run_experiment.py && PYTHONDONTWRITEBYTECODE=1 /work/experiments/.venv/bin/python run_agent_experiment.py"
+  cmt-6327fdd8:
+    <<: *defaults
+    image: fc-commit:6327fdd8755f
+    container_name: fc-run-6327fdd8-20260509-134738
+    environment:
+      ANTHROPIC_API_KEY: '${ANTHROPIC_API_KEY}'
+      RUN_CONFIG_JSON: "{\"commit\":\"6327fdd8755f79a1ead4a620f9a91285767740b4\",\"slots\":[{\"condition\":\"A\",\"slot\":\"09-symex_asm_func_M_correct\",\"deletion_size\":-1,\"challenge_file\":\"challenge.v\"},{\"condition\":\"B\",\"slot\":\"09-symex_asm_func_M_correct\",\"deletion_size\":3,\"challenge_file\":\"challenge3.v\"},{\"condition\":\"B\",\"slot\":\"09-symex_asm_func_M_correct\",\"deletion_size\":5,\"challenge_file\":\"challenge5.v\"},{\"condition\":\"B\",\"slot\":\"09-symex_asm_func_M_correct\",\"deletion_size\":7,\"challenge_file\":\"challenge7.v\"},{\"condition\":\"B\",\"slot\":\"09-symex_asm_func_M_correct\",\"deletion_size\":10,\"challenge_file\":\"challenge10.v\"},{\"condition\":\"B\",\"slot\":\"09-symex_asm_func_M_correct\",\"deletion_size\":15,\"challenge_file\":\"challenge15.v\"}]}"
+      RUN_ID: "20260509-134738"
+      MODE: "both"
+    volumes:
+      - "results-6327fdd8:/results"
+      - "/home/q/projects/git-history-evals/experiments:/work/host-experiments:ro"
+    command:
+      - "bash"
+      - "-lc"
+      - "mkdir -p /results/20260509-134738 && cp -r /work/host-experiments /tmp/work-experiments && cd /tmp/work-experiments && PYTHONDONTWRITEBYTECODE=1 /work/experiments/.venv/bin/python run_experiment.py && PYTHONDONTWRITEBYTECODE=1 /work/experiments/.venv/bin/python run_agent_experiment.py"
+  cmt-6e55d0f4:
+    <<: *defaults
+    image: fc-commit:6e55d0f4ce8b
+    container_name: fc-run-6e55d0f4-20260509-134738
+    environment:
+      ANTHROPIC_API_KEY: '${ANTHROPIC_API_KEY}'
+      RUN_CONFIG_JSON: "{\"commit\":\"6e55d0f4ce8be20438c42aaac8852a0aa310b295\",\"slots\":[{\"condition\":\"A\",\"slot\":\"20-wt_multiples\",\"deletion_size\":-1,\"challenge_file\":\"challenge.v\"},{\"condition\":\"B\",\"slot\":\"20-wt_multiples\",\"deletion_size\":3,\"challenge_file\":\"challenge3.v\"},{\"condition\":\"B\",\"slot\":\"20-wt_multiples\",\"deletion_size\":5,\"challenge_file\":\"challenge5.v\"},{\"condition\":\"B\",\"slot\":\"20-wt_multiples\",\"deletion_size\":7,\"challenge_file\":\"challenge7.v\"},{\"condition\":\"B\",\"slot\":\"20-wt_multiples\",\"deletion_size\":10,\"challenge_file\":\"challenge10.v\"},{\"condition\":\"B\",\"slot\":\"20-wt_multiples\",\"deletion_size\":15,\"challenge_file\":\"challenge15.v\"}]}"
+      RUN_ID: "20260509-134738"
+      MODE: "both"
+    volumes:
+      - "results-6e55d0f4:/results"
+      - "/home/q/projects/git-history-evals/experiments:/work/host-experiments:ro"
+    command:
+      - "bash"
+      - "-lc"
+      - "mkdir -p /results/20260509-134738 && cp -r /work/host-experiments /tmp/work-experiments && cd /tmp/work-experiments && PYTHONDONTWRITEBYTECODE=1 /work/experiments/.venv/bin/python run_experiment.py && PYTHONDONTWRITEBYTECODE=1 /work/experiments/.venv/bin/python run_agent_experiment.py"
+  cmt-7361ecd4:
+    <<: *defaults
+    image: fc-commit:7361ecd49ae1
+    container_name: fc-run-7361ecd4-20260509-134738
+    environment:
+      ANTHROPIC_API_KEY: '${ANTHROPIC_API_KEY}'
+      RUN_CONFIG_JSON: "{\"commit\":\"7361ecd49ae13cff49467e67a6533a557e77139c\",\"slots\":[{\"condition\":\"A\",\"slot\":\"07-bapp_value_spec\",\"deletion_size\":-1,\"challenge_file\":\"challenge.v\"}]}"
+      RUN_ID: "20260509-134738"
+      MODE: "both"
+    volumes:
+      - "results-7361ecd4:/results"
+      - "/home/q/projects/git-history-evals/experiments:/work/host-experiments:ro"
+    command:
+      - "bash"
+      - "-lc"
+      - "mkdir -p /results/20260509-134738 && cp -r /work/host-experiments /tmp/work-experiments && cd /tmp/work-experiments && PYTHONDONTWRITEBYTECODE=1 /work/experiments/.venv/bin/python run_experiment.py && PYTHONDONTWRITEBYTECODE=1 /work/experiments/.venv/bin/python run_agent_experiment.py"
+  cmt-792119a2:
+    <<: *defaults
+    image: fc-commit:792119a2b679
+    container_name: fc-run-792119a2-20260509-134738
+    environment:
+      ANTHROPIC_API_KEY: '${ANTHROPIC_API_KEY}'
+      RUN_CONFIG_JSON: "{\"commit\":\"792119a2b67925dab9a3a2d0faaae252f41fa961\",\"slots\":[{\"condition\":\"A\",\"slot\":\"15-eval_bytes\",\"deletion_size\":-1,\"challenge_file\":\"challenge.v\"},{\"condition\":\"B\",\"slot\":\"15-eval_bytes\",\"deletion_size\":3,\"challenge_file\":\"challenge3.v\"},{\"condition\":\"B\",\"slot\":\"15-eval_bytes\",\"deletion_size\":5,\"challenge_file\":\"challenge5.v\"},{\"condition\":\"B\",\"slot\":\"15-eval_bytes\",\"deletion_size\":7,\"challenge_file\":\"challenge7.v\"},{\"condition\":\"B\",\"slot\":\"15-eval_bytes\",\"deletion_size\":10,\"challenge_file\":\"challenge10.v\"},{\"condition\":\"B\",\"slot\":\"15-eval_bytes\",\"deletion_size\":15,\"challenge_file\":\"challenge15.v\"}]}"
+      RUN_ID: "20260509-134738"
+      MODE: "both"
+    volumes:
+      - "results-792119a2:/results"
+      - "/home/q/projects/git-history-evals/experiments:/work/host-experiments:ro"
+    command:
+      - "bash"
+      - "-lc"
+      - "mkdir -p /results/20260509-134738 && cp -r /work/host-experiments /tmp/work-experiments && cd /tmp/work-experiments && PYTHONDONTWRITEBYTECODE=1 /work/experiments/.venv/bin/python run_experiment.py && PYTHONDONTWRITEBYTECODE=1 /work/experiments/.venv/bin/python run_agent_experiment.py"
+  cmt-7d139ded:
+    <<: *defaults
+    image: fc-commit:7d139ded8195
+    container_name: fc-run-7d139ded-20260509-134738
+    environment:
+      ANTHROPIC_API_KEY: '${ANTHROPIC_API_KEY}'
+      RUN_CONFIG_JSON: "{\"commit\":\"7d139ded819549c587b169e6ef54d411bc543cd4\",\"slots\":[{\"condition\":\"A\",\"slot\":\"11-homomorphism_inv\",\"deletion_size\":-1,\"challenge_file\":\"challenge.v\"},{\"condition\":\"B\",\"slot\":\"11-homomorphism_inv\",\"deletion_size\":3,\"challenge_file\":\"challenge3.v\"},{\"condition\":\"B\",\"slot\":\"11-homomorphism_inv\",\"deletion_size\":5,\"challenge_file\":\"challenge5.v\"},{\"condition\":\"B\",\"slot\":\"11-homomorphism_inv\",\"deletion_size\":7,\"challenge_file\":\"challenge7.v\"},{\"condition\":\"B\",\"slot\":\"11-homomorphism_inv\",\"deletion_size\":10,\"challenge_file\":\"challenge10.v\"},{\"condition\":\"B\",\"slot\":\"11-homomorphism_inv\",\"deletion_size\":15,\"challenge_file\":\"challenge15.v\"}]}"
+      RUN_ID: "20260509-134738"
+      MODE: "both"
+    volumes:
+      - "results-7d139ded:/results"
+      - "/home/q/projects/git-history-evals/experiments:/work/host-experiments:ro"
+    command:
+      - "bash"
+      - "-lc"
+      - "mkdir -p /results/20260509-134738 && cp -r /work/host-experiments /tmp/work-experiments && cd /tmp/work-experiments && PYTHONDONTWRITEBYTECODE=1 /work/experiments/.venv/bin/python run_experiment.py && PYTHONDONTWRITEBYTECODE=1 /work/experiments/.venv/bin/python run_agent_experiment.py"
+  cmt-9025014c:
+    <<: *defaults
+    image: fc-commit:9025014cf7b6
+    container_name: fc-run-9025014c-20260509-134738
+    environment:
+      ANTHROPIC_API_KEY: '${ANTHROPIC_API_KEY}'
+      RUN_CONFIG_JSON: "{\"commit\":\"9025014cf7b64082d0bfed93dd76ba99ab9bb72b\",\"slots\":[{\"condition\":\"A\",\"slot\":\"12-montred_correct\",\"deletion_size\":-1,\"challenge_file\":\"challenge.v\"}]}"
+      RUN_ID: "20260509-134738"
+      MODE: "both"
+    volumes:
+      - "results-9025014c:/results"
+      - "/home/q/projects/git-history-evals/experiments:/work/host-experiments:ro"
+    command:
+      - "bash"
+      - "-lc"
+      - "mkdir -p /results/20260509-134738 && cp -r /work/host-experiments /tmp/work-experiments && cd /tmp/work-experiments && PYTHONDONTWRITEBYTECODE=1 /work/experiments/.venv/bin/python run_experiment.py && PYTHONDONTWRITEBYTECODE=1 /work/experiments/.venv/bin/python run_agent_experiment.py"
+  cmt-9f55b6be:
+    <<: *defaults
+    image: fc-commit:9f55b6be919b
+    container_name: fc-run-9f55b6be-20260509-134738
+    environment:
+      ANTHROPIC_API_KEY: '${ANTHROPIC_API_KEY}'
+      RUN_CONFIG_JSON: "{\"commit\":\"9f55b6be919be5e3ab38c340fb7e67f589e9913c\",\"slots\":[{\"condition\":\"A\",\"slot\":\"06-only_differ_step\",\"deletion_size\":-1,\"challenge_file\":\"challenge.v\"},{\"condition\":\"B\",\"slot\":\"06-only_differ_step\",\"deletion_size\":3,\"challenge_file\":\"challenge3.v\"},{\"condition\":\"B\",\"slot\":\"06-only_differ_step\",\"deletion_size\":5,\"challenge_file\":\"challenge5.v\"},{\"condition\":\"B\",\"slot\":\"06-only_differ_step\",\"deletion_size\":7,\"challenge_file\":\"challenge7.v\"},{\"condition\":\"B\",\"slot\":\"06-only_differ_step\",\"deletion_size\":10,\"challenge_file\":\"challenge10.v\"},{\"condition\":\"B\",\"slot\":\"06-only_differ_step\",\"deletion_size\":15,\"challenge_file\":\"challenge15.v\"}]}"
+      RUN_ID: "20260509-134738"
+      MODE: "both"
+    volumes:
+      - "results-9f55b6be:/results"
+      - "/home/q/projects/git-history-evals/experiments:/work/host-experiments:ro"
+    command:
+      - "bash"
+      - "-lc"
+      - "mkdir -p /results/20260509-134738 && cp -r /work/host-experiments /tmp/work-experiments && cd /tmp/work-experiments && PYTHONDONTWRITEBYTECODE=1 /work/experiments/.venv/bin/python run_experiment.py && PYTHONDONTWRITEBYTECODE=1 /work/experiments/.venv/bin/python run_agent_experiment.py"
+  cmt-a58a68cf:
+    <<: *defaults
+    image: fc-commit:a58a68cf5bb4
+    container_name: fc-run-a58a68cf-20260509-134738
+    environment:
+      ANTHROPIC_API_KEY: '${ANTHROPIC_API_KEY}'
+      RUN_CONFIG_JSON: "{\"commit\":\"a58a68cf5bb4d634683b091a8e35b5829a2e90bd\",\"slots\":[{\"condition\":\"A\",\"slot\":\"13-small_drop_high_addT\",\"deletion_size\":-1,\"challenge_file\":\"challenge.v\"}]}"
+      RUN_ID: "20260509-134738"
+      MODE: "both"
+    volumes:
+      - "results-a58a68cf:/results"
+      - "/home/q/projects/git-history-evals/experiments:/work/host-experiments:ro"
+    command:
+      - "bash"
+      - "-lc"
+      - "mkdir -p /results/20260509-134738 && cp -r /work/host-experiments /tmp/work-experiments && cd /tmp/work-experiments && PYTHONDONTWRITEBYTECODE=1 /work/experiments/.venv/bin/python run_experiment.py && PYTHONDONTWRITEBYTECODE=1 /work/experiments/.venv/bin/python run_agent_experiment.py"
+  cmt-ab6583f5:
+    <<: *defaults
+    image: fc-commit:ab6583f5bc4b
+    container_name: fc-run-ab6583f5-20260509-134738
+    environment:
+      ANTHROPIC_API_KEY: '${ANTHROPIC_API_KEY}'
+      RUN_CONFIG_JSON: "{\"commit\":\"ab6583f5bc4bb25c4eba5e6cc3f853534c3499f9\",\"slots\":[{\"condition\":\"A\",\"slot\":\"18-typeD\",\"deletion_size\":-1,\"challenge_file\":\"challenge.v\"},{\"condition\":\"B\",\"slot\":\"18-typeD\",\"deletion_size\":3,\"challenge_file\":\"challenge3.v\"},{\"condition\":\"B\",\"slot\":\"18-typeD\",\"deletion_size\":5,\"challenge_file\":\"challenge5.v\"},{\"condition\":\"B\",\"slot\":\"18-typeD\",\"deletion_size\":7,\"challenge_file\":\"challenge7.v\"},{\"condition\":\"B\",\"slot\":\"18-typeD\",\"deletion_size\":10,\"challenge_file\":\"challenge10.v\"},{\"condition\":\"B\",\"slot\":\"18-typeD\",\"deletion_size\":15,\"challenge_file\":\"challenge15.v\"}]}"
+      RUN_ID: "20260509-134738"
+      MODE: "both"
+    volumes:
+      - "results-ab6583f5:/results"
+      - "/home/q/projects/git-history-evals/experiments:/work/host-experiments:ro"
+    command:
+      - "bash"
+      - "-lc"
+      - "mkdir -p /results/20260509-134738 && cp -r /work/host-experiments /tmp/work-experiments && cd /tmp/work-experiments && PYTHONDONTWRITEBYTECODE=1 /work/experiments/.venv/bin/python run_experiment.py && PYTHONDONTWRITEBYTECODE=1 /work/experiments/.venv/bin/python run_agent_experiment.py"
+  cmt-b9f28afe:
+    <<: *defaults
+    image: fc-commit:b9f28afec4f3
+    container_name: fc-run-b9f28afe-20260509-134738
+    environment:
+      ANTHROPIC_API_KEY: '${ANTHROPIC_API_KEY}'
+      RUN_CONFIG_JSON: "{\"commit\":\"b9f28afec4f3dc3340a8693cdf450721af67d13b\",\"slots\":[{\"condition\":\"A\",\"slot\":\"01-of_prefancy_identZ_correct\",\"deletion_size\":-1,\"challenge_file\":\"challenge.v\"},{\"condition\":\"B\",\"slot\":\"01-of_prefancy_identZ_correct\",\"deletion_size\":3,\"challenge_file\":\"challenge3.v\"},{\"condition\":\"B\",\"slot\":\"01-of_prefancy_identZ_correct\",\"deletion_size\":5,\"challenge_file\":\"challenge5.v\"},{\"condition\":\"B\",\"slot\":\"01-of_prefancy_identZ_correct\",\"deletion_size\":7,\"challenge_file\":\"challenge7.v\"},{\"condition\":\"B\",\"slot\":\"01-of_prefancy_identZ_correct\",\"deletion_size\":10,\"challenge_file\":\"challenge10.v\"},{\"condition\":\"B\",\"slot\":\"01-of_prefancy_identZ_correct\",\"deletion_size\":15,\"challenge_file\":\"challenge15.v\"}]}"
+      RUN_ID: "20260509-134738"
+      MODE: "both"
+    volumes:
+      - "results-b9f28afe:/results"
+      - "/home/q/projects/git-history-evals/experiments:/work/host-experiments:ro"
+    command:
+      - "bash"
+      - "-lc"
+      - "mkdir -p /results/20260509-134738 && cp -r /work/host-experiments /tmp/work-experiments && cd /tmp/work-experiments && PYTHONDONTWRITEBYTECODE=1 /work/experiments/.venv/bin/python run_experiment.py && PYTHONDONTWRITEBYTECODE=1 /work/experiments/.venv/bin/python run_agent_experiment.py"
+  cmt-e0a9db83:
+    <<: *defaults
+    image: fc-commit:e0a9db832e69
+    container_name: fc-run-e0a9db83-20260509-134738
+    environment:
+      ANTHROPIC_API_KEY: '${ANTHROPIC_API_KEY}'
+      RUN_CONFIG_JSON: "{\"commit\":\"e0a9db832e699bc731f94fc4589c1f439189914f\",\"slots\":[{\"condition\":\"A\",\"slot\":\"16-ge25519_ast\",\"deletion_size\":-1,\"challenge_file\":\"challenge.v\"},{\"condition\":\"B\",\"slot\":\"16-ge25519_ast\",\"deletion_size\":3,\"challenge_file\":\"challenge3.v\"},{\"condition\":\"B\",\"slot\":\"16-ge25519_ast\",\"deletion_size\":5,\"challenge_file\":\"challenge5.v\"},{\"condition\":\"B\",\"slot\":\"16-ge25519_ast\",\"deletion_size\":7,\"challenge_file\":\"challenge7.v\"},{\"condition\":\"B\",\"slot\":\"16-ge25519_ast\",\"deletion_size\":10,\"challenge_file\":\"challenge10.v\"},{\"condition\":\"B\",\"slot\":\"16-ge25519_ast\",\"deletion_size\":15,\"challenge_file\":\"challenge15.v\"}]}"
+      RUN_ID: "20260509-134738"
+      MODE: "both"
+    volumes:
+      - "results-e0a9db83:/results"
+      - "/home/q/projects/git-history-evals/experiments:/work/host-experiments:ro"
+    command:
+      - "bash"
+      - "-lc"
+      - "mkdir -p /results/20260509-134738 && cp -r /work/host-experiments /tmp/work-experiments && cd /tmp/work-experiments && PYTHONDONTWRITEBYTECODE=1 /work/experiments/.venv/bin/python run_experiment.py && PYTHONDONTWRITEBYTECODE=1 /work/experiments/.venv/bin/python run_agent_experiment.py"
+  cmt-f22a429a:
+    <<: *defaults
+    image: fc-commit:f22a429a146c
+    container_name: fc-run-f22a429a-20260509-134738
+    environment:
+      ANTHROPIC_API_KEY: '${ANTHROPIC_API_KEY}'
+      RUN_CONFIG_JSON: "{\"commit\":\"f22a429a146cd7ee5f3070c8742cc2565fbb9ab3\",\"slots\":[{\"condition\":\"A\",\"slot\":\"05-sq_and_multiply_mod_correct\",\"deletion_size\":-1,\"challenge_file\":\"challenge.v\"}]}"
+      RUN_ID: "20260509-134738"
+      MODE: "both"
+    volumes:
+      - "results-f22a429a:/results"
+      - "/home/q/projects/git-history-evals/experiments:/work/host-experiments:ro"
+    command:
+      - "bash"
+      - "-lc"
+      - "mkdir -p /results/20260509-134738 && cp -r /work/host-experiments /tmp/work-experiments && cd /tmp/work-experiments && PYTHONDONTWRITEBYTECODE=1 /work/experiments/.venv/bin/python run_experiment.py && PYTHONDONTWRITEBYTECODE=1 /work/experiments/.venv/bin/python run_agent_experiment.py"
+  cmt-f2814cf2:
+    <<: *defaults
+    image: fc-commit:f2814cf2ba24
+    container_name: fc-run-f2814cf2-20260509-134738
+    environment:
+      ANTHROPIC_API_KEY: '${ANTHROPIC_API_KEY}'
+      RUN_CONFIG_JSON: "{\"commit\":\"f2814cf2ba24fbddc3cb091a4fddd19a8c807b89\",\"slots\":[{\"condition\":\"A\",\"slot\":\"02-pull_cast_genericize_op\",\"deletion_size\":-1,\"challenge_file\":\"challenge.v\"},{\"condition\":\"B\",\"slot\":\"02-pull_cast_genericize_op\",\"deletion_size\":3,\"challenge_file\":\"challenge3.v\"},{\"condition\":\"B\",\"slot\":\"02-pull_cast_genericize_op\",\"deletion_size\":5,\"challenge_file\":\"challenge5.v\"},{\"condition\":\"B\",\"slot\":\"02-pull_cast_genericize_op\",\"deletion_size\":7,\"challenge_file\":\"challenge7.v\"},{\"condition\":\"B\",\"slot\":\"02-pull_cast_genericize_op\",\"deletion_size\":10,\"challenge_file\":\"challenge10.v\"},{\"condition\":\"B\",\"slot\":\"02-pull_cast_genericize_op\",\"deletion_size\":15,\"challenge_file\":\"challenge15.v\"}]}"
+      RUN_ID: "20260509-134738"
+      MODE: "both"
+    volumes:
+      - "results-f2814cf2:/results"
+      - "/home/q/projects/git-history-evals/experiments:/work/host-experiments:ro"
+    command:
+      - "bash"
+      - "-lc"
+      - "mkdir -p /results/20260509-134738 && cp -r /work/host-experiments /tmp/work-experiments && cd /tmp/work-experiments && PYTHONDONTWRITEBYTECODE=1 /work/experiments/.venv/bin/python run_experiment.py && PYTHONDONTWRITEBYTECODE=1 /work/experiments/.venv/bin/python run_agent_experiment.py"
+  cmt-f6133814:
+    <<: *defaults
+    image: fc-commit:f613381431f9
+    container_name: fc-run-f6133814-20260509-134738
+    environment:
+      ANTHROPIC_API_KEY: '${ANTHROPIC_API_KEY}'
+      RUN_CONFIG_JSON: "{\"commit\":\"f613381431f92dce54591324cde6cb954d61470d\",\"slots\":[{\"condition\":\"A\",\"slot\":\"08-radd_coordinatesW_correct_and_bounded_gen\",\"deletion_size\":-1,\"challenge_file\":\"challenge.v\"}]}"
+      RUN_ID: "20260509-134738"
+      MODE: "both"
+    volumes:
+      - "results-f6133814:/results"
+      - "/home/q/projects/git-history-evals/experiments:/work/host-experiments:ro"
+    command:
+      - "bash"
+      - "-lc"
+      - "mkdir -p /results/20260509-134738 && cp -r /work/host-experiments /tmp/work-experiments && cd /tmp/work-experiments && PYTHONDONTWRITEBYTECODE=1 /work/experiments/.venv/bin/python run_experiment.py && PYTHONDONTWRITEBYTECODE=1 /work/experiments/.venv/bin/python run_agent_experiment.py"
+  cmt-f8eab3da:
+    <<: *defaults
+    image: fc-commit:f8eab3da78ed
+    container_name: fc-run-f8eab3da-20260509-134738
+    environment:
+      ANTHROPIC_API_KEY: '${ANTHROPIC_API_KEY}'
+      RUN_CONFIG_JSON: "{\"commit\":\"f8eab3da78edd44864e12e50962e5c1e382759fc\",\"slots\":[{\"condition\":\"A\",\"slot\":\"04-conditional_subtract\",\"deletion_size\":-1,\"challenge_file\":\"challenge.v\"},{\"condition\":\"B\",\"slot\":\"04-conditional_subtract\",\"deletion_size\":3,\"challenge_file\":\"challenge3.v\"},{\"condition\":\"B\",\"slot\":\"04-conditional_subtract\",\"deletion_size\":5,\"challenge_file\":\"challenge5.v\"},{\"condition\":\"B\",\"slot\":\"04-conditional_subtract\",\"deletion_size\":7,\"challenge_file\":\"challenge7.v\"},{\"condition\":\"B\",\"slot\":\"04-conditional_subtract\",\"deletion_size\":10,\"challenge_file\":\"challenge10.v\"},{\"condition\":\"B\",\"slot\":\"04-conditional_subtract\",\"deletion_size\":15,\"challenge_file\":\"challenge15.v\"}]}"
+      RUN_ID: "20260509-134738"
+      MODE: "both"
+    volumes:
+      - "results-f8eab3da:/results"
+      - "/home/q/projects/git-history-evals/experiments:/work/host-experiments:ro"
+    command:
+      - "bash"
+      - "-lc"
+      - "mkdir -p /results/20260509-134738 && cp -r /work/host-experiments /tmp/work-experiments && cd /tmp/work-experiments && PYTHONDONTWRITEBYTECODE=1 /work/experiments/.venv/bin/python run_experiment.py && PYTHONDONTWRITEBYTECODE=1 /work/experiments/.venv/bin/python run_agent_experiment.py"
+
+volumes:
+  results-03a7e18d:
+    name: results-03a7e18d
+  results-36db466a:
+    name: results-36db466a
+  results-549d05f1:
+    name: results-549d05f1
+  results-54c89602:
+    name: results-54c89602
+  results-612d7242:
+    name: results-612d7242
+  results-6327fdd8:
+    name: results-6327fdd8
+  results-6e55d0f4:
+    name: results-6e55d0f4
+  results-7361ecd4:
+    name: results-7361ecd4
+  results-792119a2:
+    name: results-792119a2
+  results-7d139ded:
+    name: results-7d139ded
+  results-9025014c:
+    name: results-9025014c
+  results-9f55b6be:
+    name: results-9f55b6be
+  results-a58a68cf:
+    name: results-a58a68cf
+  results-ab6583f5:
+    name: results-ab6583f5
+  results-b9f28afe:
+    name: results-b9f28afe
+  results-e0a9db83:
+    name: results-e0a9db83
+  results-f22a429a:
+    name: results-f22a429a
+  results-f2814cf2:
+    name: results-f2814cf2
+  results-f6133814:
+    name: results-f6133814
+  results-f8eab3da:
+    name: results-f8eab3da
