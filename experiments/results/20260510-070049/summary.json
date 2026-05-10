@@ -1,0 +1,161 @@
+{
+  "baseline_vs_agent": [],
+  "drift_faithfulness": {
+    "mean_compile_time_ratio": {
+      "baseline": -0.0117
+    },
+    "mean_n_assumptions_diff": {
+      "baseline": null
+    },
+    "mean_normalized_edit_distance": {
+      "baseline": 0.3651
+    },
+    "mean_proof_chars_ratio": {
+      "baseline": -0.2601
+    },
+    "mean_proof_lines_ratio": {
+      "baseline": -0.747
+    },
+    "mean_tactic_count_ratio": {
+      "baseline": -0.4191
+    },
+    "mean_vo_bytes_ratio": {
+      "baseline": 0.6558
+    },
+    "pass_rate": {
+      "baseline": 0.4581
+    }
+  },
+  "faithfulness_by_mode": {
+    "baseline": 0.4581
+  },
+  "groups": [
+    {
+      "deletion_size": -1,
+      "mean_agent_n_turns": null,
+      "mean_compile_time_ratio": 1.6855,
+      "mean_compile_time_s": 142.3625,
+      "mean_inference_time_s": 4.5143,
+      "mean_n_assumptions": 36.0,
+      "mean_n_assumptions_diff": 36.0,
+      "mean_normalized_edit_distance": 0.7231,
+      "mean_output_tokens": 108.6029,
+      "mean_proof_chars_ratio": 1.5137,
+      "mean_proof_lines_ratio": 1.9296,
+      "mean_tactic_count_ratio": 2.9262,
+      "mean_vo_bytes": 247882.0,
+      "mean_vo_bytes_human_ratio": 0.776,
+      "mean_vo_bytes_ratio": 0.776,
+      "mode": "baseline",
+      "n_pass": 2,
+      "n_total": 136,
+      "pass_rate": 0.0147
+    },
+    {
+      "deletion_size": 3,
+      "mean_agent_n_turns": null,
+      "mean_compile_time_ratio": 0.6163,
+      "mean_compile_time_s": 96.431,
+      "mean_inference_time_s": 4.3854,
+      "mean_n_assumptions": null,
+      "mean_n_assumptions_diff": null,
+      "mean_normalized_edit_distance": 0.2743,
+      "mean_output_tokens": 103.8647,
+      "mean_proof_chars_ratio": 0.8699,
+      "mean_proof_lines_ratio": 0.8843,
+      "mean_tactic_count_ratio": 1.0537,
+      "mean_vo_bytes": 178225.0,
+      "mean_vo_bytes_human_ratio": 1.0,
+      "mean_vo_bytes_ratio": 1.0,
+      "mode": "baseline",
+      "n_pass": 1,
+      "n_total": 170,
+      "pass_rate": 0.0059
+    },
+    {
+      "deletion_size": 5,
+      "mean_agent_n_turns": null,
+      "mean_compile_time_ratio": 1.1326,
+      "mean_compile_time_s": 110.121,
+      "mean_inference_time_s": 6.9041,
+      "mean_n_assumptions": null,
+      "mean_n_assumptions_diff": null,
+      "mean_normalized_edit_distance": 0.6159,
+      "mean_output_tokens": 144.4118,
+      "mean_proof_chars_ratio": 1.0527,
+      "mean_proof_lines_ratio": 0.8533,
+      "mean_tactic_count_ratio": 1.6838,
+      "mean_vo_bytes": 308642.0,
+      "mean_vo_bytes_human_ratio": 0.9987,
+      "mean_vo_bytes_ratio": 0.9987,
+      "mode": "baseline",
+      "n_pass": 3,
+      "n_total": 170,
+      "pass_rate": 0.0176
+    },
+    {
+      "deletion_size": 7,
+      "mean_agent_n_turns": null,
+      "mean_compile_time_ratio": 1.4973,
+      "mean_compile_time_s": 114.5005,
+      "mean_inference_time_s": 6.8767,
+      "mean_n_assumptions": null,
+      "mean_n_assumptions_diff": null,
+      "mean_normalized_edit_distance": 0.662,
+      "mean_output_tokens": 152.9471,
+      "mean_proof_chars_ratio": 2.4137,
+      "mean_proof_lines_ratio": 0.7876,
+      "mean_tactic_count_ratio": 2.2377,
+      "mean_vo_bytes": 249663.0,
+      "mean_vo_bytes_human_ratio": 0.9999,
+      "mean_vo_bytes_ratio": 0.9999,
+      "mode": "baseline",
+      "n_pass": 2,
+      "n_total": 170,
+      "pass_rate": 0.0118
+    },
+    {
+      "deletion_size": 10,
+      "mean_agent_n_turns": null,
+      "mean_compile_time_ratio": 1.3249,
+      "mean_compile_time_s": 110.2757,
+      "mean_inference_time_s": 7.2142,
+      "mean_n_assumptions": null,
+      "mean_n_assumptions_diff": null,
+      "mean_normalized_edit_distance": 0.6986,
+      "mean_output_tokens": 141.4529,
+      "mean_proof_chars_ratio": 0.8209,
+      "mean_proof_lines_ratio": 0.7631,
+      "mean_tactic_count_ratio": 1.8263,
+      "mean_vo_bytes": 308642.0,
+      "mean_vo_bytes_human_ratio": 0.9987,
+      "mean_vo_bytes_ratio": 0.9987,
+      "mode": "baseline",
+      "n_pass": 3,
+      "n_total": 170,
+      "pass_rate": 0.0176
+    },
+    {
+      "deletion_size": 15,
+      "mean_agent_n_turns": null,
+      "mean_compile_time_ratio": 1.2931,
+      "mean_compile_time_s": 85.606,
+      "mean_inference_time_s": 6.9209,
+      "mean_n_assumptions": null,
+      "mean_n_assumptions_diff": null,
+      "mean_normalized_edit_distance": 0.7427,
+      "mean_output_tokens": 191.7235,
+      "mean_proof_chars_ratio": 0.8686,
+      "mean_proof_lines_ratio": 0.7184,
+      "mean_tactic_count_ratio": 1.5475,
+      "mean_vo_bytes": 308642.0,
+      "mean_vo_bytes_human_ratio": 0.9987,
+      "mean_vo_bytes_ratio": 0.9987,
+      "mode": "baseline",
+      "n_pass": 3,
+      "n_total": 170,
+      "pass_rate": 0.0176
+    }
+  ],
+  "n_total_runs": 986
+}

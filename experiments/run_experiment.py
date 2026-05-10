@@ -119,12 +119,16 @@ def call_claude(prompt: str, log: list[str]) -> tuple[ProofAttempt, float, int]:
     # Exponential backoff with jitter on 429/connection blips. Bounds cap a
     # single wait at ~2 min since Anthropic's TPM limit is a 1-minute sliding
     # window — sustained pressure clears within one window, blips clear sooner.
+    # max_tokens bumped to 8192: 4096 truncated long proofs mid-string and
+    # raised pydantic ValidationError on the structured-output parse, which
+    # killed the whole script (and the agent phase chained behind it).
     max_attempts = 8
+    response = None
     for attempt in range(max_attempts):
         try:
             response = client.messages.parse(
                 model=MODEL,
-                max_tokens=4096,
+                max_tokens=8192,
                 temperature=0,
                 system=SYS_PROMPT_BASELINE,
                 messages=[{"role": "user", "content": prompt}],
@@ -137,8 +141,18 @@ def call_claude(prompt: str, log: list[str]) -> tuple[ProofAttempt, float, int]:
             log.append(f"  {type(e).__name__} (attempt {attempt+1}/{max_attempts}), sleeping {wait:.1f}s")
             print(f"  {type(e).__name__} (attempt {attempt+1}/{max_attempts}), sleeping {wait:.1f}s", flush=True)
             time.sleep(wait)
+        except Exception as e:
+            # Truncated JSON, parse failures, transient anthropic errors that
+            # don't fit the retry loop — record and give up on this slot
+            # rather than crashing the entire script.
+            log.append(f"  call_claude unrecoverable: {type(e).__name__}: {e}")
+            print(f"  call_claude unrecoverable: {type(e).__name__}: {e}", flush=True)
+            elapsed = time.time() - t0
+            return ProofAttempt(tactics="Admitted."), elapsed, 0
     else:
-        raise RuntimeError(f"Exceeded retry limit ({max_attempts}) for rate limiting / connection errors")
+        log.append(f"  exceeded retry limit ({max_attempts}); giving up on this slot")
+        elapsed = time.time() - t0
+        return ProofAttempt(tactics="Admitted."), elapsed, 0
 
     elapsed = time.time() - t0
     tokens  = response.usage.output_tokens

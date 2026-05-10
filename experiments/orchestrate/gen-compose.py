@@ -66,7 +66,7 @@ from pathlib import Path
 # PYTHONDONTWRITEBYTECODE avoids spurious .pyc writes on the :ro bind.
 _RUN_BASELINE = (
     'PYTHONDONTWRITEBYTECODE=1 /work/experiments/.venv/bin/python '
-    'run_experiment.py'
+    'run_experiment.py --max-challenges 10'
 )
 _RUN_AGENT = (
     'PYTHONDONTWRITEBYTECODE=1 /work/experiments/.venv/bin/python '
@@ -109,9 +109,13 @@ def _command_for_mode(mode: str, run_id: str) -> str:
     elif mode == "agent":
         runners = _RUN_AGENT.format(run_id=run_id)
     elif mode == "both":
+        # `;` not `&&`: baseline and agent are independent measurements.
+        # If baseline blows up on one slot (e.g. a Claude API hiccup we
+        # didn't catch in retry logic), we still want the agent phase to
+        # produce data for this SHA.
         runners = (
             _RUN_BASELINE.format(run_id=run_id)
-            + " && "
+            + "; "
             + _RUN_AGENT.format(run_id=run_id)
         )
     else:
@@ -213,6 +217,10 @@ def _emit_compose_yaml(
         # docker/commit.Dockerfile. Both runners read this to find the repo
         # they compile against (baseline) or sandbox the agent's reads to.
         lines.append('      FIAT_CRYPTO_DIR: "/work/repo"')
+        # Bumped from default 20: prior run had 19/57 agent ERRORs as
+        # UsageLimitExceeded, agents that exhausted the budget often had
+        # a path forward. 40 turns ~= 2x context for harder slots.
+        lines.append('      MAX_TURNS: "40"')
         lines.append("    volumes:")
         lines.append(f'      - "results-{prefix}:/results"')
         lines.append(
