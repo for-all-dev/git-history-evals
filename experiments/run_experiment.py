@@ -26,6 +26,7 @@ from __future__ import annotations
 
 import json
 import os
+import random
 import re
 import shutil
 import subprocess
@@ -115,7 +116,11 @@ def call_claude(prompt: str, log: list[str]) -> tuple[ProofAttempt, float, int]:
     """Returns (ProofAttempt, elapsed_seconds, output_tokens)."""
     log.append(f"\n  [API call: {MODEL}]")
     t0 = time.time()
-    for attempt in range(6):
+    # Exponential backoff with jitter on 429/connection blips. Bounds cap a
+    # single wait at ~2 min since Anthropic's TPM limit is a 1-minute sliding
+    # window — sustained pressure clears within one window, blips clear sooner.
+    max_attempts = 8
+    for attempt in range(max_attempts):
         try:
             response = client.messages.parse(
                 model=MODEL,
@@ -126,13 +131,14 @@ def call_claude(prompt: str, log: list[str]) -> tuple[ProofAttempt, float, int]:
                 output_format=ProofAttempt,
             )
             break
-        except anthropic.RateLimitError:
-            wait = 60 * (attempt + 1)
-            log.append(f"  rate-limited (attempt {attempt+1}), waiting {wait}s…")
-            print(f"  rate-limited (attempt {attempt+1}), waiting {wait}s…", flush=True)
+        except (anthropic.RateLimitError, anthropic.APIConnectionError, anthropic.APITimeoutError) as e:
+            base = min(120, 10 * (2 ** attempt))
+            wait = base * (0.5 + random.random())  # 0.5x..1.5x jitter
+            log.append(f"  {type(e).__name__} (attempt {attempt+1}/{max_attempts}), sleeping {wait:.1f}s")
+            print(f"  {type(e).__name__} (attempt {attempt+1}/{max_attempts}), sleeping {wait:.1f}s", flush=True)
             time.sleep(wait)
     else:
-        raise RuntimeError("Exceeded retry limit for rate limiting")
+        raise RuntimeError(f"Exceeded retry limit ({max_attempts}) for rate limiting / connection errors")
 
     elapsed = time.time() - t0
     tokens  = response.usage.output_tokens

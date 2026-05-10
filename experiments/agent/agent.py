@@ -13,6 +13,8 @@ invokes `Agent.run(...)`.
 
 from __future__ import annotations
 
+import os
+
 from pydantic import BaseModel, Field
 from pydantic_ai import Agent
 
@@ -41,10 +43,29 @@ def make_agent(
 
     The returned agent has no tools registered — see `agent/tools.py` (#11).
 
-    `defer_model_check=True` delays provider instantiation until the first
-    `Agent.run(...)` call, so building the agent (and therefore importing
-    this module) never touches the network or requires an API key.
+    For Anthropic-prefixed models, swap the bare model string for an
+    ``AnthropicModel`` whose underlying ``AsyncAnthropic`` client is
+    configured with ``max_retries=8``. The Anthropic SDK then retries
+    429/408/409/5xx with exponential backoff (and respects ``Retry-After``
+    headers), which is exactly what the 17-SHA orchestrator hits when
+    multiple agent loops cluster against the 2M tok/min org limit. Override
+    the retry budget via ``ANTHROPIC_MAX_RETRIES``; set to 0 in tests.
+
+    For non-Anthropic models we fall through to pydantic-ai's
+    ``defer_model_check=True`` path, which delays provider instantiation
+    until the first ``Agent.run(...)`` so importing this module remains
+    network-free.
     """
+    if model.startswith("anthropic:"):
+        model_obj = _make_anthropic_model_with_retries(
+            model.removeprefix("anthropic:")
+        )
+        return Agent(
+            model_obj,
+            deps_type=AgentDeps,
+            output_type=AgentVerdict,
+            system_prompt=SYS_PROMPT_AGENT,
+        )
     return Agent(
         model,
         deps_type=AgentDeps,
@@ -52,3 +73,18 @@ def make_agent(
         system_prompt=SYS_PROMPT_AGENT,
         defer_model_check=True,
     )
+
+
+def _make_anthropic_model_with_retries(model_name: str):
+    """Build an ``AnthropicModel`` whose client retries 429/5xx with backoff.
+
+    Imports are local so the non-Anthropic branch (and unit tests that mock
+    ``Agent``) don't pay the cost of resolving pydantic-ai providers.
+    """
+    from anthropic import AsyncAnthropic
+    from pydantic_ai.models.anthropic import AnthropicModel
+    from pydantic_ai.providers.anthropic import AnthropicProvider
+
+    max_retries = int(os.environ.get("ANTHROPIC_MAX_RETRIES", "8"))
+    client = AsyncAnthropic(max_retries=max_retries)
+    return AnthropicModel(model_name, provider=AnthropicProvider(anthropic_client=client))
