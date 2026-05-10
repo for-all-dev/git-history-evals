@@ -84,20 +84,26 @@ def register_tools(agent: "Agent[AgentDeps, AgentVerdict]") -> None:
         ``end=-1`` means "to EOF". At most 2000 lines are returned per call,
         so page through large files with successive calls.
         """
-        last_err: Exception | None = None
+        # Try each allowed root; pick the first where the file *exists*, not
+        # the first where the path doesn't escape. The naive break-on-first-
+        # non-escape logic resolved relative paths like "challenge.v" against
+        # repo_dir, found they didn't escape, and stopped — even though the
+        # file actually lives under slot_dir.
+        last_escape: Exception | None = None
         resolved: Path | None = None
         for root in (ctx.deps.repo_dir, ctx.deps.slot_dir):
             try:
-                resolved = _resolve_under(root, path)
-                break
+                candidate = _resolve_under(root, path)
             except ValueError as e:
-                last_err = e
+                last_escape = e
                 continue
+            if candidate.exists() and candidate.is_file():
+                resolved = candidate
+                break
         if resolved is None:
-            ctx.deps.log.append(f"read_file path={path!r} rejected=escape")
-            raise ValueError(str(last_err) if last_err else f"{path!r} not under any allowed root")
-
-        if not resolved.exists() or not resolved.is_file():
+            if last_escape is not None:
+                ctx.deps.log.append(f"read_file path={path!r} rejected=escape")
+                raise ValueError(str(last_escape))
             ctx.deps.log.append(f"read_file path={path!r} missing=True")
             raise FileNotFoundError(f"{path!r} does not exist under allowed roots")
 

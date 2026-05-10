@@ -209,6 +209,10 @@ def _emit_compose_yaml(
         )
         lines.append(f'      RUN_ID: "{run_id}"')
         lines.append(f'      MODE: "{mode}"')
+        # Per-commit fiat-crypto checkout baked into fc-commit:* by
+        # docker/commit.Dockerfile. Both runners read this to find the repo
+        # they compile against (baseline) or sandbox the agent's reads to.
+        lines.append('      FIAT_CRYPTO_DIR: "/work/repo"')
         lines.append("    volumes:")
         lines.append(f'      - "results-{prefix}:/results"')
         lines.append(

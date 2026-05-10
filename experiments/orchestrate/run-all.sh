@@ -379,6 +379,8 @@ spawn_tmux() {
   fi
 
   local sha sha_prefix win_name cmd_str spawn_str
+  local stagger_s="${STAGGER_S:-8}"
+  local first_window=1
   for sha in "${shas[@]}"; do
     # Lowercase + 8-char prefix matches gen-compose.py's service naming.
     sha_prefix="$(printf '%s' "${sha:0:8}" | tr '[:upper:]' '[:lower:]')"
@@ -388,6 +390,13 @@ spawn_tmux() {
     if [ "${DRY_RUN}" -eq 1 ]; then
       log "DRY-RUN: ${spawn_str}"
     else
+      # Stagger window launches so all SHAs don't burst against the
+      # Anthropic API in lockstep (saw 429s with all-17 concurrent on the
+      # 2M tok/min org limit). Override via STAGGER_S=0 for no delay.
+      if [ "${first_window}" -eq 0 ] && [ "${stagger_s}" -gt 0 ]; then
+        sleep "${stagger_s}"
+      fi
+      first_window=0
       eval "${spawn_str}"
     fi
   done
