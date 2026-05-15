@@ -1,0 +1,28 @@
+{
+  "model": "anthropic:claude-sonnet-4-6",
+  "date": "2026-05-15 20:13:59",
+  "n_total_runs": 1,
+  "conditions": [
+    {
+      "deletion_size": -1,
+      "condition": "A",
+      "n_challenges": 1,
+      "n_pass": 0,
+      "n_admitted": 0,
+      "n_fail": 0,
+      "n_error_or_timeout": 1,
+      "pass_rate": 0.0,
+      "mean_inference_time_s": 83.38,
+      "mean_output_tokens": 0.0,
+      "mean_tactic_edit_distance": null,
+      "mean_normalized_edit_distance": null,
+      "mean_vo_bytes": null,
+      "mean_compile_time_s": null,
+      "mean_n_assumptions": null,
+      "mean_agent_n_turns": null
+    }
+  ],
+  "faithfulness_by_mode": {
+    "agent": null
+  }
+}
