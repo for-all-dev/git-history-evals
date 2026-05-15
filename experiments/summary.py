@@ -155,6 +155,23 @@ def aggregate(records: list[dict[str, Any]]) -> dict[str, Any]:
     for (mode, dsize), rs in sorted(groups.items()):
         n_total = len(rs)
         n_pass = sum(1 for r in rs if r.get("verdict") == "PASS")
+        # Records pre-dating the ADMITTED verdict will report verdict=PASS
+        # with ends_with_admitted=True on the LLM proof body. Surface that
+        # retroactively so historical baselines aren't credited for axioms.
+        n_admitted = sum(
+            1 for r in rs
+            if r.get("verdict") == "ADMITTED"
+            or (
+                r.get("verdict") == "PASS"
+                and _nested(r, "llm_metrics", "ends_with_admitted") is True
+            )
+        )
+        # Correspondingly, exclude legacy admitted-PASS rows from the pass count.
+        n_pass = sum(
+            1 for r in rs
+            if r.get("verdict") == "PASS"
+            and _nested(r, "llm_metrics", "ends_with_admitted") is not True
+        )
         pass_rate = round(n_pass / n_total, 4) if n_total else 0.0
 
         inference_times = [
@@ -193,6 +210,7 @@ def aggregate(records: list[dict[str, Any]]) -> dict[str, Any]:
             "deletion_size": dsize,
             "n_total": n_total,
             "n_pass": n_pass,
+            "n_admitted": n_admitted,
             "pass_rate": pass_rate,
             "mean_inference_time_s": _mean(inference_times),
             "mean_output_tokens": _mean(output_tokens),
@@ -296,6 +314,7 @@ _BASE_COLUMNS: list[tuple[str, str]] = [
     ("deletion_size",                 "deletion_size"),
     ("n_total",                       "n_total"),
     ("n_pass",                        "n_pass"),
+    ("n_admitted",                    "n_admitted"),
     ("pass_rate",                     "pass_rate"),
     ("mean_inference_time_s",         "mean_inference_time_s"),
     ("mean_output_tokens",            "mean_output_tokens"),

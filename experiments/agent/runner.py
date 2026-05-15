@@ -328,9 +328,17 @@ def _run_slot_core(
         solution_content = solution_path.read_text()
         human_m = _compute_proof_metrics(solution_content, decl)
 
-    # On PASS, populate compile-derived fields on llm_metrics and, via the
-    # per-SHA cache, on human_metrics.
-    if verdict == "PASS" and llm_m is not None:
+    # Coq accepts `Admitted.` with only a warning, so make exits 0 and we
+    # land here with verdict="PASS" even though the proof body is an axiom.
+    # Downgrade to ADMITTED so the verdict reflects soundness, not just
+    # exit-code success.
+    if verdict == "PASS" and llm_m is not None and llm_m.ends_with_admitted:
+        verdict = "ADMITTED"
+
+    # On a real PASS (or an ADMITTED accept), populate compile-derived
+    # fields on llm_metrics — the .vo and assumptions are well-defined in
+    # both cases — and, for true PASS only, run the human-side compile.
+    if verdict in ("PASS", "ADMITTED") and llm_m is not None:
         llm_m.vo_bytes = outcome["vo_bytes"]
         llm_m.compile_time_s = outcome["compile_time_s"]
         llm_m.assumptions = outcome["assumptions"]

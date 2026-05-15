@@ -374,9 +374,19 @@ def run_slot(
 
     llm_m = compute_proof_metrics(completed, decl)
 
-    # On PASS, populate the artifact-drift fields on llm_metrics and,
-    # via the per-SHA cache, on human_metrics.
-    if verdict == "PASS" and llm_m is not None:
+    # Coq accepts `Admitted.` with only a warning, so make exits 0 and we
+    # land here with verdict="PASS" even though the proof body is an axiom.
+    # Downgrade to ADMITTED so the verdict reflects soundness, not just
+    # exit-code success.
+    if verdict == "PASS" and llm_m is not None and llm_m.ends_with_admitted:
+        verdict = "ADMITTED"
+        log_lines.append("  verdict downgraded PASS → ADMITTED (body ends in Admitted.)")
+
+    # On a real PASS (or an ADMITTED accept), populate the artifact-drift
+    # fields on llm_metrics — the .vo and assumptions are well-defined in
+    # both cases — and, for true PASS only, run the human-side compile so
+    # the drift ratios compare like-with-like.
+    if verdict in ("PASS", "ADMITTED") and llm_m is not None:
         llm_m.vo_bytes = outcome.vo_bytes
         llm_m.compile_time_s = outcome.compile_time_s
         llm_m.assumptions = outcome.assumptions
@@ -468,6 +478,7 @@ def _summarise(results: list[ExperimentResult]) -> ExperimentSummary:
     conditions: list[DeletionConditionSummary] = []
     for (cond, dsize), rs in sorted(by_cond.items()):
         n_pass    = sum(1 for r in rs if r.verdict == "PASS")
+        n_admit   = sum(1 for r in rs if r.verdict == "ADMITTED")
         n_fail    = sum(1 for r in rs if r.verdict == "FAIL")
         n_err     = sum(1 for r in rs if r.verdict in ("TIMEOUT", "ERROR"))
         n_total   = len(rs)
@@ -480,6 +491,7 @@ def _summarise(results: list[ExperimentResult]) -> ExperimentSummary:
             condition=cond,  # type: ignore[arg-type]
             n_challenges=n_total,
             n_pass=n_pass,
+            n_admitted=n_admit,
             n_fail=n_fail,
             n_error_or_timeout=n_err,
             pass_rate=pass_rate,
@@ -597,6 +609,7 @@ def _main(
         log_lines.append(
             f"\nCondition {c.condition} (deletion={c.deletion_size}): "
             f"{c.n_pass}/{c.n_challenges} PASS  "
+            f"({c.n_admitted} ADMITTED)  "
             f"[pass_rate={c.pass_rate:.0%}  "
             f"mean_time={c.mean_inference_time_s}s  "
             f"mean_tokens={c.mean_output_tokens:.0f}  "

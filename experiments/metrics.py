@@ -58,8 +58,12 @@ class ExperimentResult(BaseModel):
     )
 
     # Execution
-    verdict: Literal["PASS", "FAIL", "TIMEOUT", "ERROR"] = Field(
-        description="Outcome of coqc compilation"
+    verdict: Literal["PASS", "ADMITTED", "FAIL", "TIMEOUT", "ERROR"] = Field(
+        description=(
+            "Outcome of coqc compilation. ADMITTED = make exited 0 but the "
+            "spliced proof body still contains `Admitted.` — Coq accepts it "
+            "with a warning, which is not a real proof."
+        )
     )
     inference_time_s: float = Field(description="Wall-clock seconds for Claude API call")
     output_tokens: int = Field(description="Output tokens returned by Claude")
@@ -122,6 +126,7 @@ class DeletionConditionSummary(BaseModel):
     condition: Literal["A", "B"]
     n_challenges: int
     n_pass: int
+    n_admitted: int = 0
     n_fail: int
     n_error_or_timeout: int
     pass_rate: float

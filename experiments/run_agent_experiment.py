@@ -196,6 +196,7 @@ def _summarise(results: list[ExperimentResult], model: str) -> ExperimentSummary
     conditions: list[DeletionConditionSummary] = []
     for (cond, dsize), rs in sorted(by_cond.items()):
         n_pass = sum(1 for r in rs if r.verdict == "PASS")
+        n_admit = sum(1 for r in rs if r.verdict == "ADMITTED")
         n_fail = sum(1 for r in rs if r.verdict == "FAIL")
         n_err = sum(1 for r in rs if r.verdict in ("TIMEOUT", "ERROR"))
         n_total = len(rs)
@@ -207,6 +208,7 @@ def _summarise(results: list[ExperimentResult], model: str) -> ExperimentSummary
             condition=cond,  # type: ignore[arg-type]
             n_challenges=n_total,
             n_pass=n_pass,
+            n_admitted=n_admit,
             n_fail=n_fail,
             n_error_or_timeout=n_err,
             pass_rate=pass_rate,
@@ -361,6 +363,7 @@ def _main(
         print(
             f"Condition {c.condition} (deletion={c.deletion_size}): "
             f"{c.n_pass}/{c.n_challenges} PASS  "
+            f"({c.n_admitted} ADMITTED)  "
             f"[pass_rate={c.pass_rate:.0%}  "
             f"mean_time={c.mean_inference_time_s}s  "
             f"mean_tokens={c.mean_output_tokens:.0f}  "
