@@ -38,6 +38,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from pydantic_ai.exceptions import UsageLimitExceeded
 from pydantic_ai.usage import UsageLimits
 
 # The experiments/ root is on sys.path in-container and via conftest.py in
@@ -61,7 +62,7 @@ from shared.compile import (
     run_make_target,
     vo_bytes,
 )
-from shared.prompts import make_prompt_full, make_prompt_partial
+from shared.prompts import make_agent_prompt_full, make_agent_prompt_partial
 
 
 # ── Per-SHA human-reference compile cache ────────────────────────────────────
@@ -141,7 +142,8 @@ def _post_run_compile(
     """Recompile ``rel_target`` after the agent finishes and derive PASS-only metrics.
 
     Returns a dict with keys ``verdict`` (PASS/FAIL/TIMEOUT/ERROR),
-    ``vo_bytes``, ``compile_time_s``, ``assumptions``.
+    ``vo_bytes``, ``compile_time_s``, ``assumptions``, ``compile_stderr``,
+    ``compile_stdout``.
 
     The agent's own ``compile`` tool may have run earlier in the turn; we
     re-run here so the metrics reflect the final state the agent left on
@@ -156,6 +158,8 @@ def _post_run_compile(
             "vo_bytes": None,
             "compile_time_s": None,
             "assumptions": None,
+            "compile_stderr": None,
+            "compile_stdout": None,
         }
 
     if result.ok:
@@ -169,6 +173,8 @@ def _post_run_compile(
             "vo_bytes": size,
             "compile_time_s": round(result.elapsed_s, 3),
             "assumptions": axioms,
+            "compile_stderr": None,
+            "compile_stdout": None,
         }
 
     if result.exit_code == 124:
@@ -182,6 +188,8 @@ def _post_run_compile(
         "vo_bytes": None,
         "compile_time_s": None,
         "assumptions": None,
+        "compile_stderr": result.stderr or None,
+        "compile_stdout": result.stdout or None,
     }
 
 
@@ -247,6 +255,11 @@ def _run_slot_core(
     commit: str = meta.get("commit_hash", "")
 
     challenge_path = slot_dir / challenge_file
+    # content is still read so metrics (NED, proof_chars etc.) can be computed
+    # from the challenge file; it is NOT stuffed into the initial prompt for
+    # the agent (that used to embed 50-200KB files permanently in message history,
+    # burning tokens on every subsequent turn). The agent reads what it needs via
+    # the read_file tool.
     content = challenge_path.read_text()
 
     attempt_name = (
@@ -268,19 +281,21 @@ def _run_slot_core(
         rel_target=rel_target,
         decl=decl,
         attempt_path=attempt_path,
+        challenge_file=challenge_file,
         coq_flags=coq_flags,
     )
 
     if deletion_size == -1:
-        initial_prompt = make_prompt_full(decl, content)
+        initial_prompt = make_agent_prompt_full(decl, challenge_file)
     else:
-        initial_prompt = make_prompt_partial(decl, content, deletion_size)
+        initial_prompt = make_agent_prompt_partial(decl, challenge_file, deletion_size)
 
     agent = make_agent(model)
     register_tools(agent)
 
     verdict_obj: AgentVerdict | None = None
     agent_error: str | None = None
+    agent_turn_limit_hit: bool = False
     input_tokens = 0
     output_tokens = 0
     n_requests = 0
@@ -296,14 +311,28 @@ def _run_slot_core(
         input_tokens = int(getattr(usage, "input_tokens", 0) or 0)
         output_tokens = int(getattr(usage, "output_tokens", 0) or 0)
         n_requests = int(getattr(usage, "requests", 0) or 0)
+    except UsageLimitExceeded as e:
+        # Turn budget exhausted — this is a FAIL (model couldn't close the proof
+        # within the allowed turns), not an infrastructure ERROR.
+        agent_turn_limit_hit = True
+        agent_error = f"turn_limit_exceeded: {e}"
+        n_requests = max_turns
     except Exception as e:  # noqa: BLE001 - surface any failure, don't crash the loop
         agent_error = f"{type(e).__name__}: {e}"
     elapsed = time.monotonic() - t0
 
     # Recompile the final attempt so PASS-only fields are derived from the
     # exact bytes sitting on disk when the agent terminated.
-    if agent_error is not None:
+    if agent_turn_limit_hit:
+        # Budget exhausted: treat as a failed proof attempt, not an infra error.
         outcome: dict[str, Any] = {
+            "verdict": "FAIL",
+            "vo_bytes": None,
+            "compile_time_s": None,
+            "assumptions": None,
+        }
+    elif agent_error is not None:
+        outcome = {
             "verdict": "ERROR",
             "vo_bytes": None,
             "compile_time_s": None,
@@ -384,6 +413,9 @@ def _run_slot_core(
             agent_give_up_reason = "compile_success"
         else:
             agent_give_up_reason = "completed_without_success"
+    elif agent_turn_limit_hit:
+        agent_n_turns = max_turns
+        agent_give_up_reason = "turn_limit_exceeded"
     else:
         agent_n_turns = n_requests or None
         agent_give_up_reason = agent_error or "run_failed"
@@ -405,6 +437,8 @@ def _run_slot_core(
         llm_metrics=llm_m,
         tactic_edit_distance=ted,
         normalized_edit_distance=ned,
+        compile_stderr=outcome.get("compile_stderr"),
+        compile_stdout=outcome.get("compile_stdout"),
     )
     return _SlotOutcome(result=res, log=list(deps.log), verdict=verdict_obj)
 
@@ -536,7 +570,7 @@ def main() -> int:
         or time.strftime("%Y%m%d-%H%M%S")
     )
     model = config.get("model") or os.environ.get("MODEL") or "anthropic:claude-sonnet-4-6"
-    max_turns = int(config.get("max_turns") or os.environ.get("MAX_TURNS") or 20)
+    max_turns = int(config.get("max_turns") or os.environ.get("MAX_TURNS") or 40)
     slots: list[dict[str, Any]] = config.get("slots") or []
 
     repo_dir = Path(

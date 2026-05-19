@@ -277,7 +277,7 @@ def _main(
         help="Model identifier passed to pydantic-ai (e.g. 'anthropic:claude-sonnet-4-6').",
     ),
     max_turns: int = typer.Option(
-        20, "--max-turns",
+        40, "--max-turns",
         help="Maximum pydantic-ai request budget per slot.",
     ),
     results_dir: str = typer.Option(

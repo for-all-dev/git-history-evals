@@ -100,6 +100,16 @@ class ExperimentResult(BaseModel):
         description="Metrics for the LLM-generated proof (attempt.v)"
     )
 
+    # Compile output (only populated on FAIL/TIMEOUT; empty string on PASS)
+    compile_stderr: str | None = Field(
+        default=None,
+        description="Truncated stderr from the final coqc/make invocation. Populated on FAIL/TIMEOUT; None on PASS."
+    )
+    compile_stdout: str | None = Field(
+        default=None,
+        description="Truncated stdout from the final coqc/make invocation. Populated on FAIL/TIMEOUT; None on PASS."
+    )
+
     # Similarity
     tactic_edit_distance: int | None = Field(
         default=None,

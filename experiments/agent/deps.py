@@ -31,5 +31,6 @@ class AgentDeps(BaseModel):
     decl: str = Field(description="Coq declaration under proof.")
     attempt_path: Path = Field(description="Where write_proof persists the spliced result.")
     coq_flags: list[str] = Field(description="Project _CoqProject -R/-Q/-I flags for coqc/coqtop invocations.")
+    challenge_file: str = Field(default="challenge.v", description="Filename of the challenge file in slot_dir (e.g. 'challenge.v' or 'challenge3.v').")
     make_timeout_s: int = Field(default=600, description="Per-compile timeout passed to subprocess.run.")
     log: list[str] = Field(default_factory=list, description="Append-only event log for transcript reconstruction.")

@@ -215,6 +215,8 @@ class _CompileOutcome(BaseModel):
     vo_bytes: int | None = None
     compile_time_s: float | None = None
     assumptions: list[str] | None = None
+    compile_stderr: str | None = None
+    compile_stdout: str | None = None
 
 
 def _compile_in_repo(
@@ -254,16 +256,30 @@ def _compile_in_repo(
             assumptions=axioms,
         )
 
-    # Map non-ok outcomes to legacy verdicts.
+    # Map non-ok outcomes to legacy verdicts; capture stderr/stdout for analysis.
+    stderr = result.stderr or ""
+    stdout = result.stdout or ""
     if result.exit_code == 124:
         log.append(f"  make: TIMEOUT")
-        return _CompileOutcome(verdict="TIMEOUT")
+        return _CompileOutcome(
+            verdict="TIMEOUT",
+            compile_stderr=stderr or None,
+            compile_stdout=stdout or None,
+        )
     if result.exit_code == 127:
-        log.append(f"  make: ERROR ({result.stderr[:200]})")
-        return _CompileOutcome(verdict="ERROR")
-    short = (result.stderr or result.stdout)[:2000].strip()
+        log.append(f"  make: ERROR ({stderr[:200]})")
+        return _CompileOutcome(
+            verdict="ERROR",
+            compile_stderr=stderr or None,
+            compile_stdout=stdout or None,
+        )
+    short = (stderr or stdout)[:2000].strip()
     log.append(f"  make: FAIL\n    {short}")
-    return _CompileOutcome(verdict="FAIL")
+    return _CompileOutcome(
+        verdict="FAIL",
+        compile_stderr=stderr or None,
+        compile_stdout=stdout or None,
+    )
 
 
 # ── Human-proof compilation cache (keyed by commit SHA) ──────────────────────
@@ -426,6 +442,8 @@ def run_slot(
         llm_metrics=llm_m,
         tactic_edit_distance=ted,
         normalized_edit_distance=ned,
+        compile_stderr=outcome.compile_stderr,
+        compile_stdout=outcome.compile_stdout,
     )
     all_results.append(result)
 

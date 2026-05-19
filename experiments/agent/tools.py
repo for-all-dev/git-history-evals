@@ -135,7 +135,7 @@ def register_tools(agent: "Agent[AgentDeps, AgentVerdict]") -> None:
         attempt path and copied onto the repo target so that ``compile``
         builds what you just wrote. Returns the size of the written file.
         """
-        challenge_src = ctx.deps.slot_dir / "challenge.v"
+        challenge_src = ctx.deps.slot_dir / ctx.deps.challenge_file
         content = challenge_src.read_text(encoding="utf-8")
         patched = patch_admitted(content, ctx.deps.decl, tactics)
 

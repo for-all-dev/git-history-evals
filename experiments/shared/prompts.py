@@ -69,3 +69,25 @@ def make_prompt_partial(decl: str, file_content: str, n: int) -> str:
         f"Write only those missing tactic lines (ending with Qed.) to complete the proof.\n\n"
         f"FILE:\n{file_content}"
     )
+
+
+# ── Agent-specific prompt builders (no file content in initial message) ────────
+# The agent has read_file — passing the full file in the initial prompt embeds
+# it permanently in message history, burning tokens on every subsequent turn.
+# These builders give only the file path; the agent reads what it needs lazily.
+
+def make_agent_prompt_full(decl: str, challenge_file: str) -> str:
+    return (
+        f"The proof of `{decl}` has been replaced entirely by `Admitted.`.\n"
+        f"The challenge file is `{challenge_file}`. Use `read_file` to inspect it, "
+        f"then write and compile a complete tactic proof ending with `Qed.`."
+    )
+
+
+def make_agent_prompt_partial(decl: str, challenge_file: str, n: int) -> str:
+    return (
+        f"The last {n} tactic sentences of the proof of `{decl}` have been removed "
+        f"and replaced with `Admitted.`.\n"
+        f"The challenge file is `{challenge_file}`. Use `read_file` to inspect the proof "
+        f"context around `{decl}`, then supply only the missing tactics ending with `Qed.`."
+    )
