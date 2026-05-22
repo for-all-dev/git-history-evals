@@ -75,6 +75,7 @@ blob down from Spaces; the manifest's `blobs` entries name the same paths.
   },
 
   "schema": {
+    "row_version": 1,
     "assistant": "coq",
     "core_fields": [
       "sha", "file", "theorem_name",
@@ -103,8 +104,11 @@ blob down from Spaces; the manifest's `blobs` entries name the same paths.
 
 ### Field notes
 
-- **`schema_version`** — single integer; bumps on any breaking change to
-  manifest *or* challenge row shape.
+- **`schema_version`** — version of the *manifest format itself* (this
+  document). Bumps only on breaking changes to manifest field layout, and
+  bumps for every dataset at once. Row-shape drift is tracked separately
+  on `schema.row_version` — a new dataset that adds a row field bumps that,
+  not this.
 
 - **`version`** — `<tag>-<short_hash>`, where `<short_hash>` is the first 8 hex
   chars of `sha256(canonical_json(manifest_without_short_hash_in_version))`.
@@ -139,6 +143,15 @@ blob down from Spaces; the manifest's `blobs` entries name the same paths.
     "design_run_id": "<optional run id from scaffold/agent_miner/runs/>"
   }
   ```
+
+- **`schema.row_version`** — version of the *challenge row shape* for this
+  dataset. Independent of `schema_version`: drifts per-dataset as the row
+  schema evolves (e.g., adding a `dependencies` field bumps it from 1→2).
+  `0` is reserved for pre-canonical rows that predate this schema doc
+  (see `fiat-crypto-eval/init-draft/`). New datasets should start at `1`.
+  Bumping is a publish-time decision, not a tooling-version decision —
+  same miner code can emit different `row_version`s across runs if you
+  changed what fields you serialise.
 
 - **`schema.assistant`** — `"coq"` or `"isabelle"`. Determines which
   extras namespace appears on each row.
