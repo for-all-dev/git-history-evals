@@ -1,0 +1,5 @@
+{
+  "schema_version": 1,
+  "description": "Hash-to-path index for mined eval datasets. Solver runs reference datasets by manifest content hash; this index resolves hashes back to local paths.",
+  "datasets": []
+}
