@@ -11,6 +11,10 @@ The proper swing at proof engineering evals via git histories would be an agenti
 
 This effort should also involve conducting baselines.
 
+## IMPORTANT: See @./docs/SoW.md for milestones
+
+keep us on track. 
+
 ## Deliverable 
 Evals for at least the Nova hypervisor specs and proofs, SeL4, Compcert, and Fiat-Crypto registered to inspect and listed on huggingface. The generalized scaffold dynamically synthesizing “miner” scripts that walk across the git histories. Reporting baselines of how current language models do, which includes demonstration of how to download the data from huggingface and make a solver. Stretch goal: demonstrate actual posttraining on these eval-as-envs with open weight models. 
 
