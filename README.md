@@ -114,6 +114,7 @@ bash orchestrate/test_*.sh         # bash smoke tests (no Docker required)
 ## More depth
 
 - `CLAUDE.md` — repo-wide agent/developer context
+- `artifacts/MANIFEST_SCHEMA.md` — mined-dataset persistence model (git for manifests, DO Spaces for bulk, HuggingFace for published cuts) and the per-dataset `manifest.json` spec
 - `experiments/README.md` — pipeline internals and layout
 - `experiments/results/README.md` — per-run artifact layout and two-layer persistence
 - `scaffold/README.md` — mining + qualitative study pipelines
