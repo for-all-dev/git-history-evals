@@ -11,7 +11,9 @@ from .study import load_env, run_study
 
 # Find repo root by walking up from this file to the dir containing `artifacts/`
 _PACKAGE_DIR = Path(__file__).resolve().parent
-_REPO_ROOT = _PACKAGE_DIR.parent.parent.parent  # quali/ -> src/ -> scaffold/ -> repo root
+_REPO_ROOT = (
+    _PACKAGE_DIR.parent.parent.parent
+)  # quali/ -> src/ -> scaffold/ -> repo root
 _ARTIFACTS = _REPO_ROOT / "artifacts"
 
 app = typer.Typer(help="Qualitative study of proof evolution trajectories.")
@@ -53,7 +55,9 @@ def analyze(
     load_env()
 
     lifecycle = (lifecycle or _ARTIFACTS / "fiat-crypto-lifecycle.jsonl").resolve()
-    grouped = (grouped or _ARTIFACTS / "fiat-crypto-commits-coq-grouped.jsonl").resolve()
+    grouped = (
+        grouped or _ARTIFACTS / "fiat-crypto-commits-coq-grouped.jsonl"
+    ).resolve()
     output = (output or _ARTIFACTS / "fiat-crypto-quali.jsonl").resolve()
 
     if output.exists():

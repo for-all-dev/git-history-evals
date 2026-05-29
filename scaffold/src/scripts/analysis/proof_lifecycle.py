@@ -48,10 +48,13 @@ _DECL_RE = re.compile(
 # Git helpers
 # ---------------------------------------------------------------------------
 
+
 def _git(*args: str) -> str:
     r = subprocess.run(
         ["git", "-C", str(REPO), *args],
-        capture_output=True, text=True, check=False,
+        capture_output=True,
+        text=True,
+        check=False,
     )
     return r.stdout if r.returncode == 0 else ""
 
@@ -95,7 +98,7 @@ def decl_has_hole(content: str, decl_name: str) -> bool:
 
 print("Loading challenges...")
 with open(CHALLENGES_PATH) as f:
-    challenges = [json.loads(l) for l in f]
+    challenges = [json.loads(line) for line in f]
 
 print("Loading commit history...")
 commits_by_hash: dict[str, dict] = {}
@@ -159,7 +162,8 @@ for idx, ((file_path, decl_name), info) in enumerate(proved.items()):
     # including the proof-complete commit
     file_hashes = file_to_commit_hashes.get(file_path, [])
     file_hashes_before = [
-        h for h in file_hashes
+        h
+        for h in file_hashes
         if (c := commits_by_hash.get(h)) and c["date"] <= proof_complete_date
     ]
 
@@ -181,15 +185,17 @@ for idx, ((file_path, decl_name), info) in enumerate(proved.items()):
         if has_hole:
             if first_hole_date is None:
                 first_hole_date = commit_rec["date"]
-            lifecycle_commits.append({
-                "hash": ch,
-                "date": commit_rec["date"],
-                "subject": commit_rec["message_subject"],
-                "commit_class": commit_rec.get("commit_class", ""),
-                "tactic_groups": commit_rec.get("tactic_group_tags", []),
-                "tactic_tags": commit_rec.get("tactic_tags", []),
-                "net_proof_lines": commit_rec.get("diff_net_proof_lines", 0),
-            })
+            lifecycle_commits.append(
+                {
+                    "hash": ch,
+                    "date": commit_rec["date"],
+                    "subject": commit_rec["message_subject"],
+                    "commit_class": commit_rec.get("commit_class", ""),
+                    "tactic_groups": commit_rec.get("tactic_group_tags", []),
+                    "tactic_tags": commit_rec.get("tactic_tags", []),
+                    "net_proof_lines": commit_rec.get("diff_net_proof_lines", 0),
+                }
+            )
         elif lifecycle_commits:
             # Hole disappeared — this is before the declaration existed with a hole
             # OR after it was proved. Since we're going oldest-first and stopped
@@ -219,6 +225,7 @@ for idx, ((file_path, decl_name), info) in enumerate(proved.items()):
     # Days from first hole to proof complete
     if first_hole_date and proof_complete_date:
         from datetime import datetime
+
         try:
             d0 = datetime.fromisoformat(first_hole_date[:19])
             d1 = datetime.fromisoformat(proof_complete_date[:19])
@@ -228,21 +235,23 @@ for idx, ((file_path, decl_name), info) in enumerate(proved.items()):
     else:
         days = -1
 
-    results.append({
-        "declaration": decl_name,
-        "file": file_path,
-        "hole_kind": info["hole_kind"],
-        "proof_complete_hash": proof_complete_hash,
-        "proof_complete_date": proof_complete_date,
-        "first_hole_date": first_hole_date,
-        "days_to_prove": days,
-        "n_commits_with_hole": n_commits,
-        "n_tactic_groups": len(unique_groups),
-        "tactic_groups_used": unique_groups,
-        "top_tactics": [t for t, _ in tactic_counter.most_common(10)],
-        "group_commit_counts": dict(group_counter),
-        "commit_timeline": lifecycle_commits,
-    })
+    results.append(
+        {
+            "declaration": decl_name,
+            "file": file_path,
+            "hole_kind": info["hole_kind"],
+            "proof_complete_hash": proof_complete_hash,
+            "proof_complete_date": proof_complete_date,
+            "first_hole_date": first_hole_date,
+            "days_to_prove": days,
+            "n_commits_with_hole": n_commits,
+            "n_tactic_groups": len(unique_groups),
+            "tactic_groups_used": unique_groups,
+            "top_tactics": [t for t, _ in tactic_counter.most_common(10)],
+            "group_commit_counts": dict(group_counter),
+            "commit_timeline": lifecycle_commits,
+        }
+    )
 
 # ---------------------------------------------------------------------------
 # Write JSONL
@@ -260,17 +269,31 @@ with open(OUT_JSONL, "w") as f:
 commit_counts = [r["n_commits_with_hole"] for r in results]
 days_list = [r["days_to_prove"] for r in results if r["days_to_prove"] >= 0]
 
+
 # Distribution buckets
 def bucket(n):
-    if n == 1: return "1 commit"
-    if n <= 3:  return "2-3 commits"
-    if n <= 5:  return "4-5 commits"
-    if n <= 10: return "6-10 commits"
-    if n <= 20: return "11-20 commits"
+    if n == 1:
+        return "1 commit"
+    if n <= 3:
+        return "2-3 commits"
+    if n <= 5:
+        return "4-5 commits"
+    if n <= 10:
+        return "6-10 commits"
+    if n <= 20:
+        return "11-20 commits"
     return "21+ commits"
 
+
 bucket_counts: Counter[str] = Counter(bucket(n) for n in commit_counts)
-BUCKET_ORDER = ["1 commit", "2-3 commits", "4-5 commits", "6-10 commits", "11-20 commits", "21+ commits"]
+BUCKET_ORDER = [
+    "1 commit",
+    "2-3 commits",
+    "4-5 commits",
+    "6-10 commits",
+    "11-20 commits",
+    "21+ commits",
+]
 
 # Group usage
 group_usage: Counter[str] = Counter()
@@ -285,14 +308,18 @@ lines = []
 lines.append("=" * 70)
 lines.append("PROOF LIFECYCLE REPORT — fiat-crypto")
 lines.append("=" * 70)
-lines.append(f"\nDeclarations tracked (proved with ≥1 commit carrying a hole): {len(results)}")
+lines.append(
+    f"\nDeclarations tracked (proved with ≥1 commit carrying a hole): {len(results)}"
+)
 lines.append(f"Total commits-with-hole across all declarations: {sum(commit_counts)}")
 lines.append("")
 lines.append("COMMIT COUNT STATISTICS")
 lines.append("-" * 40)
 lines.append(f"  Median commits per declaration : {median(commit_counts):.0f}")
 lines.append(f"  Mean   commits per declaration : {mean(commit_counts):.1f}")
-lines.append(f"  Max    commits                 : {max(commit_counts)}  ({results_sorted[0]['declaration']})")
+lines.append(
+    f"  Max    commits                 : {max(commit_counts)}  ({results_sorted[0]['declaration']})"
+)
 lines.append(f"  Min    commits                 : {min(commit_counts)}")
 lines.append("")
 lines.append("DISTRIBUTION")

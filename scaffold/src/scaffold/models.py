@@ -95,7 +95,9 @@ class EvalChallenge(BaseModel):
         description="File content at child commit (hole filled)"
     )
     holes_filled: list[ProofHole] = Field(default_factory=list)
-    diff: str = Field(default="", description="Unified diff between challenge and solution")
+    diff: str = Field(
+        default="", description="Unified diff between challenge and solution"
+    )
     instructions: str = Field(
         default="",
         description="Human-readable instructions for the challenge",

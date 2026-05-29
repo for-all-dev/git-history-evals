@@ -44,8 +44,12 @@ class HoleMarker(BaseModel):
     without touching an enum.
     """
 
-    regex: str = Field(description="Regex matching the hole marker as it appears in source.")
-    kind: str = Field(description="Label for this hole kind, e.g. 'sorry' or 'admitted'.")
+    regex: str = Field(
+        description="Regex matching the hole marker as it appears in source."
+    )
+    kind: str = Field(
+        description="Label for this hole kind, e.g. 'sorry' or 'admitted'."
+    )
 
 
 class Provenance(BaseModel):
@@ -166,7 +170,7 @@ def _word_alternation(terms: list[str]) -> str:
     """Build a `\\b(a|b|c)\\b` alternation, longest-first to avoid prefix shadowing."""
     if not terms:
         return r"(?!x)x"  # never-matches sentinel
-    ordered = sorted({t for t in terms if t}, key=len, reverse=True)
+    ordered = sorted({t for t in terms if t}, key=lambda s: len(s), reverse=True)
     return r"\b(" + "|".join(re.escape(t) for t in ordered) + r")\b"
 
 
@@ -186,7 +190,9 @@ class CompiledProfile:
     @classmethod
     def from_profile(cls, profile: RepoProfile) -> CompiledProfile:
         hole_res = [(re.compile(h.regex), h.kind) for h in profile.hole_markers]
-        declaration_res = [re.compile(p, re.MULTILINE) for p in profile.declaration_patterns]
+        declaration_res = [
+            re.compile(p, re.MULTILINE) for p in profile.declaration_patterns
+        ]
         commit_signal_res = {
             name: re.compile("|".join(sigs), re.IGNORECASE)
             for name, sigs in profile.commit_signals.items()
@@ -198,19 +204,28 @@ class CompiledProfile:
             else None
         )
         # Boundary-aware tactic regex: a tactic at a tactic position. Group 1 = name.
-        tactic_alt = "|".join(
-            re.escape(t) for t in sorted({t for t in profile.tactic_vocabulary if t}, key=len, reverse=True)
-        ) or r"(?!x)x"
+        ordered_tactics = sorted(
+            {t for t in profile.tactic_vocabulary if t},
+            key=lambda s: len(s),
+            reverse=True,
+        )
+        tactic_alt = "|".join(re.escape(t) for t in ordered_tactics) or r"(?!x)x"
         tactic_re = re.compile(
             r"(?:^|[\s;|{(])(" + tactic_alt + r")(?:\s|[.;()\[\]{]|$)",
             re.IGNORECASE | re.MULTILINE,
         )
         proof_style_res = {
-            name: re.compile(rx, re.MULTILINE) for name, rx in profile.proof_style_signals.items()
+            name: re.compile(rx, re.MULTILINE)
+            for name, rx in profile.proof_style_signals.items()
         }
         # Keyword extraction matches over the union of hole kinds + structural + tactic + domain.
         hole_kinds = [h.kind for h in profile.hole_markers]
-        keyword_terms = hole_kinds + profile.structural_terms + profile.tactic_vocabulary + profile.domain_terms
+        keyword_terms = (
+            hole_kinds
+            + profile.structural_terms
+            + profile.tactic_vocabulary
+            + profile.domain_terms
+        )
         keyword_re = re.compile(_word_alternation(keyword_terms), re.IGNORECASE)
         return cls(
             profile=profile,

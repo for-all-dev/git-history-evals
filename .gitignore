@@ -12,3 +12,4 @@ htmlcov
 
 .claude/worktrees/
 .env
+.antigravitycli/

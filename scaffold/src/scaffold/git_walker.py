@@ -86,9 +86,7 @@ def get_file_at_commit(
     repo_path: str | Path, commit_hash: str, file_path: str
 ) -> str | None:
     """Get file content at a specific commit without checkout."""
-    result = _run_git(
-        repo_path, "show", f"{commit_hash}:{file_path}", check=False
-    )
+    result = _run_git(repo_path, "show", f"{commit_hash}:{file_path}", check=False)
     if result.returncode != 0:
         return None
     return result.stdout
@@ -128,11 +126,7 @@ def get_modified_files(
     )
     if result.returncode != 0:
         return []
-    return [
-        f
-        for f in result.stdout.strip().splitlines()
-        if analyzer.matches_file(f)
-    ]
+    return [f for f in result.stdout.strip().splitlines() if analyzer.matches_file(f)]
 
 
 # ---------------------------------------------------------------------------
@@ -261,9 +255,7 @@ def mine_commit(
     if not commit.parent_hash:
         return []
 
-    modified = get_modified_files(
-        repo_path, commit.parent_hash, commit.hash, analyzer
-    )
+    modified = get_modified_files(repo_path, commit.parent_hash, commit.hash, analyzer)
     challenges: list[EvalChallenge] = []
 
     for fpath in modified:
@@ -458,9 +450,7 @@ def mine_repo(
 
         challenges = mine_commit(repo_path, commit, analyzer, repo_name)
         if challenges:
-            logger.info(
-                "  %s: %d challenges found", commit.hash[:8], len(challenges)
-            )
+            logger.info("  %s: %d challenges found", commit.hash[:8], len(challenges))
             all_challenges.extend(challenges)
 
     return MiningResult(
