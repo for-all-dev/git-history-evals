@@ -11,10 +11,11 @@ dependencies = [
     "pydantic>=2.12.5",
     "typer>=0.24.0",
     "anthropic>=0.52.0",
-    "pydantic-ai>=1.76.0",
+    "pydantic-ai>=2.0.0b3",
     "rich>=14.3.2",
     "pydantic-ai-harness[code-mode]>=0.3.0",
     "logfire>=4.31.0",
+    "pydanticai-inspectai-shim",
 ]
 
 [project.scripts]
@@ -32,3 +33,6 @@ dev = [
     "ruff>=0.15.1",
     "ty>=0.0.17",
 ]
+
+[tool.uv.sources]
+pydanticai-inspectai-shim = { git = "https://github.com/for-all-dev/pydanticai-inspectai-shim.git" }
