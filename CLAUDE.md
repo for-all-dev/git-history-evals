@@ -18,6 +18,18 @@ keep us on track.
 ## Deliverable 
 Evals for at least the Nova hypervisor specs and proofs, SeL4, Compcert, and Fiat-Crypto registered to inspect and listed on huggingface. The generalized scaffold dynamically synthesizing “miner” scripts that walk across the git histories. Reporting baselines of how current language models do, which includes demonstration of how to download the data from huggingface and make a solver. Stretch goal: demonstrate actual posttraining on these eval-as-envs with open weight models. 
 
+## Quality checks
+
+Run these from `./scaffold/` (and `./experiments/`) every now and then, and
+**certainly before every commit**:
+
+```bash
+uv run ruff format        # autoformat
+uv run ruff check --fix   # lint + autofix
+uv run ty check           # type check
+uv run pytest             # tests
+```
+
 ## repo structure
 
 - `./scaffold/`: Python project (uv-managed) containing:
