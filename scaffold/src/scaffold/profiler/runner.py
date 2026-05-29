@@ -1,15 +1,24 @@
 """Drive the calibration agent end-to-end and persist a RepoProfile.
 
 ``build_profile(repo_path, ...)`` wires Logfire, constructs the agent, attaches
-the host tools, runs one calibration pass, stamps provenance, then runs the full
-Phase-1 miner and materializes a dataset version directory. The CLI ``profile``
-command is a thin wrapper over this.
+the host tools, runs one calibration pass, stamps provenance, **checkpoints the
+calibrated profile + transcript to disk**, then runs the full Phase-1 miner and
+materializes a dataset version directory. The CLI ``profile`` command is a thin
+wrapper over this.
+
+Calibration is the expensive part (many LLM round-trips); the mine is cheap and
+re-runnable. So the profile is checkpointed the instant ``run_sync`` returns —
+*before* the (also slow, also fallible) full-history mine — so a crash in
+materialization, a library error, or a laptop dying never discards the LLM work.
+On success the checkpoint is removed (the version dir holds the canonical copy);
+on failure it survives and is recoverable via ``scaffold materialize``.
 """
 
 from __future__ import annotations
 
 import logging
 import os
+import shutil
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
@@ -82,6 +91,45 @@ def _git_remote(repo_path: Path) -> str:
     return res.stdout.strip()
 
 
+def _checkpoint_calibration(
+    *,
+    profile: RepoProfile,
+    transcript: list[str],
+    repo_path: Path,
+    tag: str,
+    artifacts_root: Path | None,
+    created_at: str,
+) -> Path:
+    """Persist the calibrated profile + transcript before the full-history mine.
+
+    Writes ``<artifacts>/<repo>-eval/_checkpoints/<tag>-<stamp>/{profile.json,
+    transcript.txt}`` so the expensive LLM calibration survives any failure in
+    the subsequent (slow, fallible) mine/materialize step. The stamp is derived
+    from ``created_at`` so successive runs don't clobber a prior recoverable
+    profile. Recover a stranded checkpoint with::
+
+        scaffold materialize <repo> -p <checkpoint>/profile.json --tag <tag>
+
+    Returns the checkpoint directory.
+    """
+    from scaffold.dataset import _monorepo_root
+    from scaffold.profile import save_profile
+
+    root = (
+        Path(artifacts_root)
+        if artifacts_root
+        else _monorepo_root(repo_path) / "artifacts"
+    )
+    # 2026-05-29T02:09:35.12+00:00 -> 20260529T020935 (filesystem-safe, sortable)
+    stamp = created_at.replace("-", "").replace(":", "")[:15]
+    ckpt = root / f"{repo_path.name}-eval" / "_checkpoints" / f"{tag}-{stamp}"
+    ckpt.mkdir(parents=True, exist_ok=True)
+    save_profile(profile, ckpt / "profile.json")
+    if transcript:
+        (ckpt / "transcript.txt").write_text("\n".join(transcript) + "\n")
+    return ckpt
+
+
 def build_profile(
     repo_path: Path,
     *,
@@ -135,9 +183,10 @@ def build_profile(
 
     # Stamp provenance host-side (the sandbox has no wall clock and the model
     # shouldn't be trusted to record its own model id / sampled commits).
+    created_at = datetime.now(timezone.utc).isoformat()
     profile.provenance.generated_by = "agent"
     profile.provenance.model = model
-    profile.provenance.created_at = datetime.now(timezone.utc).isoformat()
+    profile.provenance.created_at = created_at
     if not profile.provenance.repo_url:
         profile.provenance.repo_url = _git_remote(repo_path)
     # Audit trail: which SHAs the tools touched this run.
@@ -150,22 +199,58 @@ def build_profile(
         :50
     ]
 
+    # CHECKPOINT before the mine: calibration (the costly LLM work) is done, so
+    # land it on disk now. If the mine below crashes — or the machine dies — this
+    # survives and the profile is recoverable; only a clean success removes it.
+    transcript = list(deps.log)
+    checkpoint = _checkpoint_calibration(
+        profile=profile,
+        transcript=transcript,
+        repo_path=repo_path,
+        tag=tag,
+        artifacts_root=artifacts_root,
+        created_at=created_at,
+    )
+    logger.info(
+        "Checkpointed calibrated profile -> %s "
+        "(recover with: scaffold materialize %s -p %s --tag %s)",
+        checkpoint,
+        repo_path.name,
+        checkpoint / "profile.json",
+        tag,
+    )
+
     # Build prompt text for hashing: system + user.
     prompt_text = SYS_PROMPT_PROFILER + "\n\n" + prompt
 
     # Run the full mine to get challenges and materialize the dataset version.
     from scaffold.dataset import mine_and_materialize, promote_profile
 
-    dv = mine_and_materialize(
-        profile=profile,
-        repo_path=repo_path,
-        tag=tag,
-        miner_kind="agent",
-        artifacts_root=artifacts_root,
-        model=model,
-        prompt_text=prompt_text,
-        transcript=list(deps.log),
-    )
+    try:
+        dv = mine_and_materialize(
+            profile=profile,
+            repo_path=repo_path,
+            tag=tag,
+            miner_kind="agent",
+            artifacts_root=artifacts_root,
+            model=model,
+            prompt_text=prompt_text,
+            transcript=transcript,
+        )
+    except Exception:
+        logger.error(
+            "Mining failed after calibration; calibrated profile preserved at %s "
+            "(recover with: scaffold materialize %s -p %s --tag %s)",
+            checkpoint,
+            repo_path.name,
+            checkpoint / "profile.json",
+            tag,
+        )
+        raise
+
+    # Mine + materialize succeeded: the version dir now holds the canonical
+    # profile.json + transcript.txt, so the checkpoint is redundant — drop it.
+    shutil.rmtree(checkpoint, ignore_errors=True)
 
     # Conditionally bless this dataset (symlink <repo>-eval/profile.json -> it).
     promoted = False

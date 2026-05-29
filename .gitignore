@@ -17,3 +17,6 @@ htmlcov
 # Bulk dataset payloads — declared as sha256 blobs in manifest.json
 artifacts/**/*.jsonl
 artifacts/**/*.txt
+
+# Calibration crash-recovery checkpoints (transient; cleaned on a successful mine)
+artifacts/**/_checkpoints/

@@ -7,8 +7,18 @@ from pathlib import Path
 
 import pytest
 
+from scaffold.profile import RepoProfile, load_profile
 from scaffold.profiler.deps import ProfilerDeps
+from scaffold.profiler.runner import _checkpoint_calibration
 from scaffold.profiler.tools import build_tools
+
+
+_MINIMAL_PROFILE = {
+    "proof_assistant": "coq",
+    "proof_file_globs": ["*.v"],
+    "hole_markers": [{"regex": r"\bAdmitted\b", "kind": "admitted"}],
+    "declaration_patterns": [r"^\s*(?:Theorem|Lemma|Definition)\s+(\w+)"],
+}
 
 
 @pytest.fixture
@@ -115,3 +125,49 @@ def test_deps_log_records_calls(tools: dict[str, Callable], deps: ProfilerDeps) 
     tools["list_files"]("*.v")
     tools["read_file"]("proof.v", 1, 1)
     assert len(deps.log) > 0
+
+
+def test_checkpoint_calibration_persists_recoverable_profile(tmp_path: Path) -> None:
+    """The checkpoint writes a profile.json + transcript.txt that round-trips.
+
+    This is the crash-recovery guarantee: the calibrated profile must land on
+    disk (and reload as a valid ``RepoProfile``) independently of the later mine.
+    """
+    profile = RepoProfile.model_validate(_MINIMAL_PROFILE)
+    ckpt = _checkpoint_calibration(
+        profile=profile,
+        transcript=["list_files glob='*.v' matched=2/2", "test_profile commits=10"],
+        repo_path=tmp_path / "myrepo",
+        tag="agent",
+        artifacts_root=tmp_path / "artifacts",
+        created_at="2026-05-29T02:09:35.120000+00:00",
+    )
+
+    assert (
+        ckpt
+        == tmp_path
+        / "artifacts"
+        / "myrepo-eval"
+        / "_checkpoints"
+        / "agent-20260529T020935"
+    )
+    assert (ckpt / "profile.json").is_file()
+    assert (ckpt / "transcript.txt").read_text().startswith("list_files")
+    # The whole point: it reloads as a usable RepoProfile.
+    recovered = load_profile(ckpt / "profile.json")
+    assert recovered.proof_assistant == "coq"
+    assert [h.kind for h in recovered.hole_markers] == ["admitted"]
+
+
+def test_checkpoint_calibration_omits_empty_transcript(tmp_path: Path) -> None:
+    """No transcript.txt is written when the transcript is empty."""
+    ckpt = _checkpoint_calibration(
+        profile=RepoProfile.model_validate(_MINIMAL_PROFILE),
+        transcript=[],
+        repo_path=tmp_path / "myrepo",
+        tag="agent",
+        artifacts_root=tmp_path / "artifacts",
+        created_at="2026-05-29T02:09:35.120000+00:00",
+    )
+    assert (ckpt / "profile.json").is_file()
+    assert not (ckpt / "transcript.txt").exists()
