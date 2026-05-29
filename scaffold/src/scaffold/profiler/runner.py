@@ -10,6 +10,7 @@ agent saw. The CLI ``profile`` command is a thin wrapper over this.
 from __future__ import annotations
 
 import logging
+import os
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
@@ -19,6 +20,31 @@ from scaffold.profile import RepoProfile, save_profile
 from .deps import ProfilerDeps
 
 logger = logging.getLogger(__name__)
+
+
+def _load_dotenv(start: Path | None = None) -> Path | None:
+    """Load the nearest ``.env`` (walking up from ``start``/CWD) into ``os.environ``.
+
+    pydantic-ai reads ``ANTHROPIC_API_KEY`` from the environment, but this repo
+    keeps the key in a ``.env`` at the monorepo root (one dir above ``scaffold``).
+    Mirrors quali's ``load_env``: existing env vars win (``setdefault``), values
+    have surrounding quotes stripped. Returns the file loaded, or None.
+    """
+    cur = (start or Path.cwd()).resolve()
+    while True:
+        candidate = cur / ".env"
+        if candidate.is_file():
+            for line in candidate.read_text().splitlines():
+                line = line.strip()
+                if not line or line.startswith("#") or "=" not in line:
+                    continue
+                key, _, value = line.partition("=")
+                os.environ.setdefault(key.strip(), value.strip().strip("'\""))
+            logger.info("Loaded environment from %s", candidate)
+            return candidate
+        if cur.parent == cur:
+            return None
+        cur = cur.parent
 
 
 @dataclass
@@ -83,6 +109,7 @@ def build_profile(
     if not (repo_path / ".git").exists() and not repo_path.joinpath(".git").is_file():
         raise FileNotFoundError(f"{repo_path} is not a git repository")
 
+    _load_dotenv()
     _configure_logfire()
 
     deps = ProfilerDeps(repo_path=repo_path, default_test_commits=test_commits)
