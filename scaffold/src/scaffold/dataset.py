@@ -6,17 +6,18 @@ Implements ``artifacts/MANIFEST_SCHEMA.md``: every mined dataset lives at
 ``miner/`` (the ``RepoProfile`` that produced it), and the bulk
 ``challenges.jsonl`` declared as a sha256 blob.
 
-Why a directory and not a single ``profile.json``: a calibration run is a
-bundle, and A/B-ing prompt strategies produces many valid profiles per repo.
-The version id is **content-addressed** — ``<short_hash>`` is the first 8 hex of
-a hash over the manifest with ``version``/``created_at`` removed — so the same
-strategy yielding the same profile + challenges lands in the same dir
-(idempotent), while a different prompt produces a sibling dir instead of
+One dataset (= one run, agentic or handcrafted) owns exactly one profile, and
+that profile lives once, at ``<version>/miner/profile.json`` — co-located with
+its manifest and challenges. The version id is **content-addressed**:
+``<short_hash>`` is the first 8 hex of a hash over the manifest with
+``version``/``created_at`` removed, so the same profile + challenges land in the
+same dir (idempotent) while a different run produces a sibling dir instead of
 overwriting. ``_index.json`` maps manifest hash -> path for solver runs.
 
 The blessed ``artifacts/<repo>-eval/profile.json`` that ``scaffold mine-all``
-reads is a *promotion* of one version's profile, set deliberately (see
-``runner``/CLI ``--promote``), never auto-overwritten by a calibration run.
+reads is a relative **symlink** into one version's ``miner/profile.json`` (see
+``promote_profile`` / CLI ``--promote``) — a pointer, not a copy, so the profile
+still exists exactly once.
 """
 
 from __future__ import annotations
@@ -206,6 +207,22 @@ class DatasetVersion:
     n_challenges: int
 
 
+def promote_profile(dv: DatasetVersion) -> Path:
+    """Bless ``dv`` as the canonical dataset for its repo via a relative symlink.
+
+    Points ``<repo>-eval/profile.json`` at this version's
+    ``<version>/miner/profile.json``. There is no duplicated profile content:
+    the profile lives exactly once (inside its dataset dir); the flat path that
+    ``mine-all`` reads is just a symlink into the blessed dataset. Re-promoting
+    another version repoints the link. Returns the symlink path.
+    """
+    blessed = dv.path.parent / "profile.json"
+    if blessed.is_symlink() or blessed.exists():
+        blessed.unlink()
+    blessed.symlink_to(Path(dv.version) / "miner" / "profile.json")
+    return blessed
+
+
 def materialize_dataset_version(
     *,
     profile: RepoProfile,
@@ -214,9 +231,10 @@ def materialize_dataset_version(
     artifacts_root: Path,
     monorepo_root: Path,
     miner_pkg_dir: Path,
-    model: str,
-    prompt_text: str,
+    model: str = "",
+    prompt_text: str | None = None,
     tag: str,
+    miner_kind: str = "agent",
     transcript: list[str] | None = None,
     range_filter: str = "",
     created_at: str | None = None,
@@ -263,18 +281,20 @@ def materialize_dataset_version(
         "shas": shas,
     }
     miner = {
-        "kind": "agent",
+        "kind": miner_kind,
         "code_hash": scaffold_code_hash(miner_pkg_dir),
         "code_hash_inputs": _CODE_HASH_INPUTS,
         "code_snapshot": "miner/",
         "profile_hash": profile_hash,
-        "prompt_hash": sha256_text(prompt_text),
+        "prompt_hash": sha256_text(prompt_text) if prompt_text else None,
         "scaffold_version": _git_sha(monorepo_root),
         "agent": {
             "model": model,
             "transcript_hash": transcript_hash,
             "design_run_id": None,
-        },
+        }
+        if miner_kind == "agent"
+        else None,
     }
     blobs = [
         {
@@ -318,6 +338,53 @@ def materialize_dataset_version(
         manifest=manifest,
         manifest_hash=manifest_hash,
         n_challenges=len(result.challenges),
+    )
+
+
+def mine_and_materialize(
+    *,
+    profile: RepoProfile,
+    repo_path: Path,
+    tag: str,
+    miner_kind: str = "agent",
+    artifacts_root: Path | None = None,
+    model: str = "",
+    prompt_text: str | None = None,
+    transcript: list[str] | None = None,
+) -> DatasetVersion:
+    """Mine `repo_path` full-history with `profile` and materialize a version dir."""
+    from scaffold.analyzers import ProfileAnalyzer
+    from scaffold.git_walker import mine_repo
+
+    repo_path = Path(repo_path)
+    res = subprocess.run(
+        ["git", "-C", str(repo_path), "rev-parse", "--show-toplevel"],
+        capture_output=True,
+        text=True,
+    )
+    monorepo_root = (
+        Path(res.stdout.strip())
+        if res.stdout.strip()
+        else repo_path.resolve().parents[1]
+    )
+    artifacts_root = (
+        Path(artifacts_root) if artifacts_root else (monorepo_root / "artifacts")
+    )
+    miner_pkg_dir = Path(__file__).resolve().parent  # .../src/scaffold
+    analyzer = ProfileAnalyzer(profile.compiled())
+    mined = mine_repo(repo_path, repo_path.name, analyzer)
+    return materialize_dataset_version(
+        profile=profile,
+        result=mined,
+        repo_path=repo_path,
+        artifacts_root=artifacts_root,
+        monorepo_root=monorepo_root,
+        miner_pkg_dir=miner_pkg_dir,
+        model=model,
+        prompt_text=prompt_text,
+        tag=tag,
+        miner_kind=miner_kind,
+        transcript=transcript,
     )
 
 

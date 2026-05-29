@@ -10,8 +10,6 @@ from __future__ import annotations
 
 import logging
 import os
-import shutil
-import subprocess
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
@@ -100,8 +98,8 @@ def build_profile(
         repo_path: the proof-engineering repo to calibrate against.
         model: pydantic-ai model string (bare ``anthropic:...`` etc.).
         tag: human-readable version tag (e.g. 'agentic_1'); dir is <tag>-<short_hash>.
-        promote: if True, copy the profile to the blessed <repo>-eval/profile.json
-            that mine-all uses.
+        promote: if True, bless this dataset by symlinking the <repo>-eval/profile.json
+            that mine-all reads at this version's profile.
         artifacts_root: where to write datasets (default: <monorepo>/artifacts).
         request_limit: core ``UsageLimits`` request cap for the agent run.
         test_commits: how many recent commits ``test_profile`` samples per call.
@@ -152,56 +150,28 @@ def build_profile(
         :50
     ]
 
-    # Compute monorepo root for artifacts placement.
-    res = subprocess.run(
-        ["git", "-C", str(repo_path), "rev-parse", "--show-toplevel"],
-        capture_output=True,
-        text=True,
-    )
-    monorepo_root = (
-        Path(res.stdout.strip())
-        if res.stdout.strip()
-        else repo_path.resolve().parents[1]
-    )
-
-    artifacts_root = (
-        Path(artifacts_root) if artifacts_root else (monorepo_root / "artifacts")
-    )
-    miner_pkg_dir = Path(__file__).resolve().parents[1]  # .../src/scaffold
-
     # Build prompt text for hashing: system + user.
     prompt_text = SYS_PROMPT_PROFILER + "\n\n" + prompt
 
-    # Run the full mine to get challenges.
-    from scaffold.analyzers import ProfileAnalyzer
-    from scaffold.git_walker import mine_repo
+    # Run the full mine to get challenges and materialize the dataset version.
+    from scaffold.dataset import mine_and_materialize, promote_profile
 
-    analyzer = ProfileAnalyzer(profile.compiled())
-    mined = mine_repo(repo_path, repo_path.name, analyzer)
-
-    # Materialize the dataset version.
-    from scaffold.dataset import materialize_dataset_version
-
-    dv = materialize_dataset_version(
+    dv = mine_and_materialize(
         profile=profile,
-        result=mined,
         repo_path=repo_path,
+        tag=tag,
+        miner_kind="agent",
         artifacts_root=artifacts_root,
-        monorepo_root=monorepo_root,
-        miner_pkg_dir=miner_pkg_dir,
         model=model,
         prompt_text=prompt_text,
-        tag=tag,
         transcript=list(deps.log),
     )
 
-    # Conditionally promote to the blessed profile.
+    # Conditionally bless this dataset (symlink <repo>-eval/profile.json -> it).
     promoted = False
     if promote:
-        blessed_path = artifacts_root / f"{repo_path.name}-eval" / "profile.json"
-        blessed_path.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copyfile(dv.path / "miner" / "profile.json", blessed_path)
-        logger.info("Promoted profile to %s", blessed_path)
+        blessed_path = promote_profile(dv)
+        logger.info("Promoted profile (symlink) -> %s", blessed_path)
         promoted = True
 
     return ProfileBuildResult(

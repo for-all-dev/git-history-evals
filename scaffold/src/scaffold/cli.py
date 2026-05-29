@@ -412,6 +412,48 @@ def profile(
 
 
 @app.command()
+def materialize(
+    repo_path: Path = typer.Argument(..., help="Path to the proof engineering repo"),
+    profile: Path = _PROFILE_OPT,
+    tag: str = typer.Option(
+        "v1-handcrafted", "--tag", "-t", help="Version tag; dir is <tag>-<short_hash>"
+    ),
+    kind: str = typer.Option(
+        "handcrafted",
+        "--kind",
+        help="Miner kind for the manifest: 'handcrafted' or 'agent'",
+    ),
+    promote: bool = typer.Option(
+        False,
+        "--promote",
+        help="Bless this dataset: symlink <repo>-eval/profile.json -> its profile",
+    ),
+    artifacts_dir: Path = typer.Option(
+        None, "--artifacts-dir", help="Artifacts root (default: <monorepo>/artifacts)"
+    ),
+    verbose: bool = typer.Option(False, "--verbose", "-v"),
+) -> None:
+    """Bundle an existing RepoProfile into a manifest-schema dataset version dir (no agent)."""
+    _setup_logging(verbose)
+    from scaffold.dataset import mine_and_materialize, promote_profile
+    from scaffold.profile import load_profile
+
+    prof = load_profile(profile)
+    dv = mine_and_materialize(
+        profile=prof,
+        repo_path=repo_path,
+        tag=tag,
+        miner_kind=kind,
+        artifacts_root=artifacts_dir,
+    )
+    typer.echo(f"Materialized {dv.version} ({dv.n_challenges} challenges) -> {dv.path}")
+    typer.echo(f"  manifest_hash: {dv.manifest_hash[:12]}")
+    if promote:
+        blessed = promote_profile(dv)
+        typer.echo(f"  promoted (symlink) -> {blessed}")
+
+
+@app.command()
 def stats(
     jsonl_path: Path = typer.Argument(..., help="Path to a .jsonl challenges file"),
 ) -> None:

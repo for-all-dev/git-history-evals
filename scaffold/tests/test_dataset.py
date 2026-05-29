@@ -8,9 +8,11 @@ from pathlib import Path
 
 
 from scaffold.dataset import (
+    DatasetVersion,
     build_manifest,
     canonical_json,
     materialize_dataset_version,
+    promote_profile,
     sha256_text,
 )
 from scaffold.models import EvalChallenge, MiningResult, ProofHole
@@ -344,3 +346,109 @@ def test_challenges_blob_hash_matches(
     # Assert matches manifest
     assert dv.manifest["blobs"][0]["hash"] == computed_hash
     assert dv.manifest["blobs"][0]["role"] == "challenges"
+
+
+def test_materialize_handcrafted_kind(
+    coq_profile: RepoProfile, tmp_git_repo: Path, tmp_path: Path
+) -> None:
+    """Materialize with handcrafted kind produces correct manifest structure."""
+    artifacts_root = tmp_path / "artifacts"
+    miner_pkg_dir = tmp_path / "miner_pkg"
+    miner_pkg_dir.mkdir()
+    (miner_pkg_dir / "dummy.py").write_text("# test")
+
+    result = make_result(2)
+    dv = materialize_dataset_version(
+        profile=coq_profile,
+        result=result,
+        repo_path=tmp_git_repo,
+        artifacts_root=artifacts_root,
+        monorepo_root=tmp_git_repo,
+        miner_pkg_dir=miner_pkg_dir,
+        tag="v1-handcrafted",
+        miner_kind="handcrafted",
+        created_at="2026-01-01T00:00:00Z",
+    )
+
+    # Check manifest structure for handcrafted miner
+    manifest = dv.manifest
+    assert manifest["miner"]["kind"] == "handcrafted"
+    assert manifest["miner"]["agent"] is None
+    assert manifest["miner"]["prompt_hash"] is None
+    assert manifest["miner"]["code_hash"] is not None
+    assert manifest["miner"]["profile_hash"] is not None
+    assert manifest["miner"]["scaffold_version"] is not None
+
+
+def test_mine_and_materialize_helper(
+    coq_profile: RepoProfile, tmp_git_repo: Path, tmp_path: Path
+) -> None:
+    """mine_and_materialize helper successfully mines repo and materializes version dir."""
+    from scaffold.dataset import mine_and_materialize
+
+    dv = mine_and_materialize(
+        profile=coq_profile,
+        repo_path=tmp_git_repo,
+        tag="v1-handcrafted",
+        miner_kind="handcrafted",
+        artifacts_root=tmp_path / "artifacts",
+    )
+
+    # Check version naming
+    assert dv.version.startswith("v1-handcrafted-")
+    assert re.match(r"^v1-handcrafted-[0-9a-f]{8}$", dv.version)
+
+    # Check that mining found challenges
+    assert dv.n_challenges >= 1
+
+    # Check manifest and profile files exist
+    assert (dv.path / "manifest.json").exists()
+    assert (dv.path / "miner" / "profile.json").exists()
+
+    # Check manifest content
+    manifest = dv.manifest
+    assert manifest["miner"]["kind"] == "handcrafted"
+    assert manifest["miner"]["agent"] is None
+
+
+def test_promote_profile_is_relative_symlink(tmp_path: Path) -> None:
+    """promote_profile points <repo>-eval/profile.json at the version via a relative symlink."""
+    ddir = tmp_path / "fiat-crypto-eval" / "agentic_1-abcd1234"
+    (ddir / "miner").mkdir(parents=True)
+    (ddir / "miner" / "profile.json").write_text('{"proof_assistant": "coq"}')
+    dv = DatasetVersion(
+        version="agentic_1-abcd1234",
+        path=ddir,
+        manifest={},
+        manifest_hash="h",
+        n_challenges=1,
+    )
+
+    link = promote_profile(dv)
+
+    assert link == ddir.parent / "profile.json"
+    assert link.is_symlink()
+    # Relative target into the blessed dataset (no duplicated content).
+    assert link.readlink() == Path("agentic_1-abcd1234/miner/profile.json")
+    assert link.resolve().read_text() == '{"proof_assistant": "coq"}'
+
+
+def test_promote_profile_repoints_existing(tmp_path: Path) -> None:
+    """Re-promoting another version repoints the symlink rather than erroring."""
+    repo_eval = tmp_path / "fiat-crypto-eval"
+    for ver in ("v1-handcrafted-1111aaaa", "agentic_2-2222bbbb"):
+        d = repo_eval / ver / "miner"
+        d.mkdir(parents=True)
+        (d / "profile.json").write_text(f'{{"v": "{ver}"}}')
+    first = DatasetVersion(
+        "v1-handcrafted-1111aaaa", repo_eval / "v1-handcrafted-1111aaaa", {}, "h", 1
+    )
+    second = DatasetVersion(
+        "agentic_2-2222bbbb", repo_eval / "agentic_2-2222bbbb", {}, "h", 1
+    )
+
+    promote_profile(first)
+    link = promote_profile(second)  # repoint
+
+    assert link.readlink() == Path("agentic_2-2222bbbb/miner/profile.json")
+    assert link.resolve().read_text() == '{"v": "agentic_2-2222bbbb"}'
