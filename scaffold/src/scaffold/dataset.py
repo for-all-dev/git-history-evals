@@ -81,6 +81,31 @@ def _git_sha(repo: Path) -> str:
     return r.stdout.strip()
 
 
+def _monorepo_root(repo_path: Path) -> Path:
+    """Find the outer (git-history-evals) repo root that owns ``artifacts/``.
+
+    ``repo_path`` (e.g. ``data/fiat-crypto``) is a git **submodule** with its own
+    ``.git``, so ``rev-parse --show-toplevel`` on it returns the *submodule* root,
+    not the monorepo — which would scatter datasets inside the submodule tree.
+    Use ``--show-superproject-working-tree`` (the submodule's parent repo); fall
+    back to the CWD's toplevel (we run from inside the monorepo), then to
+    ``repo_path``'s grandparent.
+    """
+    sup = subprocess.run(
+        ["git", "-C", str(repo_path), "rev-parse", "--show-superproject-working-tree"],
+        capture_output=True,
+        text=True,
+    )
+    if sup.returncode == 0 and sup.stdout.strip():
+        return Path(sup.stdout.strip())
+    top = subprocess.run(
+        ["git", "rev-parse", "--show-toplevel"], capture_output=True, text=True
+    )
+    if top.returncode == 0 and top.stdout.strip():
+        return Path(top.stdout.strip())
+    return repo_path.resolve().parents[1]
+
+
 def _repo_slug(repo: Path) -> str:
     """`owner/name` from the repo's origin remote, or the dir name as fallback."""
     r = subprocess.run(
@@ -357,16 +382,7 @@ def mine_and_materialize(
     from scaffold.git_walker import mine_repo
 
     repo_path = Path(repo_path)
-    res = subprocess.run(
-        ["git", "-C", str(repo_path), "rev-parse", "--show-toplevel"],
-        capture_output=True,
-        text=True,
-    )
-    monorepo_root = (
-        Path(res.stdout.strip())
-        if res.stdout.strip()
-        else repo_path.resolve().parents[1]
-    )
+    monorepo_root = _monorepo_root(repo_path)
     artifacts_root = (
         Path(artifacts_root) if artifacts_root else (monorepo_root / "artifacts")
     )
