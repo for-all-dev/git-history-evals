@@ -351,14 +351,24 @@ def profile(
     repo_path: Path = typer.Argument(
         ..., help="Path to the proof engineering repo to calibrate"
     ),
-    output: Path = typer.Option(
-        None,
-        "--output",
-        "-o",
-        help="Where to write the profile JSON (default: artifacts/<repo>-eval/profile.json)",
-    ),
     model: str = typer.Option(
         "anthropic:claude-sonnet-4-6", "--model", "-m", help="pydantic-ai model string"
+    ),
+    tag: str = typer.Option(
+        "agent",
+        "--tag",
+        "-t",
+        help="Human-readable version tag (e.g. 'agentic_1'); dir is <tag>-<short_hash>",
+    ),
+    promote: bool = typer.Option(
+        False,
+        "--promote",
+        help="Also copy this profile to the blessed <repo>-eval/profile.json that mine-all uses",
+    ),
+    artifacts_dir: Path = typer.Option(
+        None,
+        "--artifacts-dir",
+        help="Artifacts root (default: <monorepo>/artifacts)",
     ),
     request_limit: int = typer.Option(
         80, "--request-limit", help="Max agent request round-trips (UsageLimits)"
@@ -367,11 +377,6 @@ def profile(
         1500,
         "--test-commits",
         help="Commits sampled per test_profile call during calibration",
-    ),
-    no_verify: bool = typer.Option(
-        False,
-        "--no-verify",
-        help="Skip the full-history mine that reports the real challenge count",
     ),
     verbose: bool = typer.Option(False, "--verbose", "-v"),
 ) -> None:
@@ -389,20 +394,21 @@ def profile(
     result = build_profile(
         repo_path,
         model=model,
-        output_path=output,
+        tag=tag,
+        promote=promote,
+        artifacts_root=artifacts_dir,
         request_limit=request_limit,
-        verify_full=not no_verify,
         test_commits=test_commits,
     )
 
-    typer.echo(f"\nWrote profile -> {result.output_path}")
+    typer.echo(f"\nDataset version : {result.version}")
+    typer.echo(f"  path            : {result.dataset_path}")
+    typer.echo(f"  challenges      : {result.n_challenges}")
+    typer.echo(f"  manifest_hash   : {result.manifest_hash[:12]}")
+    typer.echo(f"  promoted        : {result.promoted}")
     typer.echo(f"  proof_assistant : {result.profile.proof_assistant}")
-    typer.echo(f"  proof_file_globs: {result.profile.proof_file_globs}")
     typer.echo(f"  hole_markers    : {[h.kind for h in result.profile.hole_markers]}")
     typer.echo(f"  tactic vocab    : {len(result.profile.tactic_vocabulary)} tactics")
-    typer.echo(f"  commit signals  : {sorted(result.profile.commit_signals)}")
-    if result.full_challenge_count is not None:
-        typer.echo(f"  full-history mine: {result.full_challenge_count} challenges")
 
 
 @app.command()

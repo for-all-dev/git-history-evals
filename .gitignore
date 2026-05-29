@@ -13,3 +13,7 @@ htmlcov
 .claude/worktrees/
 .env
 .antigravitycli/
+
+# Bulk dataset payloads — declared as sha256 blobs in manifest.json
+artifacts/**/*.jsonl
+artifacts/**/*.txt

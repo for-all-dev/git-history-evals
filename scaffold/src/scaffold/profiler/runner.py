@@ -1,22 +1,24 @@
 """Drive the calibration agent end-to-end and persist a RepoProfile.
 
 ``build_profile(repo_path, ...)`` wires Logfire, constructs the agent, attaches
-the host tools, runs one calibration pass, stamps provenance, and (optionally)
-runs the full Phase-1 miner so the caller learns the real full-history challenge
-count — the win-condition number — rather than only the sampled estimate the
-agent saw. The CLI ``profile`` command is a thin wrapper over this.
+the host tools, runs one calibration pass, stamps provenance, then runs the full
+Phase-1 miner and materializes a dataset version directory. The CLI ``profile``
+command is a thin wrapper over this.
 """
 
 from __future__ import annotations
 
 import logging
 import os
+import shutil
+import subprocess
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 
-from scaffold.profile import RepoProfile, save_profile
+from scaffold.profile import RepoProfile
 
+from .prompts import SYS_PROMPT_PROFILER
 from .deps import ProfilerDeps
 
 logger = logging.getLogger(__name__)
@@ -50,8 +52,11 @@ def _load_dotenv(start: Path | None = None) -> Path | None:
 @dataclass
 class ProfileBuildResult:
     profile: RepoProfile
-    output_path: Path
-    full_challenge_count: int | None
+    version: str
+    dataset_path: Path
+    manifest_hash: str
+    n_challenges: int
+    promoted: bool
     transcript: list[str]
 
 
@@ -83,21 +88,22 @@ def build_profile(
     repo_path: Path,
     *,
     model: str = "anthropic:claude-sonnet-4-6",
-    output_path: Path | None = None,
+    tag: str = "agent",
+    promote: bool = False,
+    artifacts_root: Path | None = None,
     request_limit: int = 80,
-    verify_full: bool = True,
     test_commits: int = 1500,
 ) -> ProfileBuildResult:
-    """Run the calibration agent over ``repo_path`` and return the saved profile.
+    """Run the calibration agent over ``repo_path`` and materialize a dataset version.
 
     Args:
         repo_path: the proof-engineering repo to calibrate against.
         model: pydantic-ai model string (bare ``anthropic:...`` etc.).
-        output_path: where to write the profile JSON (default
-            ``artifacts/<repo>-eval/profile.json``).
+        tag: human-readable version tag (e.g. 'agentic_1'); dir is <tag>-<short_hash>.
+        promote: if True, copy the profile to the blessed <repo>-eval/profile.json
+            that mine-all uses.
+        artifacts_root: where to write datasets (default: <monorepo>/artifacts).
         request_limit: core ``UsageLimits`` request cap for the agent run.
-        verify_full: after calibration, run the full-history miner to report the
-            real challenge count.
         test_commits: how many recent commits ``test_profile`` samples per call.
     """
     from pydantic_ai.usage import UsageLimits
@@ -146,30 +152,64 @@ def build_profile(
         :50
     ]
 
-    out = output_path or (
-        repo_path.parent.parent
-        / "artifacts"
-        / f"{repo_path.name}-eval"
-        / "profile.json"
+    # Compute monorepo root for artifacts placement.
+    res = subprocess.run(
+        ["git", "-C", str(repo_path), "rev-parse", "--show-toplevel"],
+        capture_output=True,
+        text=True,
     )
-    out = Path(out)
-    out.parent.mkdir(parents=True, exist_ok=True)
-    save_profile(profile, out)
-    logger.info("Wrote profile to %s", out)
+    monorepo_root = (
+        Path(res.stdout.strip())
+        if res.stdout.strip()
+        else repo_path.resolve().parents[1]
+    )
 
-    full_count: int | None = None
-    if verify_full:
-        from scaffold.analyzers import ProfileAnalyzer
-        from scaffold.git_walker import mine_repo
+    artifacts_root = (
+        Path(artifacts_root) if artifacts_root else (monorepo_root / "artifacts")
+    )
+    miner_pkg_dir = Path(__file__).resolve().parents[1]  # .../src/scaffold
 
-        analyzer = ProfileAnalyzer(profile.compiled())
-        mined = mine_repo(repo_path, repo_path.name, analyzer)
-        full_count = mined.total_challenges
-        logger.info("Full-history mine: %d challenges", full_count)
+    # Build prompt text for hashing: system + user.
+    prompt_text = SYS_PROMPT_PROFILER + "\n\n" + prompt
+
+    # Run the full mine to get challenges.
+    from scaffold.analyzers import ProfileAnalyzer
+    from scaffold.git_walker import mine_repo
+
+    analyzer = ProfileAnalyzer(profile.compiled())
+    mined = mine_repo(repo_path, repo_path.name, analyzer)
+
+    # Materialize the dataset version.
+    from scaffold.dataset import materialize_dataset_version
+
+    dv = materialize_dataset_version(
+        profile=profile,
+        result=mined,
+        repo_path=repo_path,
+        artifacts_root=artifacts_root,
+        monorepo_root=monorepo_root,
+        miner_pkg_dir=miner_pkg_dir,
+        model=model,
+        prompt_text=prompt_text,
+        tag=tag,
+        transcript=list(deps.log),
+    )
+
+    # Conditionally promote to the blessed profile.
+    promoted = False
+    if promote:
+        blessed_path = artifacts_root / f"{repo_path.name}-eval" / "profile.json"
+        blessed_path.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(dv.path / "miner" / "profile.json", blessed_path)
+        logger.info("Promoted profile to %s", blessed_path)
+        promoted = True
 
     return ProfileBuildResult(
         profile=profile,
-        output_path=out,
-        full_challenge_count=full_count,
+        version=dv.version,
+        dataset_path=dv.path,
+        manifest_hash=dv.manifest_hash,
+        n_challenges=dv.n_challenges,
+        promoted=promoted,
         transcript=list(deps.log),
     )
