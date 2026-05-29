@@ -21,7 +21,10 @@ uv run scaffold --help
 The engine is **repo-agnostic**: every mining command is parameterised by a `RepoProfile` (see `src/scaffold/profile.py`) — a declarative spec of one repo's conventions (proof-file globs, hole markers, declaration patterns, commit-message signal banks, tactic vocabulary/groups). Profiles are passed with `--profile/-p`; nothing about Coq/fiat-crypto is hardcoded in the engine.
 
 **Tier 1 — calibration (synthesise a profile from a repo):**
-- `scaffold profile <repo_path> --tag <label>` — run the CodeMode calibration agent to explore a repo + its git history and emit a `RepoProfile`, then mine and write a versioned dataset bundle under `artifacts/<repo>-eval/<tag>-<hash>/` (`manifest.json` + `miner/profile.json` + `challenges.jsonl`). `--promote` also copies the profile to the blessed `artifacts/<repo>-eval/profile.json` that `mine-all` reads.
+- `scaffold profile <repo_path> --tag <label>` — run the CodeMode calibration agent to explore a repo + its git history and emit a `RepoProfile`, then mine and write a versioned dataset bundle under `artifacts/<repo>-eval/<tag>-<hash>/` (`manifest.json` + `miner/profile.json` + `challenges.jsonl`).
+- `scaffold materialize <repo_path> -p <profile.json> --tag <label> [--kind handcrafted]` — bundle an *existing* profile (e.g. a hand-authored one) into the same versioned dataset layout, without the agent.
+
+Each dataset owns exactly one profile, at `<version>/miner/profile.json` (co-located with its manifest and challenges). `--promote` blesses a dataset by making `artifacts/<repo>-eval/profile.json` a relative **symlink** into that version's `miner/profile.json` — a pointer, not a copy — which is what `mine-all` reads. `_index.json` maps manifest hash → version path. See `../artifacts/MANIFEST_SCHEMA.md`.
 
 **Tier 2 — deterministic mining (profile-driven, no LLM in the loop):**
 - `scaffold mine <repo_path> -p <profile.json>` — mine eval challenges from a proof repo

@@ -45,14 +45,15 @@ uv run pytest             # tests
   - `summary.py`: cross-run aggregator — per-(mode, deletion_size) drift ratios (vo_bytes, compile_time, proof_chars/lines, tactic_count) vs human reference, baseline-vs-agent deltas, per-metric Pearson r vs deletion_size as a faithfulness check
   - `results/<run_id>/`: host-side mirror of the per-SHA volumes (see `experiments/results/README.md`)
 - `./data/`: source repos as git submodules
-- `./artifacts/`: mined eval datasets as versioned bundles — `<repo>-eval/<tag>-<hash>/{manifest.json, miner/profile.json, challenges.jsonl}` per `MANIFEST_SCHEMA.md`, indexed by `_index.json`; the blessed `<repo>-eval/profile.json` is what `mine-all` reads. Bulk `*.jsonl`/`*.txt` payloads are sha256 blobs declared in manifests and gitignored.
+- `./artifacts/`: mined eval datasets as versioned bundles — `<repo>-eval/<tag>-<hash>/{manifest.json, miner/profile.json, challenges.jsonl}` per `MANIFEST_SCHEMA.md`, indexed by `_index.json`. Each dataset owns exactly one profile (at `<version>/miner/profile.json`); the blessed `<repo>-eval/profile.json` that `mine-all` reads is a relative **symlink** into the canonical version's profile, not a copy. Bulk `*.jsonl`/`*.txt` payloads are sha256 blobs declared in manifests and gitignored.
 - `./dashboard/`: Next.js app for exploring JSONL benchmark artifacts
 - `./docs/`: changelog for the pattern detector (`PatternDetectorChanges.md`) + agent task template
 
 ### CLI tools
 
 From `./scaffold/`:
-- `uv run scaffold profile <repo> --tag <label> [--promote]` — Tier-1 calibration agent: synthesise a `RepoProfile`, mine, and write a versioned dataset bundle under `artifacts/<repo>-eval/<tag>-<hash>/` (`--promote` blesses it as `<repo>-eval/profile.json`)
+- `uv run scaffold profile <repo> --tag <label> [--promote]` — Tier-1 calibration agent: synthesise a `RepoProfile`, mine, and write a versioned dataset bundle under `artifacts/<repo>-eval/<tag>-<hash>/`
+- `uv run scaffold materialize <repo> -p <profile.json> --tag <label> [--kind handcrafted] [--promote]` — bundle an existing profile into a dataset version dir without the agent (used to migrate hand-authored profiles). `--promote` symlinks `<repo>-eval/profile.json` at the new version.
 - `uv run scaffold` — Tier-2 deterministic mining: `mine`/`mine-all`/`dump-commits`/`enrich-commits`/`diff-enrich`/`stratify-tactics`/`group-tactics`, each taking `--profile/-p` (see `scaffold --help`)
 - `uv run quali` — qualitative trajectory analysis via LLM (reads from artifacts, writes `*-quali.jsonl`)
 
