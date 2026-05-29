@@ -207,6 +207,7 @@ def diff_enrich(
     import concurrent.futures
     from collections import Counter
 
+    from scaffold.models import CommitRecord
     from scaffold.output import read_commit_records, write_commit_records
     from scaffold.pattern_detector import enrich_record_with_diff
 
@@ -224,7 +225,7 @@ def diff_enrich(
             for i, r in enumerate(to_enrich)
         }
         done = 0
-        results: dict[int, object] = {}
+        results: dict[int, CommitRecord] = {}
         for fut in concurrent.futures.as_completed(futs):
             idx = futs[fut]
             results[idx] = fut.result()
@@ -250,8 +251,10 @@ def diff_enrich(
 def stratify_tactics(
     input_path: Path = typer.Argument(..., help="Diff-enriched commits JSONL"),
     output_dir: Path = typer.Option(
-        None, "--output-dir", "-o",
-        help="Directory for tactic subdatasets (default: same dir as input)"
+        None,
+        "--output-dir",
+        "-o",
+        help="Directory for tactic subdatasets (default: same dir as input)",
     ),
 ) -> None:
     """Split diff-enriched proof_add records into per-tactic subdataset files."""
@@ -292,8 +295,10 @@ def group_tactics(
         None, "--output", "-o", help="Output path (default: overwrites input)"
     ),
     output_dir: Path = typer.Option(
-        None, "--output-dir", "-d",
-        help="Directory for per-group subdataset files (default: same dir as input)"
+        None,
+        "--output-dir",
+        "-d",
+        help="Directory for per-group subdataset files (default: same dir as input)",
     ),
 ) -> None:
     """Assign behavioural tactic groups to each record and write per-group subdatasets."""
@@ -320,7 +325,9 @@ def group_tactics(
     for r in enriched:
         for g in r.tactic_group_tags:
             counts[g] += 1
-    typer.echo("\nTactic group distribution (proof_add commits may appear in multiple groups):")
+    typer.echo(
+        "\nTactic group distribution (proof_add commits may appear in multiple groups):"
+    )
     for grp, n in sorted(counts.items(), key=lambda x: -x[1]):
         typer.echo(f"  {grp:<28} {n:>5}")
 
@@ -337,6 +344,65 @@ def group_tactics(
         out_path = out_dir / f"group-{grp}.jsonl"
         write_commit_records(recs, out_path)
         typer.echo(f"  {grp:<28} {len(recs):>5} records -> {out_path.name}")
+
+
+@app.command()
+def profile(
+    repo_path: Path = typer.Argument(
+        ..., help="Path to the proof engineering repo to calibrate"
+    ),
+    output: Path = typer.Option(
+        None,
+        "--output",
+        "-o",
+        help="Where to write the profile JSON (default: artifacts/<repo>-eval/profile.json)",
+    ),
+    model: str = typer.Option(
+        "anthropic:claude-sonnet-4-6", "--model", "-m", help="pydantic-ai model string"
+    ),
+    request_limit: int = typer.Option(
+        80, "--request-limit", help="Max agent request round-trips (UsageLimits)"
+    ),
+    test_commits: int = typer.Option(
+        1500,
+        "--test-commits",
+        help="Commits sampled per test_profile call during calibration",
+    ),
+    no_verify: bool = typer.Option(
+        False,
+        "--no-verify",
+        help="Skip the full-history mine that reports the real challenge count",
+    ),
+    verbose: bool = typer.Option(False, "--verbose", "-v"),
+) -> None:
+    """Synthesise a RepoProfile by exploring a repo with the calibration agent.
+
+    Tier-1 of the agentic miner: a CodeMode pydantic-ai agent detects the repo's
+    proof assistant, file globs, hole markers, declaration patterns, commit
+    conventions, and tactic vocabulary on the fly, validating against the real
+    engine, then emits a profile the deterministic miner can consume.
+    """
+    _setup_logging(verbose)
+
+    from scaffold.profiler import build_profile
+
+    result = build_profile(
+        repo_path,
+        model=model,
+        output_path=output,
+        request_limit=request_limit,
+        verify_full=not no_verify,
+        test_commits=test_commits,
+    )
+
+    typer.echo(f"\nWrote profile -> {result.output_path}")
+    typer.echo(f"  proof_assistant : {result.profile.proof_assistant}")
+    typer.echo(f"  proof_file_globs: {result.profile.proof_file_globs}")
+    typer.echo(f"  hole_markers    : {[h.kind for h in result.profile.hole_markers]}")
+    typer.echo(f"  tactic vocab    : {len(result.profile.tactic_vocabulary)} tactics")
+    typer.echo(f"  commit signals  : {sorted(result.profile.commit_signals)}")
+    if result.full_challenge_count is not None:
+        typer.echo(f"  full-history mine: {result.full_challenge_count} challenges")
 
 
 @app.command()
