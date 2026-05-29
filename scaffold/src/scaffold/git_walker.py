@@ -9,17 +9,12 @@ import hashlib
 import logging
 import subprocess
 from dataclasses import dataclass
+from fnmatch import fnmatchcase
 from pathlib import Path
 
-import re
-
-from scaffold.analyzers.base import ProofAnalyzer
-from scaffold.models import (
-    CommitRecord,
-    EvalChallenge,
-    MiningResult,
-    RepoMetadata,
-)
+from scaffold.analyzers import ProfileAnalyzer
+from scaffold.models import CommitRecord, EvalChallenge, MiningResult
+from scaffold.profile import CompiledProfile
 
 logger = logging.getLogger(__name__)
 
@@ -119,7 +114,7 @@ def get_modified_files(
     repo_path: str | Path,
     parent_hash: str,
     child_hash: str,
-    analyzer: ProofAnalyzer,
+    analyzer: ProfileAnalyzer,
 ) -> list[str]:
     """Get list of proof files modified between parent and child commits."""
     result = _run_git(
@@ -144,75 +139,20 @@ def get_modified_files(
 # Diff-based proof analysis
 # ---------------------------------------------------------------------------
 
-# Matches a sorry/Admitted/admit/oops as a standalone word (not in a comment
-# that has been kept, so we check any occurrence in the raw diff line).
-_HOLE_RE = re.compile(r"\b(sorry|Admitted|admit|oops)\b")
-
-# Tactics that appear at the start of a tactic position (after whitespace /
-# bullets / semicolons).  We scan every added line for these.
-_TACTIC_RE = re.compile(
-    r"(?:^|[\s;|{(])("
-    # Core intro/elim
-    r"intro[s]?|revert|clear|clearbody|rename|move"
-    r"|destruct|case(?:_eq)?|induction|elim(?:type)?|inversion(?:_clear)?"
-    r"|injection|discriminate|constructor|econstructor"
-    r"|left|right|split|exists|eexists"
-    # Rewriting
-    r"|rewrite|erewrite|setoid_rewrite|rewrite_strat|replace"
-    r"|symmetry|transitivity|etransitivity|subst|congruence"
-    # Application
-    r"|apply|eapply|exact(?:_no_check)?|refine|change|convert"
-    r"|rapply|lapply|specialize|generalize|instantiate"
-    r"|pose|remember|set|assert|cut|enough|have|suff(?:ices)?"
-    # Automation
-    r"|auto|eauto|tauto|intuition|firstorder|trivial|easy|done"
-    r"|decide|btauto|contradiction|absurd|exfalso|assumption"
-    # Arithmetic solvers
-    r"|omega|lia|lra|nia|nra|psatz|ring(?:_simplify|_nf)?"
-    r"|field(?:_simplify)?|norm_num|zify|push_cast|pull_cast"
-    r"|push_neg|pull_neg"
-    # Simplification / reduction
-    r"|simpl|cbn|cbv|lazy|vm_compute|native_compute"
-    r"|unfold|fold|red|hnf|compute|delta|beta|iota|zeta"
-    r"|norm_cast|simp"
-    # ssreflect / mathcomp
-    r"|by|congr|wlog|without_loss|reflect"
-    # Ltac control
-    r"|repeat|try|first|do|progress|timeout|once|solve|fail|idtac"
-    r"|abstract|pattern"
-    r")(?:\s|[.;()\[\]{]|$)",
-    re.IGNORECASE | re.MULTILINE,
-)
-
-# Term-mode / lambda proof signals in added lines
-_TERM_MODE_RE = re.compile(
-    r"\bfun\s+\w"          # fun x =>  (lambda)
-    r"|\bλ\s*\w"           # unicode lambda
-    r"|\bmatch\s+\w"       # match expression
-    r"|\bfix\s+\w"         # recursive definition
-    r"|\blet\s+\w+\s*:="   # let binding
-    r"|\bexist\s*[({]"     # dependent pair
-    r"|\bconj\b"           # conjunction intro in term mode
-)
-
-# ssreflect-style signals: heavy use of / ; [] move: => in tactic position
-_SSREFLECT_RE = re.compile(
-    r"^\s*(?:move|case|elim|apply|rewrite|have|suff|set|pose)\s*[/:[\]]",
-    re.MULTILINE,
-)
-
 
 def analyze_proof_diff(
     repo_path: str | Path,
     parent_hash: str,
     commit_hash: str,
     coq_files: list[str],
+    compiled: CompiledProfile,
 ) -> dict:
-    """Read the actual diff for .v files and return proof-content signals.
+    """Read the actual diff for proof files and return proof-content signals.
 
-    Returns a dict with:
+    All language-specific patterns (hole markers, tactic vocabulary, proof-style
+    signals) come from ``compiled``. Returns a dict with:
       sorry_removed      — bool: a hole word was net-removed (not just moved)
-      net_proof_lines    — int:  added_lines - removed_lines across all .v files
+      net_proof_lines    — int:  added_lines - removed_lines across all proof files
       added_count        — int:  raw count of added lines
       removed_count      — int:  raw count of removed lines
       tactic_tags        — list[str]: unique tactics found in added lines
@@ -252,13 +192,18 @@ def analyze_proof_diff(
         elif line.startswith("-"):
             removed.append(line[1:])
 
+    hole_res = compiled.hole_res
+
+    def _has_hole(line: str) -> bool:
+        return any(p.search(line) for p, _ in hole_res)
+
     # Net hole removal: count holes in removed vs added lines
-    holes_removed = sum(1 for l in removed if _HOLE_RE.search(l))
-    holes_added = sum(1 for l in added if _HOLE_RE.search(l))
+    holes_removed = sum(1 for line in removed if _has_hole(line))
+    holes_added = sum(1 for line in added if _has_hole(line))
     sorry_removed = holes_removed > holes_added  # net removal
 
     # Tactics from added lines
-    tactic_hits = _TACTIC_RE.findall("\n".join(added))
+    tactic_hits = compiled.tactic_re.findall("\n".join(added))
     tactic_tags: list[str] = []
     seen: set[str] = set()
     for t in tactic_hits:
@@ -270,8 +215,10 @@ def analyze_proof_diff(
     # Proof style detection on added lines
     added_text = "\n".join(added)
     styles: list[str] = []
-    has_term = bool(_TERM_MODE_RE.search(added_text))
-    has_ssr = bool(_SSREFLECT_RE.search(added_text))
+    term_re = compiled.proof_style_res.get("term_mode")
+    ssr_re = compiled.proof_style_res.get("ssreflect")
+    has_term = bool(term_re and term_re.search(added_text))
+    has_ssr = bool(ssr_re and ssr_re.search(added_text))
     has_tactic = bool(tactic_tags)
 
     if has_ssr:
@@ -307,7 +254,7 @@ def _make_task_id(repo_name: str, commit_hash: str, file_path: str) -> str:
 def mine_commit(
     repo_path: str | Path,
     commit: RawCommit,
-    analyzer: ProofAnalyzer,
+    analyzer: ProfileAnalyzer,
     repo_name: str,
 ) -> list[EvalChallenge]:
     """Mine a single commit for eval challenges."""
@@ -333,7 +280,7 @@ def mine_commit(
         diff = get_diff_text(repo_path, commit.parent_hash, commit.hash, fpath)
 
         hole_descriptions = ", ".join(
-            f"{h.kind.value} in {h.enclosing_decl or 'unknown'}" for h in filled
+            f"{h.kind} in {h.enclosing_decl or 'unknown'}" for h in filled
         )
         instructions = (
             f"Fill in the proof(s) marked with placeholder tactics "
@@ -379,14 +326,21 @@ def _parse_numstat_line(line: str) -> tuple[int, int, str] | None:
 
 def dump_commits(
     repo_path: str | Path,
+    compiled: CompiledProfile,
     start_ref: str = "HEAD",
     max_commits: int | None = None,
 ) -> list[CommitRecord]:
     """Walk every commit and return a flat CommitRecord for each one.
 
     A single ``git log --numstat`` call is used to avoid per-commit subprocess
-    overhead across potentially thousands of commits.
+    overhead across potentially thousands of commits. Proof-file membership is
+    decided by the profile's ``proof_file_globs``.
     """
+    globs = compiled.profile.proof_file_globs
+
+    def _is_proof_file(path: str) -> bool:
+        return any(fnmatchcase(path, g) for g in globs)
+
     cmd = [
         "log",
         f"--format={_DUMP_FORMAT}",
@@ -436,7 +390,7 @@ def dump_commits(
             total_add += add
             total_del += sub
 
-        coq_files = [f for f in all_files if f.endswith(".v")]
+        coq_files = [f for f in all_files if _is_proof_file(f)]
 
         records.append(
             CommitRecord(
@@ -461,8 +415,9 @@ def dump_commits(
 
 
 def mine_repo(
-    metadata: RepoMetadata,
-    analyzer: ProofAnalyzer,
+    repo_path: str | Path,
+    repo_name: str,
+    analyzer: ProfileAnalyzer,
     max_commits: int | None = None,
     start_ref: str = "HEAD",
     dry_run: bool = False,
@@ -470,15 +425,15 @@ def mine_repo(
     """Main pipeline: walk commits, find proof-file diffs, detect filled holes.
 
     Args:
-        metadata: Repository metadata.
-        analyzer: Language-specific proof analyzer.
+        repo_path: Path to the git repo.
+        repo_name: Human-readable repo name (used in task IDs / output).
+        analyzer: Profile-driven proof analyzer.
         max_commits: Limit number of commits to scan.
         start_ref: Git ref to start walking from.
         dry_run: If True, log candidates but don't build full challenges.
     """
-    repo_path = metadata.local_path
     commits = iter_commits(repo_path, start_ref, max_commits)
-    logger.info("Scanning %d commits in %s", len(commits), metadata.name)
+    logger.info("Scanning %d commits in %s", len(commits), repo_name)
 
     all_challenges: list[EvalChallenge] = []
 
@@ -501,7 +456,7 @@ def mine_repo(
                 )
             continue
 
-        challenges = mine_commit(repo_path, commit, analyzer, metadata.name)
+        challenges = mine_commit(repo_path, commit, analyzer, repo_name)
         if challenges:
             logger.info(
                 "  %s: %d challenges found", commit.hash[:8], len(challenges)
@@ -509,7 +464,7 @@ def mine_repo(
             all_challenges.extend(challenges)
 
     return MiningResult(
-        repo_name=metadata.name,
+        repo_name=repo_name,
         proof_assistant=analyzer.proof_assistant,
         total_commits_scanned=len(commits),
         total_challenges=len(all_challenges),

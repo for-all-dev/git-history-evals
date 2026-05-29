@@ -9,6 +9,66 @@ from pathlib import Path
 
 import pytest
 
+from scaffold.analyzers import ProfileAnalyzer
+from scaffold.profile import HoleMarker, RepoProfile
+
+_COQ_DECL = (
+    r"^\s*(?:Theorem|Lemma|Proposition|Corollary|Fact|Remark|Example|Definition|Fixpoint|Program)\s+(\w+)"
+)
+
+
+@pytest.fixture
+def coq_profile() -> RepoProfile:
+    return RepoProfile(
+        proof_assistant="coq",
+        proof_file_globs=["*.v"],
+        hole_markers=[
+            HoleMarker(regex=r"\bAdmitted\b", kind="admitted"),
+            HoleMarker(regex=r"\badmit\b", kind="admit"),
+        ],
+        declaration_patterns=[_COQ_DECL],
+    )
+
+
+@pytest.fixture
+def isabelle_profile() -> RepoProfile:
+    return RepoProfile(
+        proof_assistant="isabelle",
+        proof_file_globs=["*.thy"],
+        hole_markers=[
+            HoleMarker(regex=r"\bsorry\b", kind="sorry"),
+            HoleMarker(regex=r"\boops\b", kind="oops"),
+        ],
+        declaration_patterns=[
+            r"^\s*(?:theorem|lemma|corollary|proposition|schematic_goal)\s+(\w+)"
+        ],
+    )
+
+
+@pytest.fixture
+def lean_profile() -> RepoProfile:
+    return RepoProfile(
+        proof_assistant="lean4",
+        proof_file_globs=["*.lean"],
+        hole_markers=[HoleMarker(regex=r"\bsorry\b", kind="sorry")],
+        declaration_patterns=[r"^\s*(?:theorem|lemma|def|instance)\s+(\w+)"],
+    )
+
+
+@pytest.fixture
+def coq_analyzer(coq_profile: RepoProfile) -> ProfileAnalyzer:
+    return ProfileAnalyzer(coq_profile.compiled())
+
+
+@pytest.fixture
+def isabelle_analyzer(isabelle_profile: RepoProfile) -> ProfileAnalyzer:
+    return ProfileAnalyzer(isabelle_profile.compiled())
+
+
+@pytest.fixture
+def lean_analyzer(lean_profile: RepoProfile) -> ProfileAnalyzer:
+    return ProfileAnalyzer(lean_profile.compiled())
+
 
 @pytest.fixture
 def tmp_git_repo(tmp_path: Path) -> Path:
