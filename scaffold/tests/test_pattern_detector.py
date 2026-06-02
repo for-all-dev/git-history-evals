@@ -389,11 +389,12 @@ class TestExtractKeywords:
         assert kw == []
 
     def test_empty_vocabulary(self, compiled_empty: CompiledProfile) -> None:
-        """With no structural/domain/tactic terms, nothing is extracted."""
-        kw = extract_keywords("add lemma for commutativity", "", compiled_empty)
-        # Only hole kinds are in the keyword regex for the empty profile
-        # "admitted" is in hole_markers but "lemma" is not a structural term
+        """With no structural/domain/tactic terms, only hole kinds are extracted."""
+        kw = extract_keywords("remove admitted lemma", "", compiled_empty)
+        # "lemma" is not a structural term in the empty profile → not extracted
         assert "lemma" not in kw
+        # But "admitted" IS a hole kind from hole_markers → still extracted
+        assert "admitted" in kw
 
 
 # ===========================================================================
@@ -564,6 +565,36 @@ class TestEnrichRecordWithDiff:
             enriched = enrich_record_with_diff(r, "/fake/repo", compiled)
         assert enriched.commit_class == CommitClass.proof_add
 
+    def test_diff_downgrades_proof_complete_to_proof_add(
+        self, compiled: CompiledProfile
+    ) -> None:
+        """proof_complete from message pass is NOT preserved by the diff pass.
+
+        Only proof_new and spec_change are in the preservation list (lines 185-186
+        of pattern_detector.py). If the message heuristic said proof_complete but
+        the diff shows no sorry removal and positive net lines, the diff overrides
+        to proof_add.
+        """
+        r = _make_record(
+            subject="close the proof of lemma",
+            touches_proof=True,
+            proof_files=["proof.v"],
+            commit_class=CommitClass.proof_complete,
+        )
+        diff_data = {
+            "sorry_removed": False,
+            "net_proof_lines": 10,
+            "tactic_tags": ["intros"],
+            "proof_style": ["tactic_mode"],
+        }
+        with patch(
+            "scaffold.git_walker.analyze_proof_diff", return_value=diff_data
+        ):
+            enriched = enrich_record_with_diff(r, "/fake/repo", compiled)
+        # Diff is authoritative: no sorry removed + positive lines → proof_add,
+        # overriding the message-level proof_complete.
+        assert enriched.commit_class == CommitClass.proof_add
+
     def test_preserves_proof_new(self, compiled: CompiledProfile) -> None:
         """proof_new from message pass is preserved even when diff says proof_add."""
         r = _make_record(
@@ -732,26 +763,40 @@ class TestEnrichRecordWithDiff:
 # ===========================================================================
 
 
+def _git(repo, *args: str):
+    """Run a git command in the given repo."""
+    import os
+    import subprocess
+
+    return subprocess.run(
+        ["git", "-C", str(repo), *args],
+        capture_output=True,
+        text=True,
+        check=True,
+        env={
+            **os.environ,
+            "GIT_AUTHOR_NAME": "Test",
+            "GIT_AUTHOR_EMAIL": "test@test.com",
+            "GIT_COMMITTER_NAME": "Test",
+            "GIT_COMMITTER_EMAIL": "test@test.com",
+        },
+    )
+
+
+def _commit_hashes(repo_path):
+    """Return list of commit hashes oldest-first."""
+    result = _git(repo_path, "log", "--format=%H", "--reverse")
+    return result.stdout.strip().split("\n")
+
+
 class TestEnrichRecordWithDiffIntegration:
     """Integration tests using a real git repo (tmp_git_repo fixture)."""
-
-    def _commit_hashes(self, repo_path):
-        """Return list of commit hashes newest-first."""
-        import subprocess
-
-        result = subprocess.run(
-            ["git", "-C", str(repo_path), "log", "--format=%H", "--reverse"],
-            capture_output=True,
-            text=True,
-            check=True,
-        )
-        return result.stdout.strip().split("\n")
 
     def test_fill_admitted_detected_as_proof_complete(
         self, tmp_git_repo, compiled: CompiledProfile
     ) -> None:
         """Commit 2 fills an Admitted → should detect sorry_removed via real diff."""
-        hashes = self._commit_hashes(tmp_git_repo)
+        hashes = _commit_hashes(tmp_git_repo)
         # Commit 2 (index 1) fills the hole from commit 1 (index 0)
         r = CommitRecord(
             hash=hashes[1],
@@ -772,7 +817,7 @@ class TestEnrichRecordWithDiffIntegration:
         self, tmp_git_repo, compiled: CompiledProfile
     ) -> None:
         """Commit 3 adds a new file with admit/Admitted → sorry NOT removed (net increase)."""
-        hashes = self._commit_hashes(tmp_git_repo)
+        hashes = _commit_hashes(tmp_git_repo)
         # Commit 3 (index 2) adds helpers.v with Admitted
         r = CommitRecord(
             hash=hashes[2],
@@ -792,7 +837,7 @@ class TestEnrichRecordWithDiffIntegration:
         self, tmp_git_repo, compiled: CompiledProfile
     ) -> None:
         """The first commit has no parent; analyze_proof_diff returns empty signals."""
-        hashes = self._commit_hashes(tmp_git_repo)
+        hashes = _commit_hashes(tmp_git_repo)
         r = CommitRecord(
             hash=hashes[0],
             parent_hashes=[],
@@ -807,4 +852,52 @@ class TestEnrichRecordWithDiffIntegration:
         # No parent → analyze_proof_diff returns empty → net_proof_lines=0 → proof_add
         assert enriched.diff_sorry_removed is False
         assert enriched.commit_class == CommitClass.proof_add
+        assert enriched.class_confidence == "diff"
+
+
+class TestProofOptimiseIntegration:
+    """Integration test for proof_optimise: a commit that shortens a proof."""
+
+    @pytest.fixture
+    def repo_with_shortened_proof(self, tmp_git_repo: Path) -> Path:
+        """Extend tmp_git_repo with a 4th commit that shortens proof.v.
+
+        After commit 2, proof.v has a 6-line verbose proof. This commit
+        replaces it with a 2-line proof (same theorem, fewer lines, still Qed).
+        The diff should have net negative proof lines → proof_optimise.
+        """
+        import textwrap
+
+        proof_v = tmp_git_repo / "proof.v"
+        proof_v.write_text(
+            textwrap.dedent("""\
+            Theorem add_comm : forall n m : nat, n + m = m + n.
+            Proof. intros. lia. Qed.
+        """)
+        )
+        _git(tmp_git_repo, "add", "proof.v")
+        _git(tmp_git_repo, "commit", "-m", "Shorten proof of add_comm")
+        return tmp_git_repo
+
+    def test_shortened_proof_detected_as_proof_optimise(
+        self, repo_with_shortened_proof: Path, compiled: CompiledProfile
+    ) -> None:
+        """A commit that shortens a proof (net negative lines, no sorry change) → proof_optimise."""
+        repo = repo_with_shortened_proof
+        hashes = _commit_hashes(repo)
+        # Commit 4 (index 3) shortens the proof from commit 2 (index 1)
+        r = CommitRecord(
+            hash=hashes[3],
+            parent_hashes=[hashes[2]],
+            date="2025-01-01T00:00:00+00:00",
+            message_subject="Shorten proof of add_comm",
+            proof_files_changed=["proof.v"],
+            touches_proof_files=True,
+            insertions=2,
+            deletions=6,
+        )
+        enriched = enrich_record_with_diff(r, str(repo), compiled)
+        assert enriched.diff_sorry_removed is False
+        assert enriched.diff_net_proof_lines < 0
+        assert enriched.commit_class == CommitClass.proof_optimise
         assert enriched.class_confidence == "diff"
