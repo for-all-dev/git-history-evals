@@ -146,6 +146,32 @@ stratify-tactics          ->  per-tactic subdataset files
 
 ---
 
+## v3 — Data-driven classification priority (#65)
+
+### What changed
+
+**`classification_priority` is now wired into `classify_commit`.**
+
+The `RepoProfile.classification_priority` field (added in PR #60) declared the
+order in which commit classes are checked, but `classify_commit` used a hardcoded
+if/elif chain that ignored it. The field was dead configuration.
+
+The hardcoded chain has been refactored into per-class checker functions
+(`_check_infra`, `_check_proof_complete`, etc.) dispatched via a `_CLASSIFIERS`
+dict. `classify_commit` now iterates `classification_priority` and calls each
+checker in priority order — the first match wins.
+
+**Backwards-compatibility note:** Profiles with a non-default
+`classification_priority` (e.g. `agent-recovered-f0b38f3c` for fiat-crypto) were
+previously unaffected by the field because it was ignored. Re-mining with such
+profiles will now respect the stored priority order, which could change
+classification for commits matching multiple signal banks simultaneously. In
+practice this is unlikely to affect results because signal regex sets rarely
+overlap, but it is a semantic change worth noting. If in doubt, set the profile's
+`classification_priority` to the default order.
+
+---
+
 ## Generalization work (toward repo-agnostic mining)
 
 The v0–v2 changes above were developed against fiat-crypto. The following
