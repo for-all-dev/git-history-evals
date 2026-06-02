@@ -125,7 +125,7 @@ def _make_record(
     """Helper to build a CommitRecord with only the fields that matter for tests."""
     return CommitRecord(
         hash="abc123",
-        parent_hashes=parent_hashes or ["def456"],
+        parent_hashes=parent_hashes if parent_hashes is not None else ["def456"],
         date="2025-01-01T00:00:00+00:00",
         message_subject=subject,
         message_body=body,
@@ -295,6 +295,28 @@ class TestClassifyCommit:
             touches_proof=True,
         )
         assert classify_commit(r, compiled) == CommitClass.proof_complete
+
+    def test_structural_heuristic_blocked_by_infra_signal(
+        self, compiled: CompiledProfile
+    ) -> None:
+        """Structural heuristic has a `not has("infra", text)` guard.
+
+        A commit with proof context + net deletions + no body, but with an infra
+        keyword in the subject, should NOT trigger the structural heuristic.
+        """
+        r = _make_record(
+            subject="bump proof deps",
+            body="",
+            touches_proof=True,
+            insertions=1,
+            deletions=5,
+        )
+        # "bump" matches infra, "proof" matches proof_context.
+        # Infra fires first (subject has infra + proof_context → infra suppressed).
+        # But even if infra didn't fire, the structural heuristic has its own
+        # `not has("infra", text)` guard. Let's verify it's not proof_complete.
+        result = classify_commit(r, compiled)
+        assert result != CommitClass.proof_complete
 
 
 # ===========================================================================
@@ -633,6 +655,77 @@ class TestEnrichRecordWithDiff:
         assert enriched.tactic_tags == ["apply", "destruct"]
         assert enriched.proof_style == ["tactic_mode", "ssreflect"]
 
+    def test_empty_parent_hashes_passes_empty_string(
+        self, compiled: CompiledProfile
+    ) -> None:
+        """Initial commit (no parents) passes empty string to analyze_proof_diff.
+
+        analyze_proof_diff has a `if not parent_hash: return empty` guard, so
+        this should return the record unchanged except for diff-field defaults.
+        """
+        r = _make_record(
+            subject="initial commit",
+            touches_proof=True,
+            proof_files=["proof.v"],
+            parent_hashes=[],
+        )
+        # analyze_proof_diff returns empty dict when parent_hash is empty
+        empty_diff = {
+            "sorry_removed": False,
+            "net_proof_lines": 0,
+            "tactic_tags": [],
+            "proof_style": [],
+        }
+        with patch(
+            "scaffold.git_walker.analyze_proof_diff", return_value=empty_diff
+        ) as mock_diff:
+            enriched = enrich_record_with_diff(r, "/fake/repo", compiled)
+        # Verify empty string was passed as parent_hash
+        mock_diff.assert_called_once()
+        call_args = mock_diff.call_args
+        assert call_args[0][1] == ""  # parent_hash arg
+        assert enriched.commit_class == CommitClass.proof_add
+
+    def test_merge_commit_uses_first_parent(
+        self, compiled: CompiledProfile
+    ) -> None:
+        """Merge commits (multiple parents) diff against the first parent only."""
+        r = _make_record(
+            subject="merge branch",
+            touches_proof=True,
+            proof_files=["proof.v"],
+            parent_hashes=["parent1_sha", "parent2_sha"],
+        )
+        diff_data = {
+            "sorry_removed": False,
+            "net_proof_lines": 5,
+            "tactic_tags": [],
+            "proof_style": [],
+        }
+        with patch(
+            "scaffold.git_walker.analyze_proof_diff", return_value=diff_data
+        ) as mock_diff:
+            enrich_record_with_diff(r, "/fake/repo", compiled)
+        mock_diff.assert_called_once()
+        call_args = mock_diff.call_args
+        assert call_args[0][1] == "parent1_sha"  # first parent used
+
+    def test_analyze_proof_diff_exception_propagates(
+        self, compiled: CompiledProfile
+    ) -> None:
+        """If analyze_proof_diff raises, the exception propagates uncaught."""
+        r = _make_record(
+            subject="proof work",
+            touches_proof=True,
+            proof_files=["proof.v"],
+        )
+        with patch(
+            "scaffold.git_walker.analyze_proof_diff",
+            side_effect=RuntimeError("git subprocess failed"),
+        ):
+            with pytest.raises(RuntimeError, match="git subprocess failed"):
+                enrich_record_with_diff(r, "/fake/repo", compiled)
+
 
 # ===========================================================================
 # enrich_record_with_diff — integration with tmp_git_repo
@@ -673,4 +766,45 @@ class TestEnrichRecordWithDiffIntegration:
         enriched = enrich_record_with_diff(r, str(tmp_git_repo), compiled)
         assert enriched.diff_sorry_removed is True
         assert enriched.commit_class == CommitClass.proof_complete
+        assert enriched.class_confidence == "diff"
+
+    def test_add_admitted_not_sorry_removed(
+        self, tmp_git_repo, compiled: CompiledProfile
+    ) -> None:
+        """Commit 3 adds a new file with admit/Admitted → sorry NOT removed (net increase)."""
+        hashes = self._commit_hashes(tmp_git_repo)
+        # Commit 3 (index 2) adds helpers.v with Admitted
+        r = CommitRecord(
+            hash=hashes[2],
+            parent_hashes=[hashes[1]],
+            date="2025-01-01T00:00:00+00:00",
+            message_subject="Add helper lemma (incomplete)",
+            proof_files_changed=["helpers.v"],
+            touches_proof_files=True,
+            insertions=4,
+            deletions=0,
+        )
+        enriched = enrich_record_with_diff(r, str(tmp_git_repo), compiled)
+        assert enriched.diff_sorry_removed is False
+        assert enriched.commit_class == CommitClass.proof_add
+
+    def test_initial_commit_no_parent(
+        self, tmp_git_repo, compiled: CompiledProfile
+    ) -> None:
+        """The first commit has no parent; analyze_proof_diff returns empty signals."""
+        hashes = self._commit_hashes(tmp_git_repo)
+        r = CommitRecord(
+            hash=hashes[0],
+            parent_hashes=[],
+            date="2025-01-01T00:00:00+00:00",
+            message_subject="Add theorem with Admitted",
+            proof_files_changed=["proof.v"],
+            touches_proof_files=True,
+            insertions=3,
+            deletions=0,
+        )
+        enriched = enrich_record_with_diff(r, str(tmp_git_repo), compiled)
+        # No parent → analyze_proof_diff returns empty → net_proof_lines=0 → proof_add
+        assert enriched.diff_sorry_removed is False
+        assert enriched.commit_class == CommitClass.proof_add
         assert enriched.class_confidence == "diff"
