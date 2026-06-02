@@ -3,6 +3,7 @@
 Covers:
   - classify_commit priority ordering (infra > proof_complete > spec_change > ...)
   - Structural heuristic (body-free, net deletions, proof context)
+  - classification_priority reordering, omission, and edge cases
   - enrich_record (message-only first pass)
   - enrich_record_with_diff (diff-based second pass) — mocked git layer
   - proof_new / spec_change preservation across diff enrichment
@@ -13,6 +14,7 @@ Covers:
 
 from __future__ import annotations
 
+from pathlib import Path
 from unittest.mock import patch
 
 import pytest
@@ -411,17 +413,13 @@ class TestAssignTacticGroups:
 
     def test_deduplicates_groups(self, compiled: CompiledProfile) -> None:
         """Multiple tactics in the same group → group appears once."""
-        groups = assign_tactic_groups(
-            ["rewrite", "simpl", "reflexivity"], compiled
-        )
+        groups = assign_tactic_groups(["rewrite", "simpl", "reflexivity"], compiled)
         assert groups.count("rewrite_reduce") == 1
 
     def test_preserves_order(self, compiled: CompiledProfile) -> None:
         """Groups appear in the order their first tactic is encountered."""
         groups = assign_tactic_groups(["induction", "intros", "auto"], compiled)
-        assert groups.index("case_induction") < groups.index(
-            "hypothesis_management"
-        )
+        assert groups.index("case_induction") < groups.index("hypothesis_management")
 
     def test_unknown_tactics_skipped(self, compiled: CompiledProfile) -> None:
         """Tactics not in tactic_groups are silently skipped."""
@@ -494,9 +492,7 @@ class TestEnrichRecordWithDiff:
             "tactic_tags": ["intros", "rewrite"],
             "proof_style": ["tactic_mode"],
         }
-        with patch(
-            "scaffold.git_walker.analyze_proof_diff", return_value=diff_data
-        ):
+        with patch("scaffold.git_walker.analyze_proof_diff", return_value=diff_data):
             enriched = enrich_record_with_diff(r, "/fake/repo", compiled)
         assert enriched.commit_class == CommitClass.proof_complete
         assert enriched.class_confidence == "diff"
@@ -518,9 +514,7 @@ class TestEnrichRecordWithDiff:
             "tactic_tags": [],
             "proof_style": [],
         }
-        with patch(
-            "scaffold.git_walker.analyze_proof_diff", return_value=diff_data
-        ):
+        with patch("scaffold.git_walker.analyze_proof_diff", return_value=diff_data):
             enriched = enrich_record_with_diff(r, "/fake/repo", compiled)
         assert enriched.commit_class == CommitClass.proof_optimise
 
@@ -538,15 +532,11 @@ class TestEnrichRecordWithDiff:
             "tactic_tags": ["auto"],
             "proof_style": ["tactic_mode"],
         }
-        with patch(
-            "scaffold.git_walker.analyze_proof_diff", return_value=diff_data
-        ):
+        with patch("scaffold.git_walker.analyze_proof_diff", return_value=diff_data):
             enriched = enrich_record_with_diff(r, "/fake/repo", compiled)
         assert enriched.commit_class == CommitClass.proof_add
 
-    def test_zero_net_lines_becomes_proof_add(
-        self, compiled: CompiledProfile
-    ) -> None:
+    def test_zero_net_lines_becomes_proof_add(self, compiled: CompiledProfile) -> None:
         """net_proof_lines == 0 (unchanged) still → proof_add."""
         r = _make_record(
             subject="tweak proof",
@@ -559,9 +549,7 @@ class TestEnrichRecordWithDiff:
             "tactic_tags": [],
             "proof_style": [],
         }
-        with patch(
-            "scaffold.git_walker.analyze_proof_diff", return_value=diff_data
-        ):
+        with patch("scaffold.git_walker.analyze_proof_diff", return_value=diff_data):
             enriched = enrich_record_with_diff(r, "/fake/repo", compiled)
         assert enriched.commit_class == CommitClass.proof_add
 
@@ -587,9 +575,7 @@ class TestEnrichRecordWithDiff:
             "tactic_tags": ["intros"],
             "proof_style": ["tactic_mode"],
         }
-        with patch(
-            "scaffold.git_walker.analyze_proof_diff", return_value=diff_data
-        ):
+        with patch("scaffold.git_walker.analyze_proof_diff", return_value=diff_data):
             enriched = enrich_record_with_diff(r, "/fake/repo", compiled)
         # Diff is authoritative: no sorry removed + positive lines → proof_add,
         # overriding the message-level proof_complete.
@@ -609,9 +595,7 @@ class TestEnrichRecordWithDiff:
             "tactic_tags": ["intros"],
             "proof_style": ["tactic_mode"],
         }
-        with patch(
-            "scaffold.git_walker.analyze_proof_diff", return_value=diff_data
-        ):
+        with patch("scaffold.git_walker.analyze_proof_diff", return_value=diff_data):
             enriched = enrich_record_with_diff(r, "/fake/repo", compiled)
         assert enriched.commit_class == CommitClass.proof_new
 
@@ -629,20 +613,14 @@ class TestEnrichRecordWithDiff:
             "tactic_tags": [],
             "proof_style": [],
         }
-        with patch(
-            "scaffold.git_walker.analyze_proof_diff", return_value=diff_data
-        ):
+        with patch("scaffold.git_walker.analyze_proof_diff", return_value=diff_data):
             enriched = enrich_record_with_diff(r, "/fake/repo", compiled)
         assert enriched.commit_class == CommitClass.spec_change
 
-    def test_no_proof_files_returns_unchanged(
-        self, compiled: CompiledProfile
-    ) -> None:
+    def test_no_proof_files_returns_unchanged(self, compiled: CompiledProfile) -> None:
         """Record with no proof_files_changed → returned as-is (no diff call)."""
         r = _make_record(subject="update readme", proof_files=[])
-        with patch(
-            "scaffold.git_walker.analyze_proof_diff"
-        ) as mock_diff:
+        with patch("scaffold.git_walker.analyze_proof_diff") as mock_diff:
             enriched = enrich_record_with_diff(r, "/fake/repo", compiled)
         mock_diff.assert_not_called()
         assert enriched.commit_class == r.commit_class
@@ -659,9 +637,7 @@ class TestEnrichRecordWithDiff:
             "tactic_tags": [],
             "proof_style": [],
         }
-        with patch(
-            "scaffold.git_walker.analyze_proof_diff", return_value=diff_data
-        ):
+        with patch("scaffold.git_walker.analyze_proof_diff", return_value=diff_data):
             enriched = enrich_record_with_diff(r, "/fake/repo", compiled)
         assert enriched.class_confidence == "diff"
 
@@ -677,9 +653,7 @@ class TestEnrichRecordWithDiff:
             "tactic_tags": ["apply", "destruct"],
             "proof_style": ["tactic_mode", "ssreflect"],
         }
-        with patch(
-            "scaffold.git_walker.analyze_proof_diff", return_value=diff_data
-        ):
+        with patch("scaffold.git_walker.analyze_proof_diff", return_value=diff_data):
             enriched = enrich_record_with_diff(r, "/fake/repo", compiled)
         assert enriched.diff_sorry_removed is True
         assert enriched.diff_net_proof_lines == 7
@@ -717,9 +691,7 @@ class TestEnrichRecordWithDiff:
         assert call_args[0][1] == ""  # parent_hash arg
         assert enriched.commit_class == CommitClass.proof_add
 
-    def test_merge_commit_uses_first_parent(
-        self, compiled: CompiledProfile
-    ) -> None:
+    def test_merge_commit_uses_first_parent(self, compiled: CompiledProfile) -> None:
         """Merge commits (multiple parents) diff against the first parent only."""
         r = _make_record(
             subject="merge branch",
@@ -901,3 +873,178 @@ class TestProofOptimiseIntegration:
         assert enriched.diff_net_proof_lines < 0
         assert enriched.commit_class == CommitClass.proof_optimise
         assert enriched.class_confidence == "diff"
+
+
+# ===========================================================================
+# classify_commit — classification_priority reordering
+# ===========================================================================
+
+
+def _make_profile(**overrides: object) -> RepoProfile:
+    """Build a profile with overridable classification_priority for priority tests."""
+    defaults: dict[str, object] = {
+        "proof_assistant": "coq",
+        "proof_file_globs": ["*.v"],
+        "hole_markers": [HoleMarker(regex=r"\bAdmitted\b", kind="admitted")],
+        "declaration_patterns": [
+            r"^\s*(?:Theorem|Lemma)\s+(\w+)",
+        ],
+        "commit_signals": {
+            "proof_complete": [r"complete", r"close\s+proof", r"fill\b"],
+            "proof_new": [r"add\s+lemma", r"new\s+theorem"],
+            "proof_add": [r"progress", r"partial"],
+            "spec_change": [r"change\s+statement", r"modify\s+spec"],
+            "infra": [r"bump\b", r"\bci\b", r"makefile"],
+            "refactor": [r"refactor", r"cleanup"],
+            "fix": [r"\bfix\b", r"bugfix"],
+        },
+        "proof_context_regex": r"proof|lemma|theorem|coq",
+    }
+    defaults.update(overrides)
+    return RepoProfile(**defaults)  # type: ignore[arg-type]
+
+
+class TestClassificationPriorityReordering:
+    """Verify that reordering classification_priority changes results."""
+
+    def test_spec_change_before_proof_complete(self) -> None:
+        """When spec_change has higher priority than proof_complete,
+        a commit matching both signals should be classified as spec_change."""
+        rec = _make_record(
+            subject="Complete change statement of theorem", touches_proof=True
+        )
+        # Default: proof_complete wins.
+        default_compiled = _make_profile().compiled()
+        assert classify_commit(rec, default_compiled) == CommitClass.proof_complete
+        # Reordered: spec_change first → spec_change wins.
+        reordered = _make_profile(
+            classification_priority=[
+                "spec_change",
+                "proof_complete",
+                "infra",
+                "proof_new",
+                "proof_add",
+                "refactor",
+                "fix",
+            ],
+        ).compiled()
+        assert classify_commit(rec, reordered) == CommitClass.spec_change
+
+    def test_proof_add_before_proof_new(self) -> None:
+        """When proof_add has higher priority than proof_new, it wins."""
+        rec = _make_record(subject="Add lemma with progress", touches_proof=True)
+        default_compiled = _make_profile().compiled()
+        assert classify_commit(rec, default_compiled) == CommitClass.proof_new
+        swapped = _make_profile(
+            classification_priority=[
+                "infra",
+                "proof_complete",
+                "spec_change",
+                "proof_add",
+                "proof_new",
+                "refactor",
+                "fix",
+            ],
+        ).compiled()
+        assert classify_commit(rec, swapped) == CommitClass.proof_add
+
+    def test_omitting_class_from_priority(self) -> None:
+        """A class omitted from classification_priority never fires."""
+        compiled = _make_profile(
+            classification_priority=[
+                "proof_complete",
+                "spec_change",
+                "proof_new",
+                "proof_add",
+                "refactor",
+                "fix",
+                # "infra" intentionally omitted
+            ],
+        ).compiled()
+        rec = _make_record(subject="Bump CI deps")
+        assert classify_commit(rec, compiled) == CommitClass.other
+
+    def test_fix_before_refactor_dual_match(self) -> None:
+        """When fix has higher priority than refactor, a dual-match commit
+        on non-proof files gets fix instead of refactor."""
+        rec = _make_record(subject="Refactor to fix build regression")
+        default_compiled = _make_profile().compiled()
+        assert classify_commit(rec, default_compiled) == CommitClass.refactor
+        swapped = _make_profile(
+            classification_priority=[
+                "infra",
+                "proof_complete",
+                "spec_change",
+                "proof_new",
+                "proof_add",
+                "fix",
+                "refactor",
+            ],
+        ).compiled()
+        assert classify_commit(rec, swapped) == CommitClass.fix
+
+    def test_unknown_class_name_warns_and_skips(self) -> None:
+        """An unknown entry in classification_priority logs a warning and is skipped."""
+        compiled = _make_profile(
+            classification_priority=[
+                "imaginary_class",
+                "infra",
+                "proof_complete",
+                "spec_change",
+                "proof_new",
+                "proof_add",
+                "refactor",
+                "fix",
+            ],
+        ).compiled()
+        rec = _make_record(subject="Bump CI deps")
+        assert classify_commit(rec, compiled) == CommitClass.infra
+
+    def test_empty_priority_only_fallback(self) -> None:
+        """Empty classification_priority → only the proof_add/other fallback."""
+        compiled = _make_profile(classification_priority=[]).compiled()
+        rec = _make_record(subject="Complete proof of theorem", touches_proof=True)
+        assert classify_commit(rec, compiled) == CommitClass.proof_add
+
+        rec2 = _make_record(subject="Complete proof of theorem")
+        assert classify_commit(rec2, compiled) == CommitClass.other
+
+
+# ===========================================================================
+# classify_commit — additional edge cases
+# ===========================================================================
+
+
+class TestClassifyCommitEdgeCases:
+    """Edge cases for classify_commit not covered by the main test class."""
+
+    def test_refactor_and_fix_dual_match_on_proof_files(
+        self, compiled: CompiledProfile
+    ) -> None:
+        """Commit matching both refactor and fix on proof files → proof_add."""
+        r = _make_record(subject="refactor to fix proof regression", touches_proof=True)
+        assert classify_commit(r, compiled) == CommitClass.proof_add
+
+    def test_refactor_and_fix_dual_match_on_non_proof_files(
+        self, compiled: CompiledProfile
+    ) -> None:
+        """Commit matching both refactor and fix on non-proof files → refactor
+        (refactor is checked before fix in default priority)."""
+        r = _make_record(subject="refactor to fix build regression")
+        assert classify_commit(r, compiled) == CommitClass.refactor
+
+    def test_proof_add_signal_on_non_proof_files(
+        self, compiled: CompiledProfile
+    ) -> None:
+        """proof_add requires touches_proof_files; without it → other."""
+        r = _make_record(subject="progress on documentation")
+        assert classify_commit(r, compiled) == CommitClass.other
+
+    def test_no_proof_context_regex(self) -> None:
+        """Empty proof_context_regex: infra always fires (guard is vacuous),
+        proof_complete signal never fires (context required)."""
+        compiled = _make_profile(proof_context_regex="").compiled()
+        rec_infra = _make_record(subject="Bump proof deps")
+        assert classify_commit(rec_infra, compiled) == CommitClass.infra
+        rec_pc = _make_record(subject="Complete proof of theorem", touches_proof=True)
+        assert classify_commit(rec_pc, compiled) != CommitClass.proof_complete

@@ -136,7 +136,13 @@ class RepoProfile(BaseModel):
     )
     classification_priority: list[str] = Field(
         default_factory=lambda: list(DEFAULT_CLASSIFICATION_PRIORITY),
-        description="Order in which commit classes are tried (highest priority first).",
+        description=(
+            "Order in which commit classes are tried (highest priority first). "
+            "classify_commit iterates this list and the first matching class wins. "
+            "Valid entries: infra, proof_complete, spec_change, proof_new, proof_add, "
+            "refactor, fix. proof_optimise is excluded: it is derived from diffs, "
+            "not message signals."
+        ),
     )
 
     # --- tactic / proof-style analysis --------------------------------------
