@@ -20,7 +20,7 @@ import re
 from dataclasses import dataclass
 from pathlib import Path
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 # Default order in which message-based commit classes are tried (highest wins).
 # Mirrors the legacy classify_commit decision tree. proof_optimise is excluded:
@@ -34,6 +34,17 @@ DEFAULT_CLASSIFICATION_PRIORITY: list[str] = [
     "refactor",
     "fix",
 ]
+
+
+def _check_regex(pattern: str, field_name: str, flags: int = 0) -> str:
+    """Try to compile *pattern*; raise ``ValueError`` with *field_name* context on failure."""
+    try:
+        re.compile(pattern, flags)
+    except re.error as e:
+        raise ValueError(
+            f"invalid regex in {field_name}: {e.msg} in pattern {pattern!r}"
+        ) from e
+    return pattern
 
 
 class HoleMarker(BaseModel):
@@ -50,6 +61,11 @@ class HoleMarker(BaseModel):
     kind: str = Field(
         description="Label for this hole kind, e.g. 'sorry' or 'admitted'."
     )
+
+    @field_validator("regex")
+    @classmethod
+    def _validate_regex(cls, v: str) -> str:
+        return _check_regex(v, "hole_markers.regex")
 
 
 class Provenance(BaseModel):
@@ -162,6 +178,35 @@ class RepoProfile(BaseModel):
     )
     provenance: Provenance = Field(default_factory=Provenance)
 
+    @field_validator("declaration_patterns")
+    @classmethod
+    def _validate_declaration_patterns(cls, v: list[str]) -> list[str]:
+        for i, p in enumerate(v):
+            _check_regex(p, f"declaration_patterns[{i}]", re.MULTILINE)
+        return v
+
+    @field_validator("commit_signals")
+    @classmethod
+    def _validate_commit_signals(cls, v: dict[str, list[str]]) -> dict[str, list[str]]:
+        for name, sigs in v.items():
+            for i, s in enumerate(sigs):
+                _check_regex(s, f"commit_signals.{name}[{i}]", re.IGNORECASE)
+        return v
+
+    @field_validator("proof_context_regex")
+    @classmethod
+    def _validate_proof_context_regex(cls, v: str) -> str:
+        if v:
+            _check_regex(v, "proof_context_regex", re.IGNORECASE)
+        return v
+
+    @field_validator("proof_style_signals")
+    @classmethod
+    def _validate_proof_style_signals(cls, v: dict[str, str]) -> dict[str, str]:
+        for name, rx in v.items():
+            _check_regex(rx, f"proof_style_signals.{name}", re.MULTILINE)
+        return v
+
     def compiled(self) -> CompiledProfile:
         """Pre-compile every regex once; the engine uses this hot-path view."""
         return CompiledProfile.from_profile(self)
@@ -180,11 +225,29 @@ def _word_alternation(terms: list[str]) -> str:
     return r"\b(" + "|".join(re.escape(t) for t in ordered) + r")\b"
 
 
+def _normalize_exclude_globs(raw: list[str]) -> list[str]:
+    """Normalize exclude globs so bare directory names work.
+
+    Bare names like ``"vendor"`` are expanded to ``"vendor/*"`` so that
+    ``fnmatchcase("vendor/lib.v", "vendor/*")`` matches. Patterns that
+    already contain glob metacharacters (``*``, ``?``, ``[``) are kept
+    as-is.
+    """
+    out: list[str] = []
+    for g in raw:
+        if any(c in g for c in ("*", "?", "[")):
+            out.append(g)
+        else:
+            out.append(g.rstrip("/") + "/*")
+    return out
+
+
 @dataclass
 class CompiledProfile:
     """A RepoProfile with all regexes compiled and ready for per-commit use."""
 
     profile: RepoProfile
+    exclude_globs: list[str]
     hole_res: list[tuple[re.Pattern[str], str]]
     declaration_res: list[re.Pattern[str]]
     commit_signal_res: dict[str, re.Pattern[str]]
@@ -196,20 +259,48 @@ class CompiledProfile:
 
     @classmethod
     def from_profile(cls, profile: RepoProfile) -> CompiledProfile:
-        hole_res = [(re.compile(h.regex), h.kind) for h in profile.hole_markers]
-        declaration_res = [
-            re.compile(p, re.MULTILINE) for p in profile.declaration_patterns
-        ]
-        commit_signal_res = {
-            name: re.compile("|".join(sigs), re.IGNORECASE)
-            for name, sigs in profile.commit_signals.items()
-            if sigs
-        }
-        proof_context_re = (
-            re.compile(profile.proof_context_regex, re.IGNORECASE)
-            if profile.proof_context_regex
-            else None
-        )
+        exclude_globs = _normalize_exclude_globs(profile.exclude_globs)
+        # Defense-in-depth: wrap each section so a bad regex names the field.
+        # The pydantic validators on RepoProfile catch most issues at
+        # deserialization time; these try/excepts guard against profiles built
+        # programmatically without going through model_validate().
+        hole_res: list[tuple[re.Pattern[str], str]] = []
+        for i, h in enumerate(profile.hole_markers):
+            try:
+                hole_res.append((re.compile(h.regex), h.kind))
+            except re.error as e:
+                raise ValueError(f"invalid regex in hole_markers[{i}]: {e}") from e
+        declaration_res: list[re.Pattern[str]] = []
+        for i, p in enumerate(profile.declaration_patterns):
+            try:
+                declaration_res.append(re.compile(p, re.MULTILINE))
+            except re.error as e:
+                raise ValueError(
+                    f"invalid regex in declaration_patterns[{i}]: {e}"
+                ) from e
+
+        # Validate individual commit signals before joining with "|".
+        commit_signal_res: dict[str, re.Pattern[str]] = {}
+        for name, sigs in profile.commit_signals.items():
+            if not sigs:
+                continue
+            for i, sig in enumerate(sigs):
+                try:
+                    re.compile(sig, re.IGNORECASE)
+                except re.error as e:
+                    raise ValueError(
+                        f"invalid regex in commit_signals.{name}[{i}]: {e}"
+                    ) from e
+            commit_signal_res[name] = re.compile("|".join(sigs), re.IGNORECASE)
+
+        try:
+            proof_context_re = (
+                re.compile(profile.proof_context_regex, re.IGNORECASE)
+                if profile.proof_context_regex
+                else None
+            )
+        except re.error as e:
+            raise ValueError(f"invalid regex in proof_context_regex: {e}") from e
         # Boundary-aware tactic regex: a tactic at a tactic position. Group 1 = name.
         ordered_tactics = sorted(
             {t for t in profile.tactic_vocabulary if t},
@@ -221,10 +312,14 @@ class CompiledProfile:
             r"(?:^|[\s;|{(])(" + tactic_alt + r")(?:\s|[.;()\[\]{]|$)",
             re.IGNORECASE | re.MULTILINE,
         )
-        proof_style_res = {
-            name: re.compile(rx, re.MULTILINE)
-            for name, rx in profile.proof_style_signals.items()
-        }
+        proof_style_res: dict[str, re.Pattern[str]] = {}
+        for name, rx in profile.proof_style_signals.items():
+            try:
+                proof_style_res[name] = re.compile(rx, re.MULTILINE)
+            except re.error as e:
+                raise ValueError(
+                    f"invalid regex in proof_style_signals.{name}: {e}"
+                ) from e
         # Keyword extraction matches over the union of hole kinds + structural + tactic + domain.
         hole_kinds = [h.kind for h in profile.hole_markers]
         keyword_terms = (
@@ -239,6 +334,7 @@ class CompiledProfile:
         tactic_groups_lower = {k.lower(): v for k, v in profile.tactic_groups.items()}
         return cls(
             profile=profile,
+            exclude_globs=exclude_globs,
             hole_res=hole_res,
             declaration_res=declaration_res,
             commit_signal_res=commit_signal_res,

@@ -17,7 +17,6 @@ on failure it survives and is recoverable via ``scaffold materialize``.
 from __future__ import annotations
 
 import logging
-import os
 import shutil
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -31,29 +30,19 @@ from .deps import ProfilerDeps
 logger = logging.getLogger(__name__)
 
 
-def _load_dotenv(start: Path | None = None) -> Path | None:
-    """Load the nearest ``.env`` (walking up from ``start``/CWD) into ``os.environ``.
+def _load_dotenv() -> None:
+    """Load the nearest ``.env`` (walking up from CWD) into ``os.environ``.
 
     pydantic-ai reads ``ANTHROPIC_API_KEY`` from the environment, but this repo
     keeps the key in a ``.env`` at the monorepo root (one dir above ``scaffold``).
-    Mirrors quali's ``load_env``: existing env vars win (``setdefault``), values
-    have surrounding quotes stripped. Returns the file loaded, or None.
+    Existing env vars win (python-dotenv's default ``override=False``).
     """
-    cur = (start or Path.cwd()).resolve()
-    while True:
-        candidate = cur / ".env"
-        if candidate.is_file():
-            for line in candidate.read_text().splitlines():
-                line = line.strip()
-                if not line or line.startswith("#") or "=" not in line:
-                    continue
-                key, _, value = line.partition("=")
-                os.environ.setdefault(key.strip(), value.strip().strip("'\""))
-            logger.info("Loaded environment from %s", candidate)
-            return candidate
-        if cur.parent == cur:
-            return None
-        cur = cur.parent
+    from dotenv import find_dotenv, load_dotenv
+
+    dotenv_path = find_dotenv(usecwd=True)
+    if dotenv_path:
+        load_dotenv(dotenv_path)
+        logger.info("Loaded environment from %s", dotenv_path)
 
 
 @dataclass

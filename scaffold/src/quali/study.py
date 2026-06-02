@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import json
-import os
 from pathlib import Path
 from typing import cast
 
@@ -58,30 +57,19 @@ evidence supports.\
 """
 
 
-def _find_dotenv() -> Path | None:
-    """Walk up from CWD looking for a .env file."""
-    cur = Path.cwd()
-    while True:
-        candidate = cur / ".env"
-        if candidate.is_file():
-            return candidate
-        parent = cur.parent
-        if parent == cur:
-            return None
-        cur = parent
-
-
 def load_env(path: Path | None = None) -> None:
-    """Load a .env file. If no path given, searches up from CWD."""
-    if path is None:
-        path = _find_dotenv()
-    if path is None or not path.exists():
-        return
-    for line in path.read_text().splitlines():
-        line = line.strip()
-        if line and not line.startswith("#") and "=" in line:
-            key, _, value = line.partition("=")
-            os.environ.setdefault(key.strip(), value.strip())
+    """Load a .env file. If no path given, searches up from CWD.
+
+    Existing env vars win (python-dotenv's default ``override=False``).
+    """
+    from dotenv import find_dotenv, load_dotenv
+
+    if path is not None:
+        load_dotenv(path)
+    else:
+        dotenv_path = find_dotenv(usecwd=True)
+        if dotenv_path:
+            load_dotenv(dotenv_path)
 
 
 def load_commit_index(grouped_path: Path) -> dict[str, dict]:
