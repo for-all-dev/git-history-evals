@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from scaffold.analyzers.coq import CoqAnalyzer
+from scaffold.analyzers import ProfileAnalyzer
 from scaffold.git_walker import (
     get_file_at_commit,
     get_modified_files,
@@ -34,20 +34,22 @@ class TestGitWalker:
         content = get_file_at_commit(tmp_git_repo, commits[0].hash, "nonexistent.v")
         assert content is None
 
-    def test_get_modified_files(self, tmp_git_repo: Path) -> None:
+    def test_get_modified_files(
+        self, tmp_git_repo: Path, coq_analyzer: ProfileAnalyzer
+    ) -> None:
         commits = iter_commits(tmp_git_repo)
-        analyzer = CoqAnalyzer()
         # Second commit (index 1) modified proof.v
         modified = get_modified_files(
-            tmp_git_repo, commits[1].parent_hash, commits[1].hash, analyzer
+            tmp_git_repo, commits[1].parent_hash, commits[1].hash, coq_analyzer
         )
         assert "proof.v" in modified
 
-    def test_mine_commit_finds_filled_holes(self, tmp_git_repo: Path) -> None:
+    def test_mine_commit_finds_filled_holes(
+        self, tmp_git_repo: Path, coq_analyzer: ProfileAnalyzer
+    ) -> None:
         commits = iter_commits(tmp_git_repo)
-        analyzer = CoqAnalyzer()
         # Second commit (index 1) filled the Admitted in proof.v
-        challenges = mine_commit(tmp_git_repo, commits[1], analyzer, "test-repo")
+        challenges = mine_commit(tmp_git_repo, commits[1], coq_analyzer, "test-repo")
         assert len(challenges) == 1
         challenge = challenges[0]
         assert challenge.file_path == "proof.v"
@@ -55,11 +57,12 @@ class TestGitWalker:
         assert "Qed" in challenge.solution_file_content
         assert len(challenge.holes_filled) > 0
 
-    def test_mine_commit_no_parent(self, tmp_git_repo: Path) -> None:
+    def test_mine_commit_no_parent(
+        self, tmp_git_repo: Path, coq_analyzer: ProfileAnalyzer
+    ) -> None:
         commits = iter_commits(tmp_git_repo)
-        analyzer = CoqAnalyzer()
         # Last commit (oldest, index 2) has no parent
         initial = commits[-1]
         assert initial.parent_hash == ""
-        challenges = mine_commit(tmp_git_repo, initial, analyzer, "test-repo")
+        challenges = mine_commit(tmp_git_repo, initial, coq_analyzer, "test-repo")
         assert challenges == []

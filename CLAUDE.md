@@ -18,10 +18,22 @@ keep us on track.
 ## Deliverable 
 Evals for at least the Nova hypervisor specs and proofs, SeL4, Compcert, and Fiat-Crypto registered to inspect and listed on huggingface. The generalized scaffold dynamically synthesizing “miner” scripts that walk across the git histories. Reporting baselines of how current language models do, which includes demonstration of how to download the data from huggingface and make a solver. Stretch goal: demonstrate actual posttraining on these eval-as-envs with open weight models. 
 
+## Quality checks
+
+Run these from `./scaffold/` (and `./experiments/`) every now and then, and
+**certainly before every commit**:
+
+```bash
+uv run ruff format        # autoformat
+uv run ruff check --fix   # lint + autofix
+uv run ty check           # type check
+uv run pytest             # tests
+```
+
 ## repo structure
 
 - `./scaffold/`: Python project (uv-managed) containing:
-  - `src/scaffold/`: the quantitative miner/scraper — git walker, pattern detector, commit classifier, tactic stratifier
+  - `src/scaffold/`: the **profile-driven** miner/scraper. Two tiers: (1) `profiler/` — a pydantic-ai + `pydantic-ai-harness` CodeMode **calibration agent** that explores a repo + its git history and synthesises a `RepoProfile`; (2) the deterministic engine (`git_walker`, `pattern_detector`, `analyzers/ProfileAnalyzer`) that runs the full history parameterised by that profile — no LLM in the hot loop. `profile.py` is the `RepoProfile` contract (globs, hole markers, declaration patterns, commit-signal banks, tactic vocab/groups — everything that used to be hardcoded, now data). `dataset.py` writes mined evals as manifest-schema version dirs (see `artifacts/MANIFEST_SCHEMA.md`).
   - `src/quali/`: qualitative study tool — uses pydantic-ai to analyze per-theorem proof evolution trajectories (human baseline for contrast with agent trajectories)
   - `src/scripts/analysis/`: proof lifecycle reporting scripts
 - `./experiments/`: second uv project — the eval *runner* for fiat-crypto per-commit challenges:
@@ -33,14 +45,16 @@ Evals for at least the Nova hypervisor specs and proofs, SeL4, Compcert, and Fia
   - `summary.py`: cross-run aggregator — per-(mode, deletion_size) drift ratios (vo_bytes, compile_time, proof_chars/lines, tactic_count) vs human reference, baseline-vs-agent deltas, per-metric Pearson r vs deletion_size as a faithfulness check
   - `results/<run_id>/`: host-side mirror of the per-SHA volumes (see `experiments/results/README.md`)
 - `./data/`: source repos as git submodules
-- `./artifacts/`: output `.jsonl` files and subdatasets (currently fiat-crypto only; populated by `scaffold`)
+- `./artifacts/`: mined eval datasets as versioned bundles — `<repo>-eval/<tag>-<hash>/{manifest.json, miner/profile.json, challenges.jsonl}` per `MANIFEST_SCHEMA.md`, indexed by `_index.json`. Each dataset owns exactly one profile (at `<version>/miner/profile.json`); the blessed `<repo>-eval/profile.json` that `mine-all` reads is a relative **symlink** into the canonical version's profile, not a copy. Bulk `*.jsonl`/`*.txt` payloads are sha256 blobs declared in manifests and gitignored.
 - `./dashboard/`: Next.js app for exploring JSONL benchmark artifacts
 - `./docs/`: changelog for the pattern detector (`PatternDetectorChanges.md`) + agent task template
 
 ### CLI tools
 
 From `./scaffold/`:
-- `uv run scaffold` — mine, enrich, classify, stratify commits (see `scaffold --help`)
+- `uv run scaffold profile <repo> --tag <label> [--promote]` — Tier-1 calibration agent: synthesise a `RepoProfile`, mine, and write a versioned dataset bundle under `artifacts/<repo>-eval/<tag>-<hash>/`
+- `uv run scaffold materialize <repo> -p <profile.json> --tag <label> [--kind handcrafted] [--promote]` — bundle an existing profile into a dataset version dir without the agent (used to migrate hand-authored profiles). `--promote` symlinks `<repo>-eval/profile.json` at the new version.
+- `uv run scaffold` — Tier-2 deterministic mining: `mine`/`mine-all`/`dump-commits`/`enrich-commits`/`diff-enrich`/`stratify-tactics`/`group-tactics`, each taking `--profile/-p` (see `scaffold --help`)
 - `uv run quali` — qualitative trajectory analysis via LLM (reads from artifacts, writes `*-quali.jsonl`)
 
 From `./experiments/`:

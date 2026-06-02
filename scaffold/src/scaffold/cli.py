@@ -1,4 +1,9 @@
-"""CLI for the scaffold mining tool."""
+"""CLI for the scaffold mining tool — profile-driven.
+
+Every mining/enrichment command takes a ``--profile`` pointing at a RepoProfile
+JSON (see scaffold/profile.py). The profile carries all repo-specific patterns;
+the engine itself is repo-agnostic.
+"""
 
 from __future__ import annotations
 
@@ -21,33 +26,22 @@ def _setup_logging(verbose: bool) -> None:
     )
 
 
-@app.command()
-def analyze(
-    repo_path: Path = typer.Argument(..., help="Path to the proof engineering repo"),
-    verbose: bool = typer.Option(False, "--verbose", "-v"),
-) -> None:
-    """Analyze a repo: detect proof assistant, build system, and patterns."""
-    _setup_logging(verbose)
+def _load_compiled(profile_path: Path):
+    """Load a RepoProfile JSON and return its CompiledProfile (regexes ready)."""
+    from scaffold.profile import load_profile
 
-    from scaffold.pattern_detector import analyze_repo
+    return load_profile(profile_path).compiled()
 
-    metadata = analyze_repo(repo_path)
 
-    typer.echo(f"Repository: {metadata.name}")
-    typer.echo(f"Proof assistant: {metadata.proof_assistant.value}")
-    typer.echo(f"File extensions: {metadata.file_extensions}")
-    typer.echo(f"URL: {metadata.url or '(not detected)'}")
-    typer.echo(f"Exclude paths: {metadata.exclude_paths or '(none)'}")
-
-    if metadata.discovered_patterns:
-        typer.echo("Discovered patterns:")
-        for key, val in metadata.discovered_patterns.items():
-            typer.echo(f"  {key}: {val}")
+_PROFILE_OPT = typer.Option(
+    ..., "--profile", "-p", help="Path to a RepoProfile JSON (scaffold/profile.py)."
+)
 
 
 @app.command()
 def mine(
     repo_path: Path = typer.Argument(..., help="Path to the proof engineering repo"),
+    profile: Path = _PROFILE_OPT,
     output: Path = typer.Option("output.jsonl", "--output", "-o"),
     limit: int | None = typer.Option(None, "--limit", "-n", help="Max commits to scan"),
     start_ref: str = typer.Option("HEAD", "--ref", help="Git ref to start from"),
@@ -59,16 +53,18 @@ def mine(
     """Mine a single repo for eval challenges."""
     _setup_logging(verbose)
 
-    from scaffold.analyzers import get_analyzer
+    from scaffold.analyzers import ProfileAnalyzer
     from scaffold.git_walker import mine_repo
     from scaffold.output import write_mining_result
-    from scaffold.pattern_detector import analyze_repo
 
-    metadata = analyze_repo(repo_path)
-    analyzer = get_analyzer(metadata.proof_assistant)
-
+    analyzer = ProfileAnalyzer(_load_compiled(profile))
     result = mine_repo(
-        metadata, analyzer, max_commits=limit, start_ref=start_ref, dry_run=dry_run
+        repo_path,
+        repo_path.name,
+        analyzer,
+        max_commits=limit,
+        start_ref=start_ref,
+        dry_run=dry_run,
     )
 
     if not dry_run:
@@ -82,16 +78,20 @@ def mine(
 def mine_all(
     data_dir: Path = typer.Option("./data", "--data-dir", "-d"),
     output_dir: Path = typer.Option("./artifacts", "--output-dir", "-o"),
+    artifacts_dir: Path = typer.Option(
+        "./artifacts",
+        "--artifacts-dir",
+        help="Where per-repo profiles live: <artifacts>/<repo>-eval/profile.json",
+    ),
     limit: int | None = typer.Option(None, "--limit", "-n"),
     verbose: bool = typer.Option(False, "--verbose", "-v"),
 ) -> None:
-    """Mine all repos in the data directory."""
+    """Mine every repo in the data directory that has a profile."""
     _setup_logging(verbose)
 
-    from scaffold.analyzers import get_analyzer
+    from scaffold.analyzers import ProfileAnalyzer
     from scaffold.git_walker import mine_repo
     from scaffold.output import write_mining_result
-    from scaffold.pattern_detector import analyze_repo
 
     if not data_dir.exists():
         typer.echo(f"Data directory not found: {data_dir}", err=True)
@@ -100,16 +100,17 @@ def mine_all(
     output_dir.mkdir(parents=True, exist_ok=True)
 
     for entry in sorted(data_dir.iterdir()):
-        if not entry.is_dir():
+        if not entry.is_dir() or not (entry / ".git").exists():
             continue
-        if not (entry / ".git").exists():
+
+        profile_path = artifacts_dir / f"{entry.name}-eval" / "profile.json"
+        if not profile_path.exists():
+            typer.echo(f"--- Skipping {entry.name}: no profile at {profile_path} ---")
             continue
 
         typer.echo(f"\n--- Mining {entry.name} ---")
-        metadata = analyze_repo(entry)
-        analyzer = get_analyzer(metadata.proof_assistant)
-
-        result = mine_repo(metadata, analyzer, max_commits=limit)
+        analyzer = ProfileAnalyzer(_load_compiled(profile_path))
+        result = mine_repo(entry, entry.name, analyzer, max_commits=limit)
         out_path = output_dir / f"{entry.name}.jsonl"
         write_mining_result(result, out_path)
         typer.echo(f"  {result.total_challenges} challenges -> {out_path}")
@@ -118,6 +119,7 @@ def mine_all(
 @app.command()
 def dump_commits(
     repo_path: Path = typer.Argument(..., help="Path to the proof engineering repo"),
+    profile: Path = _PROFILE_OPT,
     output_dir: Path = typer.Option("./artifacts", "--output-dir", "-o"),
     limit: int | None = typer.Option(None, "--limit", "-n", help="Max commits to dump"),
     start_ref: str = typer.Option("HEAD", "--ref", help="Git ref to start from"),
@@ -127,21 +129,21 @@ def dump_commits(
 
     Produces:
       <output_dir>/<repo_name>-commits-all.jsonl   — every commit
-      <output_dir>/<repo_name>-commits-coq.jsonl   — only commits touching .v files
+      <output_dir>/<repo_name>-commits-coq.jsonl   — only commits touching proof files
     """
     _setup_logging(verbose)
 
     from scaffold.git_walker import dump_commits as _dump
     from scaffold.output import write_commit_records
-    from scaffold.pattern_detector import analyze_repo
 
-    metadata = analyze_repo(repo_path)
-    records = _dump(repo_path, start_ref=start_ref, max_commits=limit)
+    compiled = _load_compiled(profile)
+    name = repo_path.name
+    records = _dump(repo_path, compiled, start_ref=start_ref, max_commits=limit)
 
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    all_path = output_dir / f"{metadata.name}-commits-all.jsonl"
-    coq_path = output_dir / f"{metadata.name}-commits-coq.jsonl"
+    all_path = output_dir / f"{name}-commits-all.jsonl"
+    coq_path = output_dir / f"{name}-commits-coq.jsonl"
 
     coq_records = [r for r in records if r.touches_proof_files]
 
@@ -155,22 +157,13 @@ def dump_commits(
 @app.command()
 def enrich_commits(
     input_path: Path = typer.Argument(..., help="Path to a commits JSONL file"),
+    profile: Path = _PROFILE_OPT,
     output_path: Path = typer.Option(
-        None,
-        "--output",
-        "-o",
-        help="Output path (default: overwrites input)",
+        None, "--output", "-o", help="Output path (default: overwrites input)"
     ),
     verbose: bool = typer.Option(False, "--verbose", "-v"),
 ) -> None:
-    """Enrich a commit JSONL with commit_class and keywords.
-
-    Reads an existing commits JSONL, runs the heuristic classifier over every
-    record, and writes the enriched records back out. Fast — pure Python, no
-    git calls required.
-
-    Class distribution is printed after writing so you can assess quality.
-    """
+    """Enrich a commit JSONL with commit_class and keywords (message heuristics)."""
     _setup_logging(verbose)
 
     from collections import Counter
@@ -178,8 +171,9 @@ def enrich_commits(
     from scaffold.output import read_commit_records, write_commit_records
     from scaffold.pattern_detector import enrich_record
 
+    compiled = _load_compiled(profile)
     records = read_commit_records(input_path)
-    enriched = [enrich_record(r) for r in records]
+    enriched = [enrich_record(r, compiled) for r in records]
 
     dest = output_path or input_path
     write_commit_records(enriched, dest)
@@ -196,49 +190,42 @@ def enrich_commits(
 def diff_enrich(
     input_path: Path = typer.Argument(..., help="Labeled commits JSONL to enrich"),
     repo_path: Path = typer.Argument(..., help="Path to the source git repo"),
+    profile: Path = _PROFILE_OPT,
     output_path: Path = typer.Option(
         None, "--output", "-o", help="Output path (default: overwrites input)"
     ),
     only_proof: bool = typer.Option(
         True,
         "--only-proof/--all",
-        help="Only re-classify commits that touch .v files (default: True)",
+        help="Only re-classify commits that touch proof files (default: True)",
     ),
     verbose: bool = typer.Option(False, "--verbose", "-v"),
 ) -> None:
-    """Second-pass diff-based enrichment: read actual .v diffs to classify commits.
-
-    For every commit that touches .v files this reads the real git diff and:
-      - sets diff_sorry_removed, diff_net_proof_lines
-      - populates tactic_tags and proof_style from added lines
-      - upgrades commit_class to proof_complete / proof_optimise / proof_add
-        based on what the diff actually shows
-
-    Class distribution is printed after writing.
-    """
+    """Second-pass diff-based enrichment: read actual proof-file diffs to classify."""
     _setup_logging(verbose)
 
     import concurrent.futures
     from collections import Counter
 
+    from scaffold.models import CommitRecord
     from scaffold.output import read_commit_records, write_commit_records
     from scaffold.pattern_detector import enrich_record_with_diff
 
+    compiled = _load_compiled(profile)
     records = read_commit_records(input_path)
-    to_enrich = [r for r in records if r.coq_files_changed] if only_proof else records
+    to_enrich = [r for r in records if r.proof_files_changed] if only_proof else records
     enrich_hashes = {r.hash for r in to_enrich}
     keep = [r for r in records if r.hash not in enrich_hashes] if only_proof else []
 
     typer.echo(f"Diff-enriching {len(to_enrich)} records (repo: {repo_path}) ...")
 
-    enriched: list = []
     with concurrent.futures.ThreadPoolExecutor(max_workers=8) as pool:
         futs = {
-            pool.submit(enrich_record_with_diff, r, repo_path): i
+            pool.submit(enrich_record_with_diff, r, repo_path, compiled): i
             for i, r in enumerate(to_enrich)
         }
         done = 0
-        results: dict[int, object] = {}
+        results: dict[int, CommitRecord] = {}
         for fut in concurrent.futures.as_completed(futs):
             idx = futs[fut]
             results[idx] = fut.result()
@@ -264,20 +251,13 @@ def diff_enrich(
 def stratify_tactics(
     input_path: Path = typer.Argument(..., help="Diff-enriched commits JSONL"),
     output_dir: Path = typer.Option(
-        None, "--output-dir", "-o",
-        help="Directory for tactic subdatasets (default: same dir as input)"
+        None,
+        "--output-dir",
+        "-o",
+        help="Directory for tactic subdatasets (default: same dir as input)",
     ),
 ) -> None:
-    """Split diff-enriched proof_add records into per-tactic subdataset files.
-
-    Reads a diff-enriched JSONL and writes one file per tactic tag, e.g.:
-      <output_dir>/tactic-rewrite.jsonl
-      <output_dir>/tactic-induction.jsonl
-      ...
-
-    A record appears in multiple files if it uses multiple tactics.
-    Also writes tactic-term_mode.jsonl and tactic-ssreflect.jsonl from proof_style.
-    """
+    """Split diff-enriched proof_add records into per-tactic subdataset files."""
     from collections import defaultdict
 
     from scaffold.models import CommitClass
@@ -310,37 +290,30 @@ def stratify_tactics(
 @app.command()
 def group_tactics(
     input_path: Path = typer.Argument(..., help="Diff-enriched commits JSONL"),
+    profile: Path = _PROFILE_OPT,
     output_path: Path = typer.Option(
         None, "--output", "-o", help="Output path (default: overwrites input)"
     ),
     output_dir: Path = typer.Option(
-        None, "--output-dir", "-d",
-        help="Directory for per-group subdataset files (default: same dir as input)"
+        None,
+        "--output-dir",
+        "-d",
+        help="Directory for per-group subdataset files (default: same dir as input)",
     ),
 ) -> None:
-    """Assign behavioural tactic groups to each record and write per-group subdatasets.
-
-    Reads tactic_tags already populated by diff-enrich, maps each tactic to one
-    of seven behavioural groups, and stores the result in tactic_group_tags.
-
-    Also writes one JSONL per group under --output-dir:
-      group-rewrite_reduce.jsonl
-      group-contradiction_solver.jsonl
-      group-application.jsonl
-      group-case_induction.jsonl
-      group-hypothesis_management.jsonl
-      group-arithmetic_algebra.jsonl
-      group-meta_tactical.jsonl
-    """
+    """Assign behavioural tactic groups to each record and write per-group subdatasets."""
     from collections import Counter, defaultdict
 
     from scaffold.output import read_commit_records, write_commit_records
     from scaffold.pattern_detector import assign_tactic_groups
 
+    compiled = _load_compiled(profile)
     records = read_commit_records(input_path)
 
     enriched = [
-        r.model_copy(update={"tactic_group_tags": assign_tactic_groups(r.tactic_tags)})
+        r.model_copy(
+            update={"tactic_group_tags": assign_tactic_groups(r.tactic_tags, compiled)}
+        )
         for r in records
     ]
 
@@ -348,16 +321,16 @@ def group_tactics(
     write_commit_records(enriched, dest)
     typer.echo(f"Wrote {len(enriched)} records to {dest}")
 
-    # Group distribution
     counts: Counter[str] = Counter()
     for r in enriched:
         for g in r.tactic_group_tags:
             counts[g] += 1
-    typer.echo("\nTactic group distribution (proof_add commits may appear in multiple groups):")
+    typer.echo(
+        "\nTactic group distribution (proof_add commits may appear in multiple groups):"
+    )
     for grp, n in sorted(counts.items(), key=lambda x: -x[1]):
         typer.echo(f"  {grp:<28} {n:>5}")
 
-    # Per-group subdataset files
     out_dir = output_dir or input_path.parent / "group-subdatasets"
     out_dir.mkdir(parents=True, exist_ok=True)
 
@@ -371,6 +344,113 @@ def group_tactics(
         out_path = out_dir / f"group-{grp}.jsonl"
         write_commit_records(recs, out_path)
         typer.echo(f"  {grp:<28} {len(recs):>5} records -> {out_path.name}")
+
+
+@app.command()
+def profile(
+    repo_path: Path = typer.Argument(
+        ..., help="Path to the proof engineering repo to calibrate"
+    ),
+    model: str = typer.Option(
+        "anthropic:claude-sonnet-4-6", "--model", "-m", help="pydantic-ai model string"
+    ),
+    tag: str = typer.Option(
+        "agent",
+        "--tag",
+        "-t",
+        help="Human-readable version tag (e.g. 'agentic_1'); dir is <tag>-<short_hash>",
+    ),
+    promote: bool = typer.Option(
+        False,
+        "--promote",
+        help="Symlink <repo>-eval/profile.json to this version's profile (the blessed profile mine-all uses)",
+    ),
+    artifacts_dir: Path = typer.Option(
+        None,
+        "--artifacts-dir",
+        help="Artifacts root (default: <monorepo>/artifacts)",
+    ),
+    request_limit: int = typer.Option(
+        80, "--request-limit", help="Max agent request round-trips (UsageLimits)"
+    ),
+    test_commits: int = typer.Option(
+        1500,
+        "--test-commits",
+        help="Commits sampled per test_profile call during calibration",
+    ),
+    verbose: bool = typer.Option(False, "--verbose", "-v"),
+) -> None:
+    """Synthesise a RepoProfile by exploring a repo with the calibration agent.
+
+    Tier-1 of the agentic miner: a CodeMode pydantic-ai agent detects the repo's
+    proof assistant, file globs, hole markers, declaration patterns, commit
+    conventions, and tactic vocabulary on the fly, validating against the real
+    engine, then emits a profile the deterministic miner can consume.
+    """
+    _setup_logging(verbose)
+
+    from scaffold.profiler import build_profile
+
+    result = build_profile(
+        repo_path,
+        model=model,
+        tag=tag,
+        promote=promote,
+        artifacts_root=artifacts_dir,
+        request_limit=request_limit,
+        test_commits=test_commits,
+    )
+
+    typer.echo(f"\nDataset version : {result.version}")
+    typer.echo(f"  path            : {result.dataset_path}")
+    typer.echo(f"  challenges      : {result.n_challenges}")
+    typer.echo(f"  manifest_hash   : {result.manifest_hash[:12]}")
+    typer.echo(f"  promoted        : {result.promoted}")
+    typer.echo(f"  proof_assistant : {result.profile.proof_assistant}")
+    typer.echo(f"  hole_markers    : {[h.kind for h in result.profile.hole_markers]}")
+    typer.echo(f"  tactic vocab    : {len(result.profile.tactic_vocabulary)} tactics")
+
+
+@app.command()
+def materialize(
+    repo_path: Path = typer.Argument(..., help="Path to the proof engineering repo"),
+    profile: Path = _PROFILE_OPT,
+    tag: str = typer.Option(
+        "v1-handcrafted", "--tag", "-t", help="Version tag; dir is <tag>-<short_hash>"
+    ),
+    kind: str = typer.Option(
+        "handcrafted",
+        "--kind",
+        help="Miner kind for the manifest: 'handcrafted' or 'agent'",
+    ),
+    promote: bool = typer.Option(
+        False,
+        "--promote",
+        help="Bless this dataset: symlink <repo>-eval/profile.json -> its profile",
+    ),
+    artifacts_dir: Path = typer.Option(
+        None, "--artifacts-dir", help="Artifacts root (default: <monorepo>/artifacts)"
+    ),
+    verbose: bool = typer.Option(False, "--verbose", "-v"),
+) -> None:
+    """Bundle an existing RepoProfile into a manifest-schema dataset version dir (no agent)."""
+    _setup_logging(verbose)
+    from scaffold.dataset import mine_and_materialize, promote_profile
+    from scaffold.profile import load_profile
+
+    prof = load_profile(profile)
+    dv = mine_and_materialize(
+        profile=prof,
+        repo_path=repo_path,
+        tag=tag,
+        miner_kind=kind,
+        artifacts_root=artifacts_dir,
+    )
+    typer.echo(f"Materialized {dv.version} ({dv.n_challenges} challenges) -> {dv.path}")
+    typer.echo(f"  manifest_hash: {dv.manifest_hash[:12]}")
+    if promote:
+        blessed = promote_profile(dv)
+        typer.echo(f"  promoted (symlink) -> {blessed}")
 
 
 @app.command()

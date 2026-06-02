@@ -4,15 +4,8 @@ from __future__ import annotations
 
 from datetime import datetime
 from enum import Enum
-from typing import Any
 
 from pydantic import BaseModel, Field
-
-
-class ProofAssistant(str, Enum):
-    coq = "coq"
-    isabelle = "isabelle"
-    lean4 = "lean4"
 
 
 class CommitClass(str, Enum):
@@ -41,38 +34,17 @@ class CommitClass(str, Enum):
     other = "other"
 
 
-class ProofHoleKind(str, Enum):
-    sorry = "sorry"
-    admitted = "admitted"
-    admit = "admit"
-    oops = "oops"
-    placeholder = "placeholder"
-    new_obligation = "new_obligation"
-
-
 class ProofHole(BaseModel):
     """A location in source where a proof is incomplete."""
 
     line: int
     column: int
-    kind: ProofHoleKind
-    proof_assistant: ProofAssistant
+    kind: str = Field(description="Hole-marker kind label, e.g. 'sorry' or 'admitted'.")
+    proof_assistant: str = Field(description="Proof assistant, e.g. 'coq'.")
     context: str = Field(default="", description="Surrounding lines for context")
     enclosing_decl: str = Field(
         default="", description="Name of the enclosing theorem/lemma"
     )
-
-
-class RepoMetadata(BaseModel):
-    """Metadata about a proof engineering repository."""
-
-    name: str
-    url: str = ""
-    local_path: str
-    proof_assistant: ProofAssistant
-    file_extensions: list[str] = Field(default_factory=list)
-    exclude_paths: list[str] = Field(default_factory=list)
-    discovered_patterns: dict[str, Any] = Field(default_factory=dict)
 
 
 class CommitProofDiff(BaseModel):
@@ -111,7 +83,7 @@ class EvalChallenge(BaseModel):
 
     task_id: str = Field(description="Unique identifier: {repo}_{commit_hash}_{file}")
     repo: str
-    proof_assistant: ProofAssistant
+    proof_assistant: str
     commit_hash: str
     parent_hash: str
     commit_message: str = ""
@@ -123,7 +95,9 @@ class EvalChallenge(BaseModel):
         description="File content at child commit (hole filled)"
     )
     holes_filled: list[ProofHole] = Field(default_factory=list)
-    diff: str = Field(default="", description="Unified diff between challenge and solution")
+    diff: str = Field(
+        default="", description="Unified diff between challenge and solution"
+    )
     instructions: str = Field(
         default="",
         description="Human-readable instructions for the challenge",
@@ -134,7 +108,7 @@ class MiningResult(BaseModel):
     """Result of mining a repository."""
 
     repo_name: str
-    proof_assistant: ProofAssistant
+    proof_assistant: str
     total_commits_scanned: int = 0
     total_challenges: int = 0
     challenges: list[EvalChallenge] = Field(default_factory=list)
@@ -171,13 +145,13 @@ class CommitRecord(BaseModel):
         default_factory=list,
         description="All file paths touched by this commit",
     )
-    coq_files_changed: list[str] = Field(
+    proof_files_changed: list[str] = Field(
         default_factory=list,
-        description=".v files touched — direct proof relevance signal",
+        description="Proof files touched (matching profile globs) — direct proof relevance signal",
     )
     touches_proof_files: bool = Field(
         default=False,
-        description="True if any .v file was modified",
+        description="True if any proof file (matching profile globs) was modified",
     )
     commit_class: CommitClass = Field(
         default=CommitClass.other,

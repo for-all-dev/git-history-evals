@@ -75,7 +75,7 @@ def print_stats(challenges: list[EvalChallenge]) -> None:
 
     for c in challenges:
         repos[c.repo] = repos.get(c.repo, 0) + 1
-        assistants[c.proof_assistant.value] = assistants.get(c.proof_assistant.value, 0) + 1
+        assistants[c.proof_assistant] = assistants.get(c.proof_assistant, 0) + 1
         total_holes += len(c.holes_filled)
 
     print(f"Total challenges: {len(challenges)}")

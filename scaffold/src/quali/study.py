@@ -5,10 +5,19 @@ from __future__ import annotations
 import json
 import os
 from pathlib import Path
+from typing import cast
 
 from pydantic_ai import Agent
 from rich.console import Console
-from rich.progress import Progress, SpinnerColumn, TextColumn, BarColumn, MofNCompleteColumn, TimeElapsedColumn, TimeRemainingColumn
+from rich.progress import (
+    Progress,
+    SpinnerColumn,
+    TextColumn,
+    BarColumn,
+    MofNCompleteColumn,
+    TimeElapsedColumn,
+    TimeRemainingColumn,
+)
 
 from .models import TrajectoryAnalysis
 
@@ -154,10 +163,15 @@ def format_trajectory_prompt(lifecycle: dict, enriched_timeline: list[dict]) -> 
 def create_agent(
     model: str = "anthropic:claude-sonnet-4-20250514",
 ) -> Agent[None, TrajectoryAnalysis]:
-    return Agent(
-        model,
-        output_type=TrajectoryAnalysis,
-        system_prompt=SYSTEM_PROMPT,
+    # pydantic-ai's Agent overloads don't propagate output_type into the
+    # inferred return type here (ty resolves Agent[None, str]); cast back.
+    return cast(
+        "Agent[None, TrajectoryAnalysis]",
+        Agent(
+            model,
+            output_type=TrajectoryAnalysis,
+            system_prompt=SYSTEM_PROMPT,
+        ),
     )
 
 
@@ -221,7 +235,9 @@ async def run_study(
             decl = lifecycle["declaration"]
             n = lifecycle["n_commits_with_hole"]
             d = lifecycle["days_to_prove"]
-            progress.update(task, description=f"[cyan]{decl}[/cyan] ({n} commits, {d}d)")
+            progress.update(
+                task, description=f"[cyan]{decl}[/cyan] ({n} commits, {d}d)"
+            )
 
             try:
                 analysis = await analyze_trajectory(agent, lifecycle, commit_index)
@@ -251,5 +267,7 @@ async def run_study(
 
             progress.advance(task)
 
-    console.print(f"\nWrote [bold]{len(results)}[/bold] analyses to [dim]{output_path}[/dim]")
+    console.print(
+        f"\nWrote [bold]{len(results)}[/bold] analyses to [dim]{output_path}[/dim]"
+    )
     return results
