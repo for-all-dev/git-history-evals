@@ -219,11 +219,29 @@ def _word_alternation(terms: list[str]) -> str:
     return r"\b(" + "|".join(re.escape(t) for t in ordered) + r")\b"
 
 
+def _normalize_exclude_globs(raw: list[str]) -> list[str]:
+    """Normalize exclude globs so bare directory names work.
+
+    Bare names like ``"vendor"`` are expanded to ``"vendor/*"`` so that
+    ``fnmatchcase("vendor/lib.v", "vendor/*")`` matches. Patterns that
+    already contain glob metacharacters (``*``, ``?``, ``[``) are kept
+    as-is.
+    """
+    out: list[str] = []
+    for g in raw:
+        if any(c in g for c in ("*", "?", "[")):
+            out.append(g)
+        else:
+            out.append(g.rstrip("/") + "/*")
+    return out
+
+
 @dataclass
 class CompiledProfile:
     """A RepoProfile with all regexes compiled and ready for per-commit use."""
 
     profile: RepoProfile
+    exclude_globs: list[str]
     hole_res: list[tuple[re.Pattern[str], str]]
     declaration_res: list[re.Pattern[str]]
     commit_signal_res: dict[str, re.Pattern[str]]
@@ -235,6 +253,7 @@ class CompiledProfile:
 
     @classmethod
     def from_profile(cls, profile: RepoProfile) -> CompiledProfile:
+        exclude_globs = _normalize_exclude_globs(profile.exclude_globs)
         # Defense-in-depth: wrap each section so a bad regex names the field.
         # The pydantic validators on RepoProfile catch most issues at
         # deserialization time; these try/excepts guard against profiles built
@@ -309,6 +328,7 @@ class CompiledProfile:
         tactic_groups_lower = {k.lower(): v for k, v in profile.tactic_groups.items()}
         return cls(
             profile=profile,
+            exclude_globs=exclude_globs,
             hole_res=hole_res,
             declaration_res=declaration_res,
             commit_signal_res=commit_signal_res,

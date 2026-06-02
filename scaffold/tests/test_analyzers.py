@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from scaffold.analyzers import ProfileAnalyzer
+from scaffold.profile import HoleMarker, RepoProfile
 
 
 class TestCoqAnalyzer:
@@ -92,3 +93,48 @@ class TestLeanAnalyzer:
     def test_matches_file(self, lean_analyzer: ProfileAnalyzer) -> None:
         assert lean_analyzer.matches_file("Mathlib/Foo.lean")
         assert not lean_analyzer.matches_file("proof.v")
+
+
+class TestExcludeGlobs:
+    """Tests that exclude_globs is respected by matches_file."""
+
+    @staticmethod
+    def _analyzer(exclude_globs: list[str]) -> ProfileAnalyzer:
+        profile = RepoProfile(
+            proof_assistant="coq",
+            proof_file_globs=["*.v"],
+            exclude_globs=exclude_globs,
+            hole_markers=[HoleMarker(regex=r"\bAdmitted\b", kind="admitted")],
+            declaration_patterns=[],
+        )
+        return ProfileAnalyzer(profile.compiled())
+
+    def test_excluded_path_rejected(self) -> None:
+        analyzer = self._analyzer(["vendor/*"])
+        assert not analyzer.matches_file("vendor/lib.v")
+
+    def test_non_excluded_path_accepted(self) -> None:
+        analyzer = self._analyzer(["vendor/*"])
+        assert analyzer.matches_file("src/proof.v")
+
+    def test_multiple_exclude_globs(self) -> None:
+        analyzer = self._analyzer(["vendor/*", "third_party/*", "_build/*"])
+        assert not analyzer.matches_file("vendor/lib.v")
+        assert not analyzer.matches_file("third_party/dep.v")
+        assert not analyzer.matches_file("_build/output.v")
+        assert analyzer.matches_file("src/main.v")
+
+    def test_empty_exclude_globs(self) -> None:
+        analyzer = self._analyzer([])
+        assert analyzer.matches_file("vendor/lib.v")
+
+    def test_bare_directory_name_normalized(self) -> None:
+        """Bare names like 'vendor' (no glob chars) should exclude 'vendor/*'."""
+        analyzer = self._analyzer(["vendor"])
+        assert not analyzer.matches_file("vendor/lib.v")
+        assert analyzer.matches_file("src/proof.v")
+
+    def test_nested_path_excluded(self) -> None:
+        """fnmatchcase's * matches / in Python, so vendor/* excludes nested paths."""
+        analyzer = self._analyzer(["vendor/*"])
+        assert not analyzer.matches_file("vendor/sub/deeply/nested/lib.v")

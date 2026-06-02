@@ -9,7 +9,6 @@ import hashlib
 import logging
 import subprocess
 from dataclasses import dataclass
-from fnmatch import fnmatchcase
 from pathlib import Path
 
 from scaffold.analyzers import ProfileAnalyzer
@@ -326,12 +325,9 @@ def dump_commits(
 
     A single ``git log --numstat`` call is used to avoid per-commit subprocess
     overhead across potentially thousands of commits. Proof-file membership is
-    decided by the profile's ``proof_file_globs``.
+    decided by the profile's ``proof_file_globs`` minus ``exclude_globs``.
     """
-    globs = compiled.profile.proof_file_globs
-
-    def _is_proof_file(path: str) -> bool:
-        return any(fnmatchcase(path, g) for g in globs)
+    analyzer = ProfileAnalyzer(compiled)
 
     cmd = [
         "log",
@@ -382,7 +378,7 @@ def dump_commits(
             total_add += add
             total_del += sub
 
-        proof_files = [f for f in all_files if _is_proof_file(f)]
+        proof_files = [f for f in all_files if analyzer.matches_file(f)]
 
         records.append(
             CommitRecord(
