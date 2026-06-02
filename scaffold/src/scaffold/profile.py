@@ -120,7 +120,13 @@ class RepoProfile(BaseModel):
     )
     classification_priority: list[str] = Field(
         default_factory=lambda: list(DEFAULT_CLASSIFICATION_PRIORITY),
-        description="Order in which commit classes are tried (highest priority first).",
+        description=(
+            "Order in which commit classes are tried (highest priority first). "
+            "classify_commit iterates this list and the first matching class wins. "
+            "Valid entries: infra, proof_complete, spec_change, proof_new, proof_add, "
+            "refactor, fix. proof_optimise is excluded: it is derived from diffs, "
+            "not message signals."
+        ),
     )
 
     # --- tactic / proof-style analysis --------------------------------------
@@ -230,9 +236,7 @@ class CompiledProfile:
         keyword_re = re.compile(_word_alternation(keyword_terms), re.IGNORECASE)
         # Normalize tactic_groups keys to lowercase so lookups from the
         # lowercased tactic tags (git_walker diff extraction) always match.
-        tactic_groups_lower = {
-            k.lower(): v for k, v in profile.tactic_groups.items()
-        }
+        tactic_groups_lower = {k.lower(): v for k, v in profile.tactic_groups.items()}
         return cls(
             profile=profile,
             hole_res=hole_res,

@@ -9,12 +9,20 @@ lives here; the regexes it consults live in the profile.
 from __future__ import annotations
 
 import logging
+from collections.abc import Callable
 from pathlib import Path
 
 from scaffold.models import CommitClass, CommitRecord
 from scaffold.profile import CompiledProfile
 
 logger = logging.getLogger(__name__)
+
+# Type alias for per-class checker functions.
+# Each takes (record, text, subject, has, has_ctx) and returns a CommitClass
+# if the check matched, or None to defer to the next priority.
+_HasFn = Callable[[str, str], bool]
+_HasCtxFn = Callable[[str], bool]
+_CheckerFn = Callable[[CommitRecord, str, str, _HasFn, _HasCtxFn], CommitClass | None]
 
 
 # ---------------------------------------------------------------------------
@@ -60,18 +68,141 @@ def assign_tactic_groups(
 # ---------------------------------------------------------------------------
 
 
+def _check_infra(
+    record: CommitRecord,
+    text: str,
+    subject: str,
+    has: _HasFn,
+    has_ctx: _HasCtxFn,
+) -> CommitClass | None:
+    """Infrastructure noise — check subject only to avoid body false positives."""
+    if has("infra", subject) and not has_ctx(subject):
+        return CommitClass.infra
+    return None
+
+
+def _check_proof_complete(
+    record: CommitRecord,
+    text: str,
+    subject: str,
+    has: _HasFn,
+    has_ctx: _HasCtxFn,
+) -> CommitClass | None:
+    """Explicit hole closure language, plus a structural heuristic."""
+    if has("proof_complete", text) and has_ctx(text):
+        return CommitClass.proof_complete
+    # Structural heuristic for body-free commits: net deletions in proof files
+    # with proof-context subject => likely a hole was removed.
+    if (
+        record.touches_proof_files
+        and record.deletions > record.insertions
+        and not record.message_body
+        and has_ctx(text)
+        and not has("infra", text)
+    ):
+        return CommitClass.proof_complete
+    return None
+
+
+def _check_spec_change(
+    record: CommitRecord,
+    text: str,
+    subject: str,
+    has: _HasFn,
+    has_ctx: _HasCtxFn,
+) -> CommitClass | None:
+    """Statement-level edits on proof files."""
+    if has("spec_change", text) and record.touches_proof_files:
+        return CommitClass.spec_change
+    return None
+
+
+def _check_proof_new(
+    record: CommitRecord,
+    text: str,
+    subject: str,
+    has: _HasFn,
+    has_ctx: _HasCtxFn,
+) -> CommitClass | None:
+    """New lemma or theorem added with a proof."""
+    if has("proof_new", text) and record.touches_proof_files:
+        return CommitClass.proof_new
+    return None
+
+
+def _check_proof_add(
+    record: CommitRecord,
+    text: str,
+    subject: str,
+    has: _HasFn,
+    has_ctx: _HasCtxFn,
+) -> CommitClass | None:
+    """Partial or incremental proof work."""
+    if has("proof_add", text) and record.touches_proof_files:
+        return CommitClass.proof_add
+    return None
+
+
+def _check_refactor(
+    record: CommitRecord,
+    text: str,
+    subject: str,
+    has: _HasFn,
+    has_ctx: _HasCtxFn,
+) -> CommitClass | None:
+    """Refactoring — reclassified to proof_add when touching proof files."""
+    if has("refactor", text):
+        if record.touches_proof_files:
+            return CommitClass.proof_add
+        return CommitClass.refactor
+    return None
+
+
+def _check_fix(
+    record: CommitRecord,
+    text: str,
+    subject: str,
+    has: _HasFn,
+    has_ctx: _HasCtxFn,
+) -> CommitClass | None:
+    """Bug fix — reclassified to proof_add when touching proof files."""
+    if has("fix", text):
+        if record.touches_proof_files:
+            return CommitClass.proof_add
+        return CommitClass.fix
+    return None
+
+
+# Map of class name → checker function.  Iterated in the order given by
+# ``RepoProfile.classification_priority`` so reordering the list changes
+# which class wins when multiple signals match.
+_CLASSIFIERS: dict[str, _CheckerFn] = {
+    "infra": _check_infra,
+    "proof_complete": _check_proof_complete,
+    "spec_change": _check_spec_change,
+    "proof_new": _check_proof_new,
+    "proof_add": _check_proof_add,
+    "refactor": _check_refactor,
+    "fix": _check_fix,
+}
+
+
 def classify_commit(record: CommitRecord, compiled: CompiledProfile) -> CommitClass:
     """Classify a CommitRecord using the profile's signal banks.
 
-    Priority order (highest wins) — structure preserved from the original
-    hand-tuned classifier; only the regexes are now profile-supplied:
+    The check order is determined by ``compiled.profile.classification_priority``
+    (highest priority first). Each entry names a commit class whose checker
+    function is called in turn; the first match wins. Default order:
+
       1. infra          — dependency bumps / CI are almost never proof-relevant
       2. proof_complete — a hole was removed / proof closed
       3. spec_change    — theorem statement was changed
       4. proof_new      — new lemma/theorem added with a proof
       5. proof_add      — partial proof work (goals still open)
       6. refactor / fix (on proof files -> proof_add; else their own class)
-      7. other
+
+    After all priority entries are exhausted, any remaining commit that touches
+    proof files is classified as ``proof_add``; everything else as ``other``.
     """
     sig = compiled.commit_signal_res
     ctx = compiled.proof_context_re
@@ -86,49 +217,15 @@ def classify_commit(record: CommitRecord, compiled: CompiledProfile) -> CommitCl
     text = f"{record.message_subject} {record.message_body}".lower()
     subject = record.message_subject.lower()
 
-    # 1. Infrastructure noise — check subject only to avoid body false positives.
-    if has("infra", subject) and not has_ctx(subject):
-        return CommitClass.infra
+    for class_name in compiled.profile.classification_priority:
+        checker = _CLASSIFIERS.get(class_name)
+        if checker is None:
+            continue
+        result = checker(record, text, subject, has, has_ctx)
+        if result is not None:
+            return result
 
-    # 2. proof_complete — explicit hole closure language.
-    if has("proof_complete", text) and has_ctx(text):
-        return CommitClass.proof_complete
-
-    # Structural heuristic for body-free commits: net deletions in proof files
-    # with proof-context subject => likely a hole was removed.
-    if (
-        record.touches_proof_files
-        and record.deletions > record.insertions
-        and not record.message_body
-        and has_ctx(text)
-        and not has("infra", text)
-    ):
-        return CommitClass.proof_complete
-
-    # 3. spec_change — statement-level edits.
-    if has("spec_change", text) and record.touches_proof_files:
-        return CommitClass.spec_change
-
-    # 4. proof_new — new lemma or theorem added.
-    if has("proof_new", text) and record.touches_proof_files:
-        return CommitClass.proof_new
-
-    # 5. proof_add — partial or incremental proof work.
-    if has("proof_add", text) and record.touches_proof_files:
-        return CommitClass.proof_add
-
-    # 6. refactor / fix touching proof files -> proof_add.
-    if record.touches_proof_files:
-        if has("refactor", text) or has("fix", text):
-            return CommitClass.proof_add
-
-    # 7. refactor / fix on non-proof files stay as their own class.
-    if has("refactor", text):
-        return CommitClass.refactor
-    if has("fix", text):
-        return CommitClass.fix
-
-    # 8. Any remaining proof-file-touching commit -> proof_add.
+    # Fallback: any remaining proof-file-touching commit -> proof_add.
     if record.touches_proof_files:
         return CommitClass.proof_add
 
