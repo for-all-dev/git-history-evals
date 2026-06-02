@@ -7,6 +7,7 @@ and CompiledProfile.from_profile() wraps compilation per field as defense-in-dep
 
 from __future__ import annotations
 
+from pathlib import Path
 
 import pytest
 from pydantic import ValidationError
@@ -119,7 +120,7 @@ def test_compiled_profile_bad_hole_markers() -> None:
         structural_terms=[],
         domain_terms=[],
     )
-    with pytest.raises(ValueError, match="hole_markers"):
+    with pytest.raises(ValueError, match=r"hole_markers\[0\]"):
         CompiledProfile.from_profile(profile)
 
 
@@ -137,7 +138,7 @@ def test_compiled_profile_bad_declaration_patterns() -> None:
         structural_terms=[],
         domain_terms=[],
     )
-    with pytest.raises(ValueError, match="declaration_patterns"):
+    with pytest.raises(ValueError, match=r"declaration_patterns\[0\]"):
         CompiledProfile.from_profile(profile)
 
 
@@ -192,14 +193,14 @@ def test_compiled_profile_bad_proof_style_signal() -> None:
         structural_terms=[],
         domain_terms=[],
     )
-    with pytest.raises(ValueError, match="proof_style_signals"):
+    with pytest.raises(ValueError, match=r"proof_style_signals\.ssreflect"):
         CompiledProfile.from_profile(profile)
 
 
 # ── test_profile tool integration ─────────────────────────────────────────
 
 
-def test_test_profile_surfaces_bad_regex(tmp_path: pytest.TempPathFactory) -> None:
+def test_test_profile_surfaces_bad_regex(tmp_path: Path) -> None:
     """The test_profile tool returns the validation error, not a crash.
 
     This verifies the claim from the issue: pydantic validators on RepoProfile

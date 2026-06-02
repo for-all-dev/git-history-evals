@@ -239,16 +239,20 @@ class CompiledProfile:
         # The pydantic validators on RepoProfile catch most issues at
         # deserialization time; these try/excepts guard against profiles built
         # programmatically without going through model_validate().
-        try:
-            hole_res = [(re.compile(h.regex), h.kind) for h in profile.hole_markers]
-        except re.error as e:
-            raise ValueError(f"invalid regex in hole_markers: {e}") from e
-        try:
-            declaration_res = [
-                re.compile(p, re.MULTILINE) for p in profile.declaration_patterns
-            ]
-        except re.error as e:
-            raise ValueError(f"invalid regex in declaration_patterns: {e}") from e
+        hole_res: list[tuple[re.Pattern[str], str]] = []
+        for i, h in enumerate(profile.hole_markers):
+            try:
+                hole_res.append((re.compile(h.regex), h.kind))
+            except re.error as e:
+                raise ValueError(f"invalid regex in hole_markers[{i}]: {e}") from e
+        declaration_res: list[re.Pattern[str]] = []
+        for i, p in enumerate(profile.declaration_patterns):
+            try:
+                declaration_res.append(re.compile(p, re.MULTILINE))
+            except re.error as e:
+                raise ValueError(
+                    f"invalid regex in declaration_patterns[{i}]: {e}"
+                ) from e
 
         # Validate individual commit signals before joining with "|".
         commit_signal_res: dict[str, re.Pattern[str]] = {}
@@ -283,13 +287,14 @@ class CompiledProfile:
             r"(?:^|[\s;|{(])(" + tactic_alt + r")(?:\s|[.;()\[\]{]|$)",
             re.IGNORECASE | re.MULTILINE,
         )
-        try:
-            proof_style_res = {
-                name: re.compile(rx, re.MULTILINE)
-                for name, rx in profile.proof_style_signals.items()
-            }
-        except re.error as e:
-            raise ValueError(f"invalid regex in proof_style_signals: {e}") from e
+        proof_style_res: dict[str, re.Pattern[str]] = {}
+        for name, rx in profile.proof_style_signals.items():
+            try:
+                proof_style_res[name] = re.compile(rx, re.MULTILINE)
+            except re.error as e:
+                raise ValueError(
+                    f"invalid regex in proof_style_signals.{name}: {e}"
+                ) from e
         # Keyword extraction matches over the union of hole kinds + structural + tactic + domain.
         hole_kinds = [h.kind for h in profile.hole_markers]
         keyword_terms = (
