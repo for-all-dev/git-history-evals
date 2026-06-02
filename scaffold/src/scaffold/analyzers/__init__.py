@@ -28,6 +28,8 @@ class ProfileAnalyzer:
 
     def matches_file(self, path: str) -> bool:
         """True if ``path`` is a proof file under any of the profile's globs."""
+        if any(fnmatchcase(path, g) for g in self._c.profile.exclude_globs):
+            return False
         return any(fnmatchcase(path, g) for g in self._c.profile.proof_file_globs)
 
     def find_holes(self, content: str, file_path: str = "") -> list[ProofHole]:

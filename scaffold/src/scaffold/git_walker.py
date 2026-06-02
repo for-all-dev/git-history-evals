@@ -329,8 +329,11 @@ def dump_commits(
     decided by the profile's ``proof_file_globs``.
     """
     globs = compiled.profile.proof_file_globs
+    excludes = compiled.profile.exclude_globs
 
     def _is_proof_file(path: str) -> bool:
+        if any(fnmatchcase(path, g) for g in excludes):
+            return False
         return any(fnmatchcase(path, g) for g in globs)
 
     cmd = [
