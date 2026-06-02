@@ -175,7 +175,8 @@ def _check_fix(
 
 # Map of class name → checker function.  Iterated in the order given by
 # ``RepoProfile.classification_priority`` so reordering the list changes
-# which class wins when multiple signals match.
+# which class wins when multiple signals match.  The insertion order of
+# this dict is irrelevant; only the profile's priority list matters.
 _CLASSIFIERS: dict[str, _CheckerFn] = {
     "infra": _check_infra,
     "proof_complete": _check_proof_complete,
@@ -220,6 +221,10 @@ def classify_commit(record: CommitRecord, compiled: CompiledProfile) -> CommitCl
     for class_name in compiled.profile.classification_priority:
         checker = _CLASSIFIERS.get(class_name)
         if checker is None:
+            logger.warning(
+                "Unknown class %r in classification_priority, skipping",
+                class_name,
+            )
             continue
         result = checker(record, text, subject, has, has_ctx)
         if result is not None:

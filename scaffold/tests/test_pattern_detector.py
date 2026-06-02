@@ -139,6 +139,49 @@ class TestDefaultPriority:
         rec = _make_record(message_subject="Update readme")
         assert classify_commit(rec, compiled) == CommitClass.other
 
+    def test_refactor_and_fix_dual_match_on_proof_files(self, compiled):
+        """Commit matching both refactor and fix on proof files → proof_add."""
+        rec = _make_record(
+            message_subject="Refactor to fix proof regression",
+            touches_proof_files=True,
+        )
+        assert classify_commit(rec, compiled) == CommitClass.proof_add
+
+    def test_refactor_and_fix_dual_match_on_non_proof_files(self, compiled):
+        """Commit matching both refactor and fix on non-proof files → refactor
+        (refactor is checked before fix in default priority)."""
+        rec = _make_record(message_subject="Refactor to fix build regression")
+        assert classify_commit(rec, compiled) == CommitClass.refactor
+
+    def test_signal_in_body_not_subject(self, compiled):
+        """A signal in the message body (not subject) should still match."""
+        rec = _make_record(
+            message_subject="Misc updates",
+            message_body="This change will complete the proof obligation.",
+            touches_proof_files=True,
+        )
+        assert classify_commit(rec, compiled) == CommitClass.proof_complete
+
+    def test_proof_add_signal_on_non_proof_files(self, compiled):
+        """proof_add requires touches_proof_files; without it → other."""
+        rec = _make_record(message_subject="Progress on documentation")
+        assert classify_commit(rec, compiled) == CommitClass.other
+
+    def test_no_proof_context_regex(self):
+        """Empty proof_context_regex: infra always fires (guard is vacuous),
+        proof_complete signal never fires (context required)."""
+        profile = _make_profile(proof_context_regex="")
+        compiled = profile.compiled()
+        # Infra: no context guard to block it.
+        rec_infra = _make_record(message_subject="Bump proof deps")
+        assert classify_commit(rec_infra, compiled) == CommitClass.infra
+        # proof_complete signal: requires has_ctx which always returns False.
+        rec_pc = _make_record(
+            message_subject="Complete proof of theorem",
+            touches_proof_files=True,
+        )
+        assert classify_commit(rec_pc, compiled) != CommitClass.proof_complete
+
 
 # ── Priority reordering ──────────────────────────────────────────────────
 
@@ -214,8 +257,27 @@ class TestPriorityReordering:
         # With default priority this would be infra; now it falls through to other.
         assert classify_commit(rec, compiled) == CommitClass.other
 
-    def test_unknown_class_name_ignored(self):
-        """An unknown entry in classification_priority is silently skipped."""
+    def test_fix_before_refactor_dual_match(self):
+        """When fix has higher priority than refactor, a dual-match commit
+        on non-proof files gets fix instead of refactor."""
+        rec = _make_record(message_subject="Refactor to fix build regression")
+        default_compiled = _make_profile().compiled()
+        assert classify_commit(rec, default_compiled) == CommitClass.refactor
+        swapped = _make_profile(
+            classification_priority=[
+                "infra",
+                "proof_complete",
+                "spec_change",
+                "proof_new",
+                "proof_add",
+                "fix",
+                "refactor",
+            ],
+        ).compiled()
+        assert classify_commit(rec, swapped) == CommitClass.fix
+
+    def test_unknown_class_name_warns_and_skips(self):
+        """An unknown entry in classification_priority logs a warning and is skipped."""
         profile = _make_profile(
             classification_priority=[
                 "imaginary_class",
