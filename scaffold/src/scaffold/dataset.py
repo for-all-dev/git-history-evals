@@ -242,9 +242,12 @@ def promote_profile(dv: DatasetVersion) -> Path:
     another version repoints the link. Returns the symlink path.
     """
     blessed = dv.path.parent / "profile.json"
-    if blessed.is_symlink() or blessed.exists():
-        blessed.unlink()
-    blessed.symlink_to(Path(dv.version) / "miner" / "profile.json")
+    target = Path(dv.version) / "miner" / "profile.json"
+    # Atomic swap via a temporary symlink to avoid a TOCTOU race between
+    # unlink() and symlink_to().
+    tmp = blessed.with_suffix(".json.tmp")
+    tmp.symlink_to(target)
+    tmp.rename(blessed)
     return blessed
 
 

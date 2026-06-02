@@ -213,7 +213,7 @@ def diff_enrich(
 
     compiled = _load_compiled(profile)
     records = read_commit_records(input_path)
-    to_enrich = [r for r in records if r.coq_files_changed] if only_proof else records
+    to_enrich = [r for r in records if r.proof_files_changed] if only_proof else records
     enrich_hashes = {r.hash for r in to_enrich}
     keep = [r for r in records if r.hash not in enrich_hashes] if only_proof else []
 
@@ -363,7 +363,7 @@ def profile(
     promote: bool = typer.Option(
         False,
         "--promote",
-        help="Also copy this profile to the blessed <repo>-eval/profile.json that mine-all uses",
+        help="Symlink <repo>-eval/profile.json to this version's profile (the blessed profile mine-all uses)",
     ),
     artifacts_dir: Path = typer.Option(
         None,

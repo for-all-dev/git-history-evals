@@ -186,6 +186,7 @@ class CompiledProfile:
     tactic_re: re.Pattern[str]
     proof_style_res: dict[str, re.Pattern[str]]
     keyword_re: re.Pattern[str]
+    tactic_groups_lower: dict[str, str]
 
     @classmethod
     def from_profile(cls, profile: RepoProfile) -> CompiledProfile:
@@ -227,6 +228,11 @@ class CompiledProfile:
             + profile.domain_terms
         )
         keyword_re = re.compile(_word_alternation(keyword_terms), re.IGNORECASE)
+        # Normalize tactic_groups keys to lowercase so lookups from the
+        # lowercased tactic tags (git_walker diff extraction) always match.
+        tactic_groups_lower = {
+            k.lower(): v for k, v in profile.tactic_groups.items()
+        }
         return cls(
             profile=profile,
             hole_res=hole_res,
@@ -236,6 +242,7 @@ class CompiledProfile:
             tactic_re=tactic_re,
             proof_style_res=proof_style_res,
             keyword_re=keyword_re,
+            tactic_groups_lower=tactic_groups_lower,
         )
 
 

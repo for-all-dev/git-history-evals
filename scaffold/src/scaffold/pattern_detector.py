@@ -44,7 +44,7 @@ def assign_tactic_groups(
     tactic_tags: list[str], compiled: CompiledProfile
 ) -> list[str]:
     """Map a list of tactic names to their unique behavioural groups."""
-    groups_map = compiled.profile.tactic_groups
+    groups_map = compiled.tactic_groups_lower
     seen: set[str] = set()
     groups: list[str] = []
     for t in tactic_tags:
@@ -163,7 +163,7 @@ def enrich_record_with_diff(
     """
     from scaffold.git_walker import analyze_proof_diff
 
-    if not record.coq_files_changed:
+    if not record.proof_files_changed:
         return record
 
     parent = record.parent_hashes[0] if record.parent_hashes else ""
@@ -171,7 +171,7 @@ def enrich_record_with_diff(
         repo_path,
         parent,
         record.hash,
-        record.coq_files_changed,
+        record.proof_files_changed,
         compiled,
     )
 

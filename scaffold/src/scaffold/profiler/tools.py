@@ -224,7 +224,13 @@ def build_tools(deps: ProfilerDeps) -> dict[str, Callable]:
         try:
             rx = re.compile(pattern, re.MULTILINE)
         except re.error as exc:
-            return {"error": f"bad regex: {exc}", "total_matches": 0}
+            return {
+                "total_matches": 0,
+                "files_with_match": 0,
+                "files_scanned": 0,
+                "files_total": 0,
+                "error": f"bad regex: {exc}",
+            }
         res = _run_git(repo, "ls-files", check=False)
         files = [f for f in res.stdout.splitlines() if f and fnmatchcase(f, scope)]
         scanned = files[: deps.max_files_scanned]
@@ -310,9 +316,9 @@ def build_tools(deps: ProfilerDeps) -> dict[str, Callable]:
 
         # Classification + tactic signal over the same sample.
         records = dump_commits(repo, compiled, max_commits=n)
-        coq = [r for r in records if r.touches_proof_files]
+        proof_records = [r for r in records if r.touches_proof_files]
         enriched = []
-        for r in coq:
+        for r in proof_records:
             r = enrich_record(r, compiled)
             r = enrich_record_with_diff(r, repo, compiled)
             enriched.append(r)
@@ -326,14 +332,14 @@ def build_tools(deps: ProfilerDeps) -> dict[str, Callable]:
 
         deps.log.append(
             f"test_profile commits={n} challenges={mined.total_challenges} "
-            f"proof_commits={len(coq)}"
+            f"proof_commits={len(proof_records)}"
         )
         return {
             "ok": True,
             "error": "",
             "commits_scanned": mined.total_commits_scanned,
             "challenges_mined": mined.total_challenges,
-            "proof_file_commits": len(coq),
+            "proof_file_commits": len(proof_records),
             "example_challenges": examples,
             "commit_class_distribution": dict(class_dist.most_common()),
             "top_tactic_tags": dict(tactic_dist.most_common(20)),

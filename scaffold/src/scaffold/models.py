@@ -145,13 +145,13 @@ class CommitRecord(BaseModel):
         default_factory=list,
         description="All file paths touched by this commit",
     )
-    coq_files_changed: list[str] = Field(
+    proof_files_changed: list[str] = Field(
         default_factory=list,
-        description=".v files touched — direct proof relevance signal",
+        description="Proof files touched (matching profile globs) — direct proof relevance signal",
     )
     touches_proof_files: bool = Field(
         default=False,
-        description="True if any .v file was modified",
+        description="True if any proof file (matching profile globs) was modified",
     )
     commit_class: CommitClass = Field(
         default=CommitClass.other,

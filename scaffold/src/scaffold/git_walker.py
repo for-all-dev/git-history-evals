@@ -138,7 +138,7 @@ def analyze_proof_diff(
     repo_path: str | Path,
     parent_hash: str,
     commit_hash: str,
-    coq_files: list[str],
+    proof_files: list[str],
     compiled: CompiledProfile,
 ) -> dict:
     """Read the actual diff for proof files and return proof-content signals.
@@ -161,7 +161,7 @@ def analyze_proof_diff(
         "proof_style": [],
     }
 
-    if not coq_files or not parent_hash:
+    if not proof_files or not parent_hash:
         return empty
 
     result = _run_git(
@@ -170,7 +170,7 @@ def analyze_proof_diff(
         parent_hash,
         commit_hash,
         "--",
-        *coq_files,
+        *proof_files,
         check=False,
     )
     if result.returncode != 0 or not result.stdout:
@@ -382,7 +382,7 @@ def dump_commits(
             total_add += add
             total_del += sub
 
-        coq_files = [f for f in all_files if _is_proof_file(f)]
+        proof_files = [f for f in all_files if _is_proof_file(f)]
 
         records.append(
             CommitRecord(
@@ -397,8 +397,8 @@ def dump_commits(
                 insertions=total_add,
                 deletions=total_del,
                 changed_files=all_files,
-                coq_files_changed=coq_files,
-                touches_proof_files=bool(coq_files),
+                proof_files_changed=proof_files,
+                touches_proof_files=bool(proof_files),
             )
         )
 

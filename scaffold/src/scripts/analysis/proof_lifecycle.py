@@ -113,7 +113,7 @@ all_commits_sorted.sort(key=lambda r: r["date"])
 # Index commits by which files they touch
 file_to_commit_hashes: dict[str, list[str]] = defaultdict(list)
 for r in all_commits_sorted:
-    for fp in r.get("coq_files_changed", []):
+    for fp in r.get("proof_files_changed", []):
         file_to_commit_hashes[fp].append(r["hash"])
 
 # ---------------------------------------------------------------------------
