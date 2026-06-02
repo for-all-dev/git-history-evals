@@ -2088,6 +2088,7 @@ dependencies = [
     { name = "pydantic" },
     { name = "pydantic-ai" },
     { name = "pydantic-ai-harness", extra = ["code-mode"] },
+    { name = "python-dotenv" },
     { name = "rich" },
     { name = "typer" },
 ]
@@ -2107,6 +2108,7 @@ requires-dist = [
     { name = "pydantic", specifier = ">=2.12.5" },
     { name = "pydantic-ai", specifier = ">=1.76.0" },
     { name = "pydantic-ai-harness", extras = ["code-mode"], specifier = ">=0.3.0" },
+    { name = "python-dotenv", specifier = ">=1.2.2" },
     { name = "rich", specifier = ">=14.3.2" },
     { name = "typer", specifier = ">=0.24.0" },
 ]
