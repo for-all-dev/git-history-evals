@@ -27,8 +27,8 @@ class ProfileAnalyzer:
         return self._c.profile.proof_assistant
 
     def matches_file(self, path: str) -> bool:
-        """True if ``path`` is a proof file under any of the profile's globs."""
-        if any(fnmatchcase(path, g) for g in self._c.profile.exclude_globs):
+        """True if ``path`` is a proof file under the profile's globs, excluding ``exclude_globs``."""
+        if any(fnmatchcase(path, g) for g in self._c.exclude_globs):
             return False
         return any(fnmatchcase(path, g) for g in self._c.profile.proof_file_globs)
 
