@@ -43,12 +43,22 @@ class RawCommit:
 def _run_git(
     repo_path: str | Path, *args: str, check: bool = True
 ) -> subprocess.CompletedProcess[str]:
-    """Run a git command in the given repo."""
-    return subprocess.run(
+    """Run a git command in the given repo.
+
+    Uses ``errors="replace"`` so that non-UTF-8 bytes (e.g. Latin-1 French
+    comments in early CompCert history) are replaced with U+FFFD instead of
+    raising ``UnicodeDecodeError``.
+    """
+    result = subprocess.run(
         ["git", "-C", str(repo_path), *args],
         capture_output=True,
-        text=True,
         check=check,
+    )
+    return subprocess.CompletedProcess(
+        args=result.args,
+        returncode=result.returncode,
+        stdout=result.stdout.decode("utf-8", errors="replace"),
+        stderr=result.stderr.decode("utf-8", errors="replace"),
     )
 
 
