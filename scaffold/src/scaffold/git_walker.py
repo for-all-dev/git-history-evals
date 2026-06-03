@@ -7,12 +7,19 @@ from __future__ import annotations
 
 import hashlib
 import logging
+import re
 import subprocess
 from dataclasses import dataclass
 from pathlib import Path
 
 from scaffold.analyzers import ProfileAnalyzer
-from scaffold.models import CommitRecord, EvalChallenge, MiningResult
+from scaffold.models import (
+    ChallengeType,
+    CommitClass,
+    CommitRecord,
+    EvalChallenge,
+    MiningResult,
+)
 from scaffold.profile import CompiledProfile
 
 logger = logging.getLogger(__name__)
@@ -306,6 +313,402 @@ def mine_commit(
         )
 
     return challenges
+
+
+# ---------------------------------------------------------------------------
+# Declaration-aware parsing (for spec_change splicing)
+# ---------------------------------------------------------------------------
+
+# Coq proof-start and proof-end patterns.
+_PROOF_START_RE = re.compile(r"^\s*Proof\b", re.MULTILINE)
+_PROOF_END_RE = re.compile(r"^\s*(?:Qed|Defined|Admitted|Abort)\s*\.", re.MULTILINE)
+# Coq declaration keyword that introduces a named theorem/lemma.
+_COQ_DECL_RE = re.compile(
+    r"^\s*(?:Theorem|Lemma|Proposition|Corollary|Fact|Remark|Example"
+    r"|Definition|Fixpoint|Program)\s+(\w+)",
+    re.MULTILINE,
+)
+
+
+@dataclass
+class DeclSpan:
+    """A parsed declaration span with its statement and proof body."""
+
+    name: str
+    # Line offsets (0-based) in the source file.
+    decl_start: int  # first line of the declaration
+    proof_start: int | None  # line of ``Proof.`` (None if no explicit Proof)
+    proof_end: int  # line of ``Qed.``/``Defined.``/``Admitted.``
+    # Extracted text slices.
+    statement: str  # from decl keyword up to (but not including) Proof.
+    proof_body: str  # from Proof. through Qed./Defined.
+
+
+def parse_decl_spans(
+    content: str, declaration_res: list[re.Pattern[str]]
+) -> list[DeclSpan]:
+    """Parse top-level declaration spans from Coq-like source content.
+
+    Returns a list of ``DeclSpan`` objects sorted by position. Each span
+    covers the declaration statement (up to ``Proof.``) and the proof body
+    (``Proof.`` through the terminator ``Qed.``/``Defined.``/``Admitted.``).
+
+    Falls back to ``_COQ_DECL_RE`` if *declaration_res* is empty.
+    """
+    decl_patterns = declaration_res or [_COQ_DECL_RE]
+    lines = content.splitlines()
+
+    # Find all declaration start positions: (line_idx, name).
+    decl_starts: list[tuple[int, str]] = []
+    for i, line in enumerate(lines):
+        for pat in decl_patterns:
+            m = pat.search(line)
+            if m:
+                decl_starts.append((i, m.group(1)))
+                break  # one match per line is enough
+
+    if not decl_starts:
+        return []
+
+    spans: list[DeclSpan] = []
+    for idx, (decl_line, name) in enumerate(decl_starts):
+        # Search range: from this decl to the next decl (or EOF).
+        end_bound = (
+            decl_starts[idx + 1][0] if idx + 1 < len(decl_starts) else len(lines)
+        )
+        region = "\n".join(lines[decl_line:end_bound])
+
+        # Find ``Proof.`` within the region.
+        pm = _PROOF_START_RE.search(region)
+        if pm:
+            # Count newlines up to the match to get relative line offset.
+            proof_line_rel = region[: pm.start()].count("\n")
+            proof_line_abs = decl_line + proof_line_rel
+            statement = "\n".join(lines[decl_line:proof_line_abs])
+        else:
+            proof_line_abs = None
+            # No explicit Proof. — statement is the declaration line itself.
+            statement = lines[decl_line]
+
+        # Find the proof terminator.
+        search_start = (proof_line_abs - decl_line) if proof_line_abs is not None else 0
+        # Search after the Proof. line (or from the decl line).
+        tail = "\n".join(lines[decl_line + search_start : end_bound])
+        em = _PROOF_END_RE.search(tail)
+        if em:
+            end_line_rel = tail[: em.start()].count("\n")
+            end_line_abs = decl_line + search_start + end_line_rel
+        else:
+            # No terminator found — skip this declaration.
+            continue
+
+        body_start = proof_line_abs if proof_line_abs is not None else decl_line
+        proof_body = "\n".join(lines[body_start : end_line_abs + 1])
+
+        spans.append(
+            DeclSpan(
+                name=name,
+                decl_start=decl_line,
+                proof_start=proof_line_abs,
+                proof_end=end_line_abs,
+                statement=statement,
+                proof_body=proof_body,
+            )
+        )
+
+    return spans
+
+
+def splice_spec_change(
+    parent_content: str,
+    child_content: str,
+    declaration_res: list[re.Pattern[str]],
+) -> tuple[str, list[str]] | None:
+    """Create a spec_change challenge by splicing new statement + old proof.
+
+    Returns ``(spliced_content, changed_decl_names)`` or ``None`` if no
+    statement changed between parent and child.
+    """
+    parent_spans = parse_decl_spans(parent_content, declaration_res)
+    child_spans = parse_decl_spans(child_content, declaration_res)
+
+    parent_by_name = {s.name: s for s in parent_spans}
+    child_by_name = {s.name: s for s in child_spans}
+
+    changed_names: list[str] = []
+    for name, child_span in child_by_name.items():
+        parent_span = parent_by_name.get(name)
+        if parent_span is None:
+            continue
+        # Statement changed but same declaration exists in both.
+        if child_span.statement.strip() != parent_span.statement.strip():
+            changed_names.append(name)
+
+    if not changed_names:
+        return None
+
+    # Build spliced content: start with child content, then for each changed
+    # declaration, replace the child's proof body with the parent's proof body.
+    child_lines = child_content.splitlines()
+    # Work backwards so line indices stay valid.
+    replacements: list[tuple[int, int, str]] = []
+    for name in changed_names:
+        child_span = child_by_name[name]
+        parent_span = parent_by_name[name]
+        if child_span.proof_start is None or parent_span.proof_start is None:
+            continue
+        # Replace from child's Proof. line through Qed. with parent's proof body.
+        replacements.append(
+            (child_span.proof_start, child_span.proof_end, parent_span.proof_body)
+        )
+
+    if not replacements:
+        return None
+
+    # Sort by start line descending so replacements don't shift indices.
+    replacements.sort(key=lambda r: r[0], reverse=True)
+    result_lines = list(child_lines)
+    for start, end, body in replacements:
+        result_lines[start : end + 1] = body.splitlines()
+
+    return "\n".join(result_lines), changed_names
+
+
+# ---------------------------------------------------------------------------
+# New challenge formulations (proof_optimise, proof_add, spec_change)
+# ---------------------------------------------------------------------------
+
+
+def mine_proof_optimise_commit(
+    repo_path: str | Path,
+    record: CommitRecord,
+    analyzer: ProfileAnalyzer,
+    repo_name: str,
+) -> list[EvalChallenge]:
+    """Mine a proof_optimise commit: challenge is the longer proof, solution is shorter."""
+    parent = record.parent_hashes[0] if record.parent_hashes else ""
+    if not parent or not record.proof_files_changed:
+        return []
+
+    challenges: list[EvalChallenge] = []
+    for fpath in record.proof_files_changed:
+        parent_content = get_file_at_commit(repo_path, parent, fpath)
+        child_content = get_file_at_commit(repo_path, record.hash, fpath)
+        if parent_content is None or child_content is None:
+            continue
+
+        diff = get_diff_text(repo_path, parent, record.hash, fpath)
+        instructions = (
+            f"Simplify or optimize the proof(s) in {fpath}. "
+            f"Produce a shorter or cleaner version that still compiles."
+        )
+
+        challenges.append(
+            EvalChallenge(
+                task_id=_make_task_id(repo_name, record.hash, fpath),
+                repo=repo_name,
+                proof_assistant=analyzer.proof_assistant,
+                commit_hash=record.hash,
+                parent_hash=parent,
+                commit_message=record.message_subject,
+                file_path=fpath,
+                challenge_type=ChallengeType.proof_optimise,
+                challenge_file_content=parent_content,
+                solution_file_content=child_content,
+                diff=diff,
+                instructions=instructions,
+            )
+        )
+
+    return challenges
+
+
+def mine_proof_add_commit(
+    repo_path: str | Path,
+    record: CommitRecord,
+    analyzer: ProfileAnalyzer,
+    repo_name: str,
+) -> list[EvalChallenge]:
+    """Mine a proof_add commit: challenge is the file before, solution has proof added."""
+    parent = record.parent_hashes[0] if record.parent_hashes else ""
+    if not parent or not record.proof_files_changed:
+        return []
+
+    challenges: list[EvalChallenge] = []
+    for fpath in record.proof_files_changed:
+        parent_content = get_file_at_commit(repo_path, parent, fpath)
+        child_content = get_file_at_commit(repo_path, record.hash, fpath)
+
+        if child_content is None:
+            continue
+
+        diff = get_diff_text(repo_path, parent, record.hash, fpath)
+
+        if parent_content is None:
+            # New file added — challenge is to write the proof from scratch.
+            instructions = f"Write the proof content for the declarations in {fpath}."
+            challenge_content = ""
+        else:
+            instructions = (
+                f"Write or extend the proof(s) in {fpath}. "
+                f"Complete any unfinished proofs or add missing proof content."
+            )
+            challenge_content = parent_content
+
+        challenges.append(
+            EvalChallenge(
+                task_id=_make_task_id(repo_name, record.hash, fpath),
+                repo=repo_name,
+                proof_assistant=analyzer.proof_assistant,
+                commit_hash=record.hash,
+                parent_hash=parent,
+                commit_message=record.message_subject,
+                file_path=fpath,
+                challenge_type=ChallengeType.proof_add,
+                challenge_file_content=challenge_content,
+                solution_file_content=child_content,
+                diff=diff,
+                instructions=instructions,
+            )
+        )
+
+    return challenges
+
+
+def mine_spec_change_commit(
+    repo_path: str | Path,
+    record: CommitRecord,
+    analyzer: ProfileAnalyzer,
+    repo_name: str,
+) -> list[EvalChallenge]:
+    """Mine a spec_change commit: splice new statement + old proof as challenge."""
+    parent = record.parent_hashes[0] if record.parent_hashes else ""
+    if not parent or not record.proof_files_changed:
+        return []
+
+    compiled = analyzer._c
+    challenges: list[EvalChallenge] = []
+
+    for fpath in record.proof_files_changed:
+        parent_content = get_file_at_commit(repo_path, parent, fpath)
+        child_content = get_file_at_commit(repo_path, record.hash, fpath)
+        if parent_content is None or child_content is None:
+            continue
+
+        result = splice_spec_change(
+            parent_content, child_content, compiled.declaration_res
+        )
+        if result is None:
+            continue
+
+        spliced_content, changed_names = result
+        diff = get_diff_text(repo_path, parent, record.hash, fpath)
+        decl_list = ", ".join(f"`{n}`" for n in changed_names)
+
+        instructions = (
+            f"The statement of {decl_list} in {fpath} was modified. "
+            f"Adapt the proof to the new statement."
+        )
+
+        challenges.append(
+            EvalChallenge(
+                task_id=_make_task_id(repo_name, record.hash, fpath),
+                repo=repo_name,
+                proof_assistant=analyzer.proof_assistant,
+                commit_hash=record.hash,
+                parent_hash=parent,
+                commit_message=record.message_subject,
+                file_path=fpath,
+                challenge_type=ChallengeType.spec_change,
+                challenge_file_content=spliced_content,
+                solution_file_content=child_content,
+                diff=diff,
+                instructions=instructions,
+            )
+        )
+
+    return challenges
+
+
+# ---------------------------------------------------------------------------
+# Enriched mining — dispatch by commit class
+# ---------------------------------------------------------------------------
+
+# Map from CommitClass to the miner function that handles it.
+_CLASS_MINERS = {
+    CommitClass.proof_optimise: mine_proof_optimise_commit,
+    CommitClass.proof_add: mine_proof_add_commit,
+    CommitClass.proof_new: mine_proof_add_commit,  # same formulation as proof_add
+    CommitClass.spec_change: mine_spec_change_commit,
+}
+
+
+def mine_from_enriched(
+    repo_path: str | Path,
+    repo_name: str,
+    analyzer: ProfileAnalyzer,
+    records: list[CommitRecord],
+    classes: set[str] | None = None,
+) -> MiningResult:
+    """Mine challenges from pre-classified enriched commit records.
+
+    Args:
+        repo_path: Path to the git repo.
+        repo_name: Human-readable repo name.
+        analyzer: Profile-driven proof analyzer.
+        records: Enriched CommitRecords (with commit_class set).
+        classes: Optional set of commit class names to mine. If None, mines
+            all supported classes (proof_optimise, proof_add, proof_new,
+            spec_change). Pass ``{"proof_complete"}`` to include hole-filling
+            via the existing ``mine_commit`` path.
+    """
+    target_classes = classes or {c.value for c in _CLASS_MINERS}
+    all_challenges: list[EvalChallenge] = []
+
+    for i, record in enumerate(records):
+        if i % 200 == 0:
+            logger.info("Enriched mining progress: %d/%d records", i, len(records))
+
+        if record.commit_class.value not in target_classes:
+            continue
+
+        if record.commit_class == CommitClass.proof_complete:
+            # Use existing hole-filling miner.
+            parent = record.parent_hashes[0] if record.parent_hashes else ""
+            if not parent:
+                continue
+            commit = RawCommit(
+                hash=record.hash,
+                parent_hash=parent,
+                author=record.author,
+                date=record.date,
+                message=record.message_subject,
+            )
+            challenges = mine_commit(repo_path, commit, analyzer, repo_name)
+            all_challenges.extend(challenges)
+            continue
+
+        miner_fn = _CLASS_MINERS.get(record.commit_class)
+        if miner_fn is None:
+            continue
+
+        challenges = miner_fn(repo_path, record, analyzer, repo_name)
+        if challenges:
+            logger.info(
+                "  %s [%s]: %d challenges",
+                record.hash[:8],
+                record.commit_class.value,
+                len(challenges),
+            )
+            all_challenges.extend(challenges)
+
+    return MiningResult(
+        repo_name=repo_name,
+        proof_assistant=analyzer.proof_assistant,
+        total_commits_scanned=len(records),
+        total_challenges=len(all_challenges),
+        challenges=all_challenges,
+    )
 
 
 def _parse_numstat_line(line: str) -> tuple[int, int, str] | None:

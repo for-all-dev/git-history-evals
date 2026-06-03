@@ -74,6 +74,21 @@ class CommitCandidate(BaseModel):
     proof_diffs: list[CommitProofDiff] = Field(default_factory=list)
 
 
+class ChallengeType(str, Enum):
+    """The kind of proof challenge.
+
+    proof_complete  — fill a hole (Admitted → Qed).
+    proof_optimise  — shorten or simplify a working proof.
+    proof_add       — write or extend a proof for a theorem.
+    spec_change     — adapt a proof to a changed theorem statement.
+    """
+
+    proof_complete = "proof_complete"
+    proof_optimise = "proof_optimise"
+    proof_add = "proof_add"
+    spec_change = "spec_change"
+
+
 class EvalChallenge(BaseModel):
     """A single eval challenge extracted from git history.
 
@@ -88,6 +103,10 @@ class EvalChallenge(BaseModel):
     parent_hash: str
     commit_message: str = ""
     file_path: str
+    challenge_type: ChallengeType = Field(
+        default=ChallengeType.proof_complete,
+        description="Kind of challenge: proof_complete, proof_optimise, proof_add, or spec_change.",
+    )
     challenge_file_content: str = Field(
         description="File content at parent commit (contains hole)"
     )
