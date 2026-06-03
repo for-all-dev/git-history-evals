@@ -75,6 +75,65 @@ def mine(
 
 
 @app.command()
+def mine_enriched(
+    enriched_path: Path = typer.Argument(
+        ..., help="Path to enriched commits JSONL (with commit_class set)"
+    ),
+    repo_path: Path = typer.Argument(..., help="Path to the source git repo"),
+    profile: Path = _PROFILE_OPT,
+    output: Path = typer.Option("output.jsonl", "--output", "-o"),
+    classes: list[str] = typer.Option(
+        None,
+        "--class",
+        "-c",
+        help=(
+            "Commit classes to mine (repeatable). Default: all supported "
+            "(proof_optimise, proof_add, proof_new, spec_change, proof_complete)."
+        ),
+    ),
+    verbose: bool = typer.Option(False, "--verbose", "-v"),
+) -> None:
+    """Mine challenges from pre-classified enriched commit records.
+
+    Takes an enriched JSONL (output of enrich-commits / diff-enrich) and
+    produces challenges for proof_optimise, proof_add, and spec_change
+    commits in addition to the existing proof_complete hole-filling.
+    """
+    _setup_logging(verbose)
+
+    from scaffold.analyzers import ProfileAnalyzer
+    from scaffold.git_walker import mine_from_enriched
+    from scaffold.output import read_commit_records, write_mining_result
+
+    compiled = _load_compiled(profile)
+    analyzer = ProfileAnalyzer(compiled)
+    records = read_commit_records(enriched_path)
+
+    target_classes = set(classes) if classes else None
+    result = mine_from_enriched(
+        repo_path,
+        repo_path.name,
+        analyzer,
+        records,
+        classes=target_classes,
+    )
+
+    write_mining_result(result, output)
+
+    # Print per-class breakdown.
+    from collections import Counter
+
+    type_counts: Counter[str] = Counter(
+        c.challenge_type.value for c in result.challenges
+    )
+    typer.echo(f"\nWrote {result.total_challenges} challenges to {output}")
+    typer.echo(f"  from {result.total_commits_scanned} enriched records")
+    typer.echo("\nChallenge type breakdown:")
+    for ct, n in sorted(type_counts.items(), key=lambda x: -x[1]):
+        typer.echo(f"  {ct:<18} {n:>6}")
+
+
+@app.command()
 def mine_all(
     data_dir: Path = typer.Option("./data", "--data-dir", "-d"),
     output_dir: Path = typer.Option("./artifacts", "--output-dir", "-o"),
