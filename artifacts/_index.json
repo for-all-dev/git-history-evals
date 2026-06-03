@@ -3,6 +3,15 @@
   "description": "Hash-to-path index for mined eval datasets. Solver runs reference datasets by manifest content hash; this index resolves hashes back to local paths.",
   "datasets": [
     {
+      "manifest_hash": "33dd8621968aa42b3312ea7353fbae0028a78e3222de77fcc5995ebe116b5999",
+      "path": "CompCert-eval/compcert-v1-f5863597/",
+      "dataset_id": "forall/CompCert-eval",
+      "version": "compcert-v1-f5863597",
+      "schema_version": 1,
+      "row_version": 0,
+      "created_at": "2026-06-03T06:58:29.164138+00:00"
+    },
+    {
       "manifest_hash": "6db8fa421c27f13a98fa139e16ebda3d21c14d7c3acd0ca2e133295d795d5810",
       "path": "fiat-crypto-eval/agent-recovered-f0b38f3c/",
       "dataset_id": "forall/fiat-crypto-eval",
