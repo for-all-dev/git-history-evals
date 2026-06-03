@@ -412,6 +412,82 @@ def profile(
 
 
 @app.command()
+def curate(
+    input_path: Path = typer.Argument(..., help="Path to a challenges JSONL file"),
+    output_path: Path = typer.Option(
+        None, "--output", "-o", help="Output path (default: <input>-curated.jsonl)"
+    ),
+    tier1_model: str = typer.Option(
+        "",
+        "--tier1-model",
+        help="Tier-1 (cheap) model for initial curation (default: claude-haiku-3-5-20241022)",
+    ),
+    tier2_model: str = typer.Option(
+        "",
+        "--tier2-model",
+        help="Tier-2 (strong) model for deferred challenges (default: claude-sonnet-4-6)",
+    ),
+    max_concurrent: int = typer.Option(
+        10, "--max-concurrent", help="Max concurrent API requests"
+    ),
+    verbose: bool = typer.Option(False, "--verbose", "-v"),
+) -> None:
+    """Run tiered LLM curation on a challenges JSONL file.
+
+    Reads challenges, sends each to a cheap model (Haiku) for ACCEPT/REJECT/DEFER,
+    escalates DEFERs to a stronger model (Sonnet), and writes the filtered result
+    (accepted + borderline only) to the output file.
+    """
+    _setup_logging(verbose)
+    from dotenv import find_dotenv, load_dotenv
+
+    from scaffold.curator import (
+        DEFAULT_TIER1_MODEL,
+        DEFAULT_TIER2_MODEL,
+        apply_curation,
+        curate_challenges_sync,
+    )
+    from scaffold.output import read_jsonl, write_jsonl
+
+    dotenv_path = find_dotenv(usecwd=True)
+    if dotenv_path:
+        load_dotenv(dotenv_path)
+
+    challenges = read_jsonl(input_path)
+    if not challenges:
+        typer.echo("No challenges found in input file.")
+        raise typer.Exit(1)
+
+    t1 = tier1_model or DEFAULT_TIER1_MODEL
+    t2 = tier2_model or DEFAULT_TIER2_MODEL
+    typer.echo(
+        f"Curating {len(challenges)} challenges (tier-1: {t1}, tier-2: {t2}) ..."
+    )
+
+    results = curate_challenges_sync(
+        challenges, tier1_model=t1, tier2_model=t2, max_concurrent=max_concurrent
+    )
+    accepted, rejected, borderline = apply_curation(challenges, results)
+
+    dest = output_path or input_path.with_stem(input_path.stem + "-curated")
+    write_jsonl(accepted + borderline, dest)
+
+    typer.echo("\nCuration results:")
+    typer.echo(f"  Total input   : {len(challenges)}")
+    typer.echo(f"  Accepted      : {len(accepted)}")
+    typer.echo(f"  Rejected      : {len(rejected)}")
+    typer.echo(f"  Borderline    : {len(borderline)}")
+    typer.echo(
+        f"  Output        : {len(accepted) + len(borderline)} challenges -> {dest}"
+    )
+
+    if rejected:
+        typer.echo("\nRejected challenges:")
+        for ch in rejected:
+            typer.echo(f"  {ch.task_id}: {ch.curation_rationale}")
+
+
+@app.command()
 def materialize(
     repo_path: Path = typer.Argument(..., help="Path to the proof engineering repo"),
     profile: Path = _PROFILE_OPT,
@@ -422,6 +498,21 @@ def materialize(
         "handcrafted",
         "--kind",
         help="Miner kind for the manifest: 'handcrafted' or 'agent'",
+    ),
+    do_curate: bool = typer.Option(
+        False,
+        "--curate/--no-curate",
+        help="Run LLM curation between mining and materialization",
+    ),
+    tier1_model: str = typer.Option(
+        "",
+        "--tier1-model",
+        help="Tier-1 curation model (default: claude-haiku-3-5-20241022)",
+    ),
+    tier2_model: str = typer.Option(
+        "",
+        "--tier2-model",
+        help="Tier-2 curation model (default: claude-sonnet-4-6)",
     ),
     promote: bool = typer.Option(
         False,
@@ -438,6 +529,13 @@ def materialize(
     from scaffold.dataset import mine_and_materialize, promote_profile
     from scaffold.profile import load_profile
 
+    if do_curate:
+        from dotenv import find_dotenv, load_dotenv
+
+        dotenv_path = find_dotenv(usecwd=True)
+        if dotenv_path:
+            load_dotenv(dotenv_path)
+
     prof = load_profile(profile)
     dv = mine_and_materialize(
         profile=prof,
@@ -445,6 +543,9 @@ def materialize(
         tag=tag,
         miner_kind=kind,
         artifacts_root=artifacts_dir,
+        curate=do_curate,
+        tier1_model=tier1_model,
+        tier2_model=tier2_model,
     )
     typer.echo(f"Materialized {dv.version} ({dv.n_challenges} challenges) -> {dv.path}")
     typer.echo(f"  manifest_hash: {dv.manifest_hash[:12]}")

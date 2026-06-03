@@ -266,6 +266,7 @@ def materialize_dataset_version(
     transcript: list[str] | None = None,
     range_filter: str = "",
     created_at: str | None = None,
+    curation_stats: dict | None = None,
 ) -> DatasetVersion:
     """Write a mined eval as a ``<repo>-eval/<tag>-<short_hash>/`` version dir.
 
@@ -334,12 +335,16 @@ def materialize_dataset_version(
         }
     ]
 
+    stats = _challenge_stats(result.challenges)
+    if curation_stats:
+        stats["curation"] = curation_stats
+
     manifest, version, manifest_hash = build_manifest(
         dataset_id=f"forall/{repo_path.name}-eval",
         source=source,
         miner=miner,
         assistant=profile.proof_assistant,
-        stats=_challenge_stats(result.challenges),
+        stats=stats,
         blobs=blobs,
         tag=tag,
         created_at=created_at,
@@ -379,8 +384,16 @@ def mine_and_materialize(
     model: str = "",
     prompt_text: str | None = None,
     transcript: list[str] | None = None,
+    curate: bool = False,
+    tier1_model: str = "",
+    tier2_model: str = "",
 ) -> DatasetVersion:
-    """Mine `repo_path` full-history with `profile` and materialize a version dir."""
+    """Mine `repo_path` full-history with `profile` and materialize a version dir.
+
+    When ``curate=True``, runs an LLM curation pass between mining and
+    materialization.  Rejected challenges are excluded; borderline challenges
+    are included with their curation annotation.
+    """
     from scaffold.analyzers import ProfileAnalyzer
     from scaffold.git_walker import mine_repo
 
@@ -392,6 +405,45 @@ def mine_and_materialize(
     miner_pkg_dir = Path(__file__).resolve().parent  # .../src/scaffold
     analyzer = ProfileAnalyzer(profile.compiled())
     mined = mine_repo(repo_path, repo_path.name, analyzer)
+
+    curation_stats: dict | None = None
+    if curate and mined.challenges:
+        from scaffold.curator import (
+            DEFAULT_TIER1_MODEL,
+            DEFAULT_TIER2_MODEL,
+            apply_curation,
+            curate_challenges_sync,
+        )
+
+        t1 = tier1_model or DEFAULT_TIER1_MODEL
+        t2 = tier2_model or DEFAULT_TIER2_MODEL
+        results = curate_challenges_sync(
+            mined.challenges, tier1_model=t1, tier2_model=t2
+        )
+        accepted, rejected, borderline = apply_curation(mined.challenges, results)
+        curation_stats = {
+            "n_before_curation": len(mined.challenges),
+            "n_accepted": len(accepted),
+            "n_rejected": len(rejected),
+            "n_borderline": len(borderline),
+            "tier1_model": t1,
+            "tier2_model": t2,
+        }
+        logger.info(
+            "Curation: %d -> %d challenges (%d rejected, %d borderline)",
+            len(mined.challenges),
+            len(accepted) + len(borderline),
+            len(rejected),
+            len(borderline),
+        )
+        # Replace mined challenges with curated set (accepted + borderline)
+        mined = mined.model_copy(
+            update={
+                "challenges": accepted + borderline,
+                "total_challenges": len(accepted) + len(borderline),
+            }
+        )
+
     return materialize_dataset_version(
         profile=profile,
         result=mined,
@@ -404,6 +456,7 @@ def mine_and_materialize(
         tag=tag,
         miner_kind=miner_kind,
         transcript=transcript,
+        curation_stats=curation_stats,
     )
 
 
