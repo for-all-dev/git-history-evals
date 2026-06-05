@@ -121,6 +121,19 @@ class EvalChallenge(BaseModel):
         default="",
         description="Human-readable instructions for the challenge",
     )
+    # Curation fields (populated by LLM curation pass; None for uncurated datasets)
+    curation_verdict: str | None = Field(
+        default=None,
+        description="'accept' | 'reject' | 'borderline' — set by LLM curation",
+    )
+    curation_model: str | None = Field(
+        default=None,
+        description="Model that made the curation call",
+    )
+    curation_rationale: str | None = Field(
+        default=None,
+        description="One-sentence explanation from curator",
+    )
 
 
 class MiningResult(BaseModel):
