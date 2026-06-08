@@ -32,8 +32,8 @@ logger = logging.getLogger(__name__)
 # Constants
 # ---------------------------------------------------------------------------
 
-DEFAULT_TIER1_MODEL = "claude-haiku-3-5-20241022"
-DEFAULT_TIER2_MODEL = "claude-sonnet-4-6"
+DEFAULT_TIER1_MODEL = "claude-haiku-4-5"
+DEFAULT_TIER2_MODEL = "claude-sonnet-4-5"
 _MAX_DIFF_CHARS = 8000
 
 _SYSTEM_PROMPT = """\
