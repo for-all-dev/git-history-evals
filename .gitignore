@@ -19,5 +19,8 @@ htmlcov
 artifacts/**/*.jsonl
 artifacts/**/*.txt
 
+# Local mirror of the DO Spaces bucket (convenience only; not canonical)
+artifacts/bucket-mirror/
+
 # Calibration crash-recovery checkpoints (transient; cleaned on a successful mine)
 artifacts/**/_checkpoints/
