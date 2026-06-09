@@ -77,11 +77,18 @@ The following ARE substantive (accept-worthy):
 - Any change inside a proof body (between Proof. and Qed./Defined.), \
 including mechanical tactic updates like omega->lia
 - New, modified, or deleted Definition, Fixpoint, Lemma, Theorem, or Instance
+- New or modified Parameter, Hypothesis, Axiom, or Variable declarations
 - New constructors added to inductive types or new match arms
 - Type, signature, or specification changes — including universe changes \
 like Set->Type or Prop->Type in Record, Variable, or Module Type declarations
-- Changes to Instance visibility (e.g. Instance -> Global Instance, \
-Program Instance -> Global Program Instance)
+- Changes to Instance or Hint visibility (e.g. Instance -> Global Instance, \
+Hint Resolve -> Global Hint Resolve)
+- Changes to Arguments or Implicit declarations
+- Renamed or replaced identifiers inside definition or axiom bodies \
+(e.g. Psucc->Pos.succ, Zmax->Z.max, beq_nat->Nat.eqb) — these are \
+API migrations that change the proof engineering task
+- Notation, scope, or binding changes (Declare Scope, Bind Scope, \
+Notation binder kinds)
 - Extraction directives (Extract Constant, Extract Inductive)
 - A new file containing any definitions, lemmas, or Proof./Qed. blocks
 
@@ -120,11 +127,17 @@ ACCEPT if the diff contains ANY of the following, regardless of how small:
 including mechanical tactic updates like omega->lia — tactic selection is \
 part of the proof engineering task
 - New, modified, or deleted Definition, Fixpoint, Lemma, Theorem, or Instance
+- New or modified Parameter, Hypothesis, Axiom, or Variable declarations
 - New constructors added to inductive types or new match arms
 - Type, signature, or specification changes — including universe changes \
 like Set->Type or Prop->Type in Record, Variable, or Module Type declarations
-- Changes to Instance visibility (e.g. Instance -> Global Instance, \
-Program Instance -> Global Program Instance)
+- Changes to Instance or Hint visibility (e.g. Instance -> Global Instance, \
+Hint Resolve -> Global Hint Resolve)
+- Changes to Arguments or Implicit declarations
+- Renamed or replaced identifiers inside definition or axiom bodies \
+(e.g. Psucc->Pos.succ, Zmax->Z.max, beq_nat->Nat.eqb)
+- Notation, scope, or binding changes (Declare Scope, Bind Scope, \
+Notation binder kinds)
 - Extraction directives (Extract Constant, Extract Inductive)
 - A new file containing any definitions, lemmas, or Proof./Qed. blocks
 
@@ -136,8 +149,9 @@ VERDICT: ACCEPT | REJECT | DEFER
 RATIONALE: <one sentence explaining your decision>
 
 Before choosing REJECT, double-check: does the diff touch ANY Definition, \
-Lemma, Theorem, Instance, proof body, type annotation, or specification? \
-If so, ACCEPT. If you are not sure, use DEFER."""
+Lemma, Theorem, Instance, Hint, Parameter, proof body, type annotation, \
+identifier rename, or specification? If so, ACCEPT. If you are not sure, \
+use DEFER."""
 
 
 # ---------------------------------------------------------------------------
