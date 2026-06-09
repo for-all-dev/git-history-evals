@@ -479,12 +479,22 @@ def curate(
     tier1_model: str = typer.Option(
         "",
         "--tier1-model",
-        help="Tier-1 (cheap) model for initial curation",
+        help="Tier-1 (cheap) model for numeric scoring",
     ),
     tier2_model: str = typer.Option(
         "",
         "--tier2-model",
         help="Tier-2 (strong) model for deferred challenges",
+    ),
+    accept_threshold: int = typer.Option(
+        0,
+        "--accept-threshold",
+        help="Tier-1 scores <= this are auto-accepted (0 = use default)",
+    ),
+    reject_threshold: int = typer.Option(
+        0,
+        "--reject-threshold",
+        help="Tier-1 scores >= this are auto-rejected (0 = use default)",
     ),
     max_concurrent: int = typer.Option(
         10, "--max-concurrent", help="Max concurrent API requests"
@@ -493,9 +503,10 @@ def curate(
 ) -> None:
     """Run tiered LLM curation on a challenges JSONL file.
 
-    Reads challenges, sends each to a cheap model (Haiku) for ACCEPT/REJECT/DEFER,
-    escalates DEFERs to a stronger model (Sonnet), and writes the filtered result
-    (accepted + borderline only) to the output file.
+    Tier 1 (Haiku) scores each challenge 0-100 on a rejection-confidence
+    scale.  Scores below the accept threshold are auto-accepted, scores above
+    the reject threshold are auto-rejected, and scores in between are
+    escalated to tier 2 (Sonnet) for a categorical verdict.
 
     Results are checkpointed as they complete.  If the run is interrupted, re-run
     the same command and it will resume from the checkpoint automatically.
@@ -504,6 +515,8 @@ def curate(
     from dotenv import find_dotenv, load_dotenv
 
     from scaffold.curator import (
+        DEFAULT_ACCEPT_THRESHOLD,
+        DEFAULT_REJECT_THRESHOLD,
         DEFAULT_TIER1_MODEL,
         DEFAULT_TIER2_MODEL,
         apply_curation,
@@ -522,6 +535,8 @@ def curate(
 
     t1 = tier1_model or DEFAULT_TIER1_MODEL
     t2 = tier2_model or DEFAULT_TIER2_MODEL
+    at = accept_threshold or DEFAULT_ACCEPT_THRESHOLD
+    rt = reject_threshold or DEFAULT_REJECT_THRESHOLD
 
     dest = output_path or input_path.with_stem(input_path.stem + "-curated")
     checkpoint = Path(str(dest) + ".checkpoint")
@@ -530,13 +545,16 @@ def curate(
         typer.echo(f"Resuming from checkpoint: {checkpoint}")
 
     typer.echo(
-        f"Curating {len(challenges)} challenges (tier-1: {t1}, tier-2: {t2}) ..."
+        f"Curating {len(challenges)} challenges "
+        f"(tier-1: {t1}, tier-2: {t2}, accept<={at}, reject>={rt}) ..."
     )
 
     results = curate_challenges_sync(
         challenges,
         tier1_model=t1,
         tier2_model=t2,
+        accept_threshold=at,
+        reject_threshold=rt,
         max_concurrent=max_concurrent,
         checkpoint_path=checkpoint,
     )

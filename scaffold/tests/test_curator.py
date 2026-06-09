@@ -20,6 +20,9 @@ from scaffold.curator import (
     _is_permanent_error,
     _load_checkpoint,
     _parse_response,
+    _parse_score_response,
+    _score_to_verdict,
+    _TIER1_SYSTEM_PROMPT,
     apply_curation,
     curate_challenges,
 )
@@ -84,7 +87,113 @@ class TestBuildCurationPrompt:
 
 
 # ---------------------------------------------------------------------------
-# Response parsing
+# Score response parsing (tier 1 — numeric)
+# ---------------------------------------------------------------------------
+
+
+class TestParseScoreResponse:
+    def test_valid_score(self) -> None:
+        score, rationale = _parse_score_response(
+            "SCORE: 15\nRATIONALE: Mechanical tactic update in proof body."
+        )
+        assert score == 15.0
+        assert "tactic update" in rationale
+
+    def test_high_score(self) -> None:
+        score, rationale = _parse_score_response(
+            "SCORE: 95\nRATIONALE: Only whitespace changes."
+        )
+        assert score == 95.0
+        assert "whitespace" in rationale
+
+    def test_zero_score(self) -> None:
+        score, _ = _parse_score_response("SCORE: 0\nRATIONALE: New theorem.")
+        assert score == 0.0
+
+    def test_hundred_score(self) -> None:
+        score, _ = _parse_score_response("SCORE: 100\nRATIONALE: License header.")
+        assert score == 100.0
+
+    def test_clamped_above_100(self) -> None:
+        score, _ = _parse_score_response("SCORE: 150\nRATIONALE: Test.")
+        assert score == 100.0
+
+    def test_malformed_falls_back_to_50(self) -> None:
+        score, rationale = _parse_score_response("I'm not sure about this one.")
+        assert score == 50.0
+        assert len(rationale) > 0
+
+    def test_empty_response(self) -> None:
+        score, rationale = _parse_score_response("")
+        assert score == 50.0
+        assert "Could not parse" in rationale
+
+    def test_score_only_no_rationale(self) -> None:
+        score, rationale = _parse_score_response("SCORE: 25")
+        assert score == 25.0
+        # Should still have some rationale (falls back to raw text)
+        assert len(rationale) > 0
+
+    def test_case_insensitive(self) -> None:
+        score, _ = _parse_score_response("score: 42\nrationale: test")
+        assert score == 42.0
+
+
+# ---------------------------------------------------------------------------
+# Score to verdict
+# ---------------------------------------------------------------------------
+
+
+class TestScoreToVerdict:
+    def test_below_accept_threshold(self) -> None:
+        assert (
+            _score_to_verdict(5, accept_threshold=20, reject_threshold=85) == "accept"
+        )
+
+    def test_at_accept_threshold(self) -> None:
+        assert (
+            _score_to_verdict(20, accept_threshold=20, reject_threshold=85) == "accept"
+        )
+
+    def test_above_reject_threshold(self) -> None:
+        assert (
+            _score_to_verdict(95, accept_threshold=20, reject_threshold=85) == "reject"
+        )
+
+    def test_at_reject_threshold(self) -> None:
+        assert (
+            _score_to_verdict(85, accept_threshold=20, reject_threshold=85) == "reject"
+        )
+
+    def test_in_defer_zone(self) -> None:
+        assert (
+            _score_to_verdict(50, accept_threshold=20, reject_threshold=85) == "defer"
+        )
+
+    def test_just_above_accept(self) -> None:
+        assert (
+            _score_to_verdict(21, accept_threshold=20, reject_threshold=85) == "defer"
+        )
+
+    def test_just_below_reject(self) -> None:
+        assert (
+            _score_to_verdict(84, accept_threshold=20, reject_threshold=85) == "defer"
+        )
+
+    def test_custom_thresholds(self) -> None:
+        assert (
+            _score_to_verdict(30, accept_threshold=30, reject_threshold=70) == "accept"
+        )
+        assert (
+            _score_to_verdict(70, accept_threshold=30, reject_threshold=70) == "reject"
+        )
+        assert (
+            _score_to_verdict(50, accept_threshold=30, reject_threshold=70) == "defer"
+        )
+
+
+# ---------------------------------------------------------------------------
+# Categorical response parsing (tier 2)
 # ---------------------------------------------------------------------------
 
 
@@ -263,8 +372,12 @@ class TestCheckpoint:
     def test_append_and_load_roundtrip(self, tmp_path: Path) -> None:
         cp_path = tmp_path / "test.checkpoint"
 
-        r1 = CurationResult(verdict="accept", model="haiku", rationale="good")
-        r2 = CurationResult(verdict="reject", model="haiku", rationale="bad")
+        r1 = CurationResult(
+            verdict="accept", model="haiku", rationale="good", score=5.0
+        )
+        r2 = CurationResult(
+            verdict="reject", model="haiku", rationale="bad", score=95.0
+        )
 
         with open(cp_path, "w") as fh:
             _append_checkpoint(fh, "task_1", r1, tier=1)
@@ -273,13 +386,28 @@ class TestCheckpoint:
         loaded = _load_checkpoint(cp_path)
         assert len(loaded) == 2
         assert loaded["task_1"]["verdict"] == "accept"
+        assert loaded["task_1"]["score"] == 5.0
         assert loaded["task_2"]["verdict"] == "reject"
+        assert loaded["task_2"]["score"] == 95.0
         assert loaded["task_1"]["tier"] == 1
+
+    def test_checkpoint_without_score(self, tmp_path: Path) -> None:
+        cp_path = tmp_path / "test.checkpoint"
+
+        r = CurationResult(verdict="accept", model="sonnet", rationale="good")
+
+        with open(cp_path, "w") as fh:
+            _append_checkpoint(fh, "task_1", r, tier=2)
+
+        loaded = _load_checkpoint(cp_path)
+        assert "score" not in loaded["task_1"]
 
     def test_later_entries_override_earlier(self, tmp_path: Path) -> None:
         cp_path = tmp_path / "test.checkpoint"
 
-        r_defer = CurationResult(verdict="defer", model="haiku", rationale="unsure")
+        r_defer = CurationResult(
+            verdict="defer", model="haiku", rationale="unsure", score=50.0
+        )
         r_accept = CurationResult(verdict="accept", model="sonnet", rationale="ok")
 
         with open(cp_path, "w") as fh:
@@ -336,7 +464,9 @@ class TestErrorHandling:
         sem = asyncio.Semaphore(1)
         abort = asyncio.Event()
 
-        result = asyncio.run(_curate_one(ch, client, "haiku", sem, abort))
+        result = asyncio.run(
+            _curate_one(ch, client, "haiku", sem, _TIER1_SYSTEM_PROMPT, abort)
+        )
 
         assert result.verdict == "error"
         assert "credit balance" in result.rationale.lower()
@@ -350,7 +480,9 @@ class TestErrorHandling:
         abort = asyncio.Event()
         abort.set()
 
-        result = asyncio.run(_curate_one(ch, client, "haiku", sem, abort))
+        result = asyncio.run(
+            _curate_one(ch, client, "haiku", sem, _TIER1_SYSTEM_PROMPT, abort)
+        )
 
         assert result.verdict == "error"
         assert "aborted" in result.rationale.lower()
@@ -364,10 +496,10 @@ class TestErrorHandling:
 
 
 class TestCurateChallengesCheckpoint:
-    def _mock_response(self, verdict: str, rationale: str) -> MagicMock:
+    def _mock_response(self, text: str) -> MagicMock:
         resp = MagicMock()
         content_block = MagicMock()
-        content_block.text = f"VERDICT: {verdict}\nRATIONALE: {rationale}"
+        content_block.text = text
         resp.content = [content_block]
         return resp
 
@@ -380,7 +512,9 @@ class TestCurateChallengesCheckpoint:
             _append_checkpoint(
                 fh,
                 "t0",
-                CurationResult(verdict="accept", model="haiku", rationale="cached"),
+                CurationResult(
+                    verdict="accept", model="haiku", rationale="cached", score=5.0
+                ),
                 tier=1,
             )
 
@@ -393,7 +527,7 @@ class TestCurateChallengesCheckpoint:
             client = MagicMock()
             client.messages = MagicMock()
             client.messages.create = AsyncMock(
-                return_value=self._mock_response("REJECT", "bad challenge")
+                return_value=self._mock_response("SCORE: 95\nRATIONALE: junk")
             )
             mock_cls.return_value = client
 
@@ -409,7 +543,8 @@ class TestCurateChallengesCheckpoint:
         # t0 should be from checkpoint
         assert results[0].verdict == "accept"
         assert results[0].rationale == "cached"
-        # t1 should be freshly processed
+        assert results[0].score == 5.0
+        # t1 should be freshly processed (score 95 >= 85 default reject threshold)
         assert results[1].verdict == "reject"
         # API should have been called only once (for t1)
         assert client.messages.create.call_count == 1
@@ -432,7 +567,7 @@ class TestCurateChallengesCheckpoint:
             client = MagicMock()
             client.messages = MagicMock()
             client.messages.create = AsyncMock(
-                return_value=self._mock_response("ACCEPT", "good now")
+                return_value=self._mock_response("SCORE: 5\nRATIONALE: good now")
             )
             mock_cls.return_value = client
 
@@ -445,4 +580,5 @@ class TestCurateChallengesCheckpoint:
             )
 
         assert results[0].verdict == "accept"
+        assert results[0].score == 5.0
         assert client.messages.create.call_count == 1

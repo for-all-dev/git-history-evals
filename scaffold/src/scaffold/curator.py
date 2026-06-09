@@ -1,8 +1,10 @@
 """LLM-based curation pipeline for filtering low-quality mined challenges.
 
-Tiered approach: a cheap model (Haiku) handles the obvious accept/reject calls;
-challenges it marks DEFER are escalated to a stronger model (Sonnet).  DEFER
-from the stronger model becomes ``"borderline"`` in the final output.
+Tiered approach: a cheap model (Haiku) scores each challenge on a 0-100
+rejection-confidence scale.  Scores below `accept_threshold` are auto-accepted,
+scores above `reject_threshold` are auto-rejected, and scores in between are
+escalated to a stronger model (Sonnet) for a categorical verdict.  DEFER from
+the stronger model becomes ``"borderline"`` in the final output.
 
 The pipeline is **fault-tolerant**: individual API errors are caught and
 recorded rather than crashing the batch, results are checkpointed to disk as
@@ -40,13 +42,61 @@ logger = logging.getLogger(__name__)
 
 DEFAULT_TIER1_MODEL = "claude-haiku-4-5"
 DEFAULT_TIER2_MODEL = "claude-sonnet-4-5"
+DEFAULT_ACCEPT_THRESHOLD = 20
+DEFAULT_REJECT_THRESHOLD = 85
 _MAX_DIFF_CHARS = 8000
 
 # Substrings in API error messages that indicate a permanent failure —
 # no point retrying or continuing with remaining tasks.
 _PERMANENT_ERROR_PATTERNS = ["credit balance", "billing"]
 
-_SYSTEM_PROMPT = """\
+# Tier 1 prompt: asks for a numeric rejection-confidence score (0-100).
+# This produces a continuous signal that we threshold externally, giving
+# us mechanical control over the defer zone — unlike categorical DEFER
+# which Haiku ignores entirely.
+_TIER1_SYSTEM_PROMPT = """\
+You are a quality curator for proof engineering benchmark challenges mined \
+from the git history of a formally verified codebase. Decide whether each \
+challenge belongs in an evaluation dataset for AI proof synthesis.
+
+DEFAULT TO ACCEPT. In verified codebases like CompCert, seL4, or fiat-crypto, \
+most changes to proof files (.v, .thy, .lean) are substantive because \
+definitions, types, and specifications carry proof obligations.
+
+The following are NOT substantive (reject-worthy):
+- Whitespace, formatting, or indentation changes
+- Comment or documentation changes
+- Adding, removing, or modifying Import/Require lines with no other changes
+- License, copyright, or boilerplate header changes
+- Deletion of truly inert code (e.g. removing an unused Import or deleting \
+a comment). IMPORTANT: deleting a Definition, Lemma, Theorem, Fixpoint, \
+Instance, or proof body is NOT "inert code deletion" — these carry proof \
+obligations and their removal is substantive proof engineering.
+
+The following ARE substantive (accept-worthy):
+- Any change inside a proof body (between Proof. and Qed./Defined.), \
+including mechanical tactic updates like omega->lia
+- New, modified, or deleted Definition, Fixpoint, Lemma, Theorem, or Instance
+- New constructors added to inductive types or new match arms
+- Type, signature, or specification changes — including universe changes \
+like Set->Type or Prop->Type in Record, Variable, or Module Type declarations
+- Changes to Instance visibility (e.g. Instance -> Global Instance, \
+Program Instance -> Global Program Instance)
+- Extraction directives (Extract Constant, Extract Inductive)
+- A new file containing any definitions, lemmas, or Proof./Qed. blocks
+
+Rate the challenge on a scale from 0 to 100, where:
+- 0 = definitely should be ACCEPTED (clearly substantive proof engineering)
+- 100 = definitely should be REJECTED (clearly non-substantive)
+
+Respond with exactly two lines:
+SCORE: <integer 0-100>
+RATIONALE: <one sentence explaining your assessment>"""
+
+# Tier 2 prompt: categorical verdict for Sonnet on deferred challenges.
+# Sonnet is capable of categorical reasoning, so we use the same detailed
+# criteria but ask for ACCEPT/REJECT/DEFER directly.
+_TIER2_SYSTEM_PROMPT = """\
 You are a quality curator for proof engineering benchmark challenges mined \
 from the git history of a formally verified codebase. Decide whether each \
 challenge belongs in an evaluation dataset for AI proof synthesis.
@@ -87,8 +137,7 @@ RATIONALE: <one sentence explaining your decision>
 
 Before choosing REJECT, double-check: does the diff touch ANY Definition, \
 Lemma, Theorem, Instance, proof body, type annotation, or specification? \
-If so, ACCEPT. If you are not sure, use DEFER — a stronger model will \
-review it."""
+If so, ACCEPT. If you are not sure, use DEFER."""
 
 
 # ---------------------------------------------------------------------------
@@ -102,6 +151,7 @@ class CurationResult(BaseModel):
     verdict: str  # "accept" | "reject" | "defer" | "borderline" | "error"
     model: str
     rationale: str
+    score: float | None = None  # tier-1 rejection confidence (0-100)
 
 
 # ---------------------------------------------------------------------------
@@ -129,15 +179,54 @@ def _build_curation_prompt(challenge: EvalChallenge) -> str:
     )
 
 
+_SCORE_RE = re.compile(r"SCORE:\s*(\d+)", re.IGNORECASE)
 _VERDICT_RE = re.compile(r"VERDICT:\s*(ACCEPT|REJECT|DEFER)", re.IGNORECASE)
 _RATIONALE_RE = re.compile(r"RATIONALE:\s*(.+)", re.IGNORECASE)
 
 
+def _parse_score_response(text: str) -> tuple[float, str]:
+    """Extract ``(score, rationale)`` from a tier-1 numeric response.
+
+    Returns ``(50.0, ...)`` if parsing fails — placing the challenge in the
+    defer zone so it escalates to the stronger model.
+    """
+    score_match = _SCORE_RE.search(text)
+    rationale_match = _RATIONALE_RE.search(text)
+
+    score = float(score_match.group(1)) if score_match else 50.0
+    score = max(0.0, min(100.0, score))
+
+    rationale = (
+        rationale_match.group(1).strip()
+        if rationale_match
+        else text.strip()[:200] or "Could not parse curation response"
+    )
+    return score, rationale
+
+
+def _score_to_verdict(
+    score: float,
+    accept_threshold: int = DEFAULT_ACCEPT_THRESHOLD,
+    reject_threshold: int = DEFAULT_REJECT_THRESHOLD,
+) -> str:
+    """Convert a numeric rejection-confidence score to a verdict.
+
+    - score <= accept_threshold → ``"accept"``
+    - score >= reject_threshold → ``"reject"``
+    - otherwise → ``"defer"``
+    """
+    if score <= accept_threshold:
+        return "accept"
+    if score >= reject_threshold:
+        return "reject"
+    return "defer"
+
+
 def _parse_response(text: str) -> tuple[str, str]:
-    """Extract ``(verdict, rationale)`` from the model's response text.
+    """Extract ``(verdict, rationale)`` from a tier-2 categorical response.
 
     Returns ``("defer", ...)`` if parsing fails — the challenge will be
-    escalated to the stronger model rather than silently dropped.
+    marked as borderline rather than silently dropped.
     """
     verdict_match = _VERDICT_RE.search(text)
     rationale_match = _RATIONALE_RE.search(text)
@@ -175,15 +264,16 @@ def _append_checkpoint(
     fh: object, task_id: str, result: CurationResult, tier: int
 ) -> None:
     """Append a single result to the open checkpoint file handle."""
-    line = json.dumps(
-        {
-            "task_id": task_id,
-            "tier": tier,
-            "verdict": result.verdict,
-            "model": result.model,
-            "rationale": result.rationale,
-        }
-    )
+    entry: dict = {
+        "task_id": task_id,
+        "tier": tier,
+        "verdict": result.verdict,
+        "model": result.model,
+        "rationale": result.rationale,
+    }
+    if result.score is not None:
+        entry["score"] = result.score
+    line = json.dumps(entry)
     fh.write(line + "\n")  # type: ignore[union-attr]
     fh.flush()  # type: ignore[union-attr]
 
@@ -204,6 +294,7 @@ async def _curate_one(
     client: AsyncAnthropic,
     model: str,
     semaphore: asyncio.Semaphore,
+    system_prompt: str,
     abort: asyncio.Event | None = None,
 ) -> CurationResult:
     """Send a single challenge to the LLM and return a CurationResult.
@@ -233,7 +324,7 @@ async def _curate_one(
             response = await client.messages.create(
                 model=model,
                 max_tokens=150,
-                system=_SYSTEM_PROMPT,
+                system=system_prompt,
                 messages=[{"role": "user", "content": prompt}],
             )
     except Exception as exc:
@@ -249,9 +340,11 @@ async def _curate_one(
             rationale=f"API error: {exc}",
         )
 
-    text = response.content[0].text if response.content else ""
-    verdict, rationale = _parse_response(text)
-    return CurationResult(verdict=verdict, model=model, rationale=rationale)
+    return CurationResult(
+        verdict="pending",  # caller applies thresholds or parses verdict
+        model=model,
+        rationale=response.content[0].text if response.content else "",
+    )
 
 
 async def curate_challenges(
@@ -259,14 +352,18 @@ async def curate_challenges(
     *,
     tier1_model: str = DEFAULT_TIER1_MODEL,
     tier2_model: str = DEFAULT_TIER2_MODEL,
+    accept_threshold: int = DEFAULT_ACCEPT_THRESHOLD,
+    reject_threshold: int = DEFAULT_REJECT_THRESHOLD,
     max_concurrent: int = 10,
     checkpoint_path: Path | None = None,
 ) -> list[CurationResult]:
     """Run tiered LLM curation on a list of challenges.
 
-    Tier 1 (cheap model) processes all challenges concurrently.  Any that
-    return DEFER are escalated to tier 2 (stronger model).  DEFER from
-    tier 2 becomes ``"borderline"`` in the final result.
+    Tier 1 (cheap model) scores all challenges on a 0-100 rejection-confidence
+    scale.  Scores <= *accept_threshold* are auto-accepted, scores >=
+    *reject_threshold* are auto-rejected, and scores in between are escalated
+    to tier 2 (stronger model) for a categorical ACCEPT/REJECT/DEFER verdict.
+    DEFER from tier 2 becomes ``"borderline"`` in the final result.
 
     If *checkpoint_path* is given, results are written to a JSONL checkpoint
     file as each completes.  On restart with the same path, completed entries
@@ -298,12 +395,18 @@ async def curate_challenges(
         elif cp["verdict"] == "defer" and cp.get("tier") == 1:
             # Tier 1 deferred — pre-fill so tier 2 picks it up below
             results[i] = CurationResult(
-                verdict=cp["verdict"], model=cp["model"], rationale=cp["rationale"]
+                verdict=cp["verdict"],
+                model=cp["model"],
+                rationale=cp["rationale"],
+                score=cp.get("score"),
             )
         else:
             # Final result from checkpoint (accept/reject/borderline)
             results[i] = CurationResult(
-                verdict=cp["verdict"], model=cp["model"], rationale=cp["rationale"]
+                verdict=cp["verdict"],
+                model=cp["model"],
+                rationale=cp["rationale"],
+                score=cp.get("score"),
             )
 
     # --- Open checkpoint for appending ---
@@ -313,21 +416,42 @@ async def curate_challenges(
         checkpoint_fh = open(checkpoint_path, "a")  # noqa: SIM115
 
     try:
-        # --- Tier 1 ---
+        # --- Tier 1: numeric scoring ---
         if todo_tier1:
             from_cp = len(challenges) - len(todo_tier1)
             logger.info(
-                "Tier-1 curation: %d challenges with %s%s",
+                "Tier-1 scoring: %d challenges with %s (thresholds: accept<=%d, reject>=%d)%s",
                 len(todo_tier1),
                 tier1_model,
+                accept_threshold,
+                reject_threshold,
                 f" ({from_cp} loaded from checkpoint)" if from_cp else "",
             )
 
             async def _tier1_task(idx: int, ch: EvalChallenge) -> None:
-                result = await _curate_one(ch, client, tier1_model, sem, abort)
-                results[idx] = result
-                if checkpoint_fh:
-                    _append_checkpoint(checkpoint_fh, ch.task_id, result, tier=1)
+                raw = await _curate_one(
+                    ch, client, tier1_model, sem, _TIER1_SYSTEM_PROMPT, abort
+                )
+                if raw.verdict == "error":
+                    results[idx] = raw
+                else:
+                    score, rationale = _parse_score_response(raw.rationale)
+                    verdict = _score_to_verdict(
+                        score, accept_threshold, reject_threshold
+                    )
+                    results[idx] = CurationResult(
+                        verdict=verdict,
+                        model=raw.model,
+                        rationale=rationale,
+                        score=score,
+                    )
+                if checkpoint_fh and results[idx] is not None:
+                    _append_checkpoint(
+                        checkpoint_fh,
+                        ch.task_id,
+                        results[idx],
+                        tier=1,  # type: ignore[arg-type]
+                    )
 
             await asyncio.gather(*[_tier1_task(i, c) for i, c in todo_tier1])
         else:
@@ -336,7 +460,7 @@ async def curate_challenges(
                 len(challenges),
             )
 
-        # --- Tier 2: escalate DEFERs ---
+        # --- Tier 2: escalate DEFERs with categorical prompt ---
         deferred = [
             (i, challenges[i])
             for i, r in enumerate(results)
@@ -351,16 +475,32 @@ async def curate_challenges(
             )
 
             async def _tier2_task(idx: int, ch: EvalChallenge) -> None:
-                result = await _curate_one(ch, client, tier2_model, sem, abort)
-                if result.verdict == "defer":
-                    result = CurationResult(
-                        verdict="borderline",
-                        model=result.model,
-                        rationale=result.rationale,
+                raw = await _curate_one(
+                    ch, client, tier2_model, sem, _TIER2_SYSTEM_PROMPT, abort
+                )
+                if raw.verdict == "error":
+                    results[idx] = raw
+                else:
+                    verdict, rationale = _parse_response(raw.rationale)
+                    if verdict == "defer":
+                        verdict = "borderline"
+                    # Preserve the tier-1 score on the result
+                    tier1_score = (
+                        results[idx].score if results[idx] is not None else None
                     )
-                results[idx] = result
-                if checkpoint_fh:
-                    _append_checkpoint(checkpoint_fh, ch.task_id, result, tier=2)
+                    results[idx] = CurationResult(
+                        verdict=verdict,
+                        model=raw.model,
+                        rationale=rationale,
+                        score=tier1_score,
+                    )
+                if checkpoint_fh and results[idx] is not None:
+                    _append_checkpoint(
+                        checkpoint_fh,
+                        ch.task_id,
+                        results[idx],
+                        tier=2,  # type: ignore[arg-type]
+                    )
 
             await asyncio.gather(*[_tier2_task(i, c) for i, c in deferred])
         elif deferred and abort.is_set():
@@ -384,9 +524,11 @@ async def curate_challenges(
     accept_n = sum(1 for r in final_results if r.verdict == "accept")
     reject_n = sum(1 for r in final_results if r.verdict == "reject")
     border_n = sum(1 for r in final_results if r.verdict == "borderline")
+    defer_n = sum(1 for r in final_results if r.verdict == "defer")
     error_n = sum(1 for r in final_results if r.verdict == "error")
     logger.info(
-        "Curation complete: %d accepted, %d rejected, %d borderline, %d errors",
+        "Curation complete: %d accepted, %d rejected, %d borderline, %d errors"
+        + (f" ({defer_n} still deferred)" if defer_n else ""),
         accept_n,
         reject_n,
         border_n,
@@ -405,6 +547,8 @@ def curate_challenges_sync(
     *,
     tier1_model: str = DEFAULT_TIER1_MODEL,
     tier2_model: str = DEFAULT_TIER2_MODEL,
+    accept_threshold: int = DEFAULT_ACCEPT_THRESHOLD,
+    reject_threshold: int = DEFAULT_REJECT_THRESHOLD,
     max_concurrent: int = 10,
     checkpoint_path: Path | None = None,
 ) -> list[CurationResult]:
@@ -414,6 +558,8 @@ def curate_challenges_sync(
             challenges,
             tier1_model=tier1_model,
             tier2_model=tier2_model,
+            accept_threshold=accept_threshold,
+            reject_threshold=reject_threshold,
             max_concurrent=max_concurrent,
             checkpoint_path=checkpoint_path,
         )
