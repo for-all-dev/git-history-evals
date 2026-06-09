@@ -60,18 +60,23 @@ REJECT only when the ENTIRE diff consists of:
 - Comment or documentation changes
 - Adding, removing, or modifying Import/Require lines with no other changes
 - License, copyright, or boilerplate header changes
-- Deletion of unused code with no replacement
+- Deletion of truly inert code (e.g. removing an unused Import or deleting \
+a comment). IMPORTANT: deleting a Definition, Lemma, Theorem, Fixpoint, \
+Instance, or proof body is NOT "inert code deletion" — these carry proof \
+obligations and their removal is substantive proof engineering.
 
 ACCEPT if the diff contains ANY of the following, regardless of how small:
 - Any change inside a proof body (between Proof. and Qed./Defined.), \
 including mechanical tactic updates like omega->lia — tactic selection is \
 part of the proof engineering task
-- New or modified Definition, Fixpoint, Lemma, Theorem, or Instance
-- New constructors added to inductive types
-- New match arms in pattern matches
-- Type, signature, or specification changes
+- New, modified, or deleted Definition, Fixpoint, Lemma, Theorem, or Instance
+- New constructors added to inductive types or new match arms
+- Type, signature, or specification changes — including universe changes \
+like Set->Type or Prop->Type in Record, Variable, or Module Type declarations
+- Changes to Instance visibility (e.g. Instance -> Global Instance, \
+Program Instance -> Global Program Instance)
 - Extraction directives (Extract Constant, Extract Inductive)
-- A new file containing Proof./Qed. blocks with tactic scripts
+- A new file containing any definitions, lemmas, or Proof./Qed. blocks
 
 When in doubt, ACCEPT. The dataset can tolerate a few marginal challenges \
 but should not lose genuine proof engineering work.
@@ -80,8 +85,10 @@ Respond with exactly two lines:
 VERDICT: ACCEPT | REJECT | DEFER
 RATIONALE: <one sentence explaining your decision>
 
-Use DEFER only when you genuinely cannot tell — the challenge is ambiguous \
-enough to warrant a stronger model's evaluation."""
+Before choosing REJECT, double-check: does the diff touch ANY Definition, \
+Lemma, Theorem, Instance, proof body, type annotation, or specification? \
+If so, ACCEPT. If you are not sure, use DEFER — a stronger model will \
+review it."""
 
 
 # ---------------------------------------------------------------------------
