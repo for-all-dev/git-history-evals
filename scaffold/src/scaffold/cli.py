@@ -479,12 +479,12 @@ def curate(
     tier1_model: str = typer.Option(
         "",
         "--tier1-model",
-        help="Tier-1 (cheap) model for initial curation (default: claude-haiku-3-5-20241022)",
+        help="Tier-1 (cheap) model for initial curation",
     ),
     tier2_model: str = typer.Option(
         "",
         "--tier2-model",
-        help="Tier-2 (strong) model for deferred challenges (default: claude-sonnet-4-6)",
+        help="Tier-2 (strong) model for deferred challenges",
     ),
     max_concurrent: int = typer.Option(
         10, "--max-concurrent", help="Max concurrent API requests"
@@ -496,6 +496,9 @@ def curate(
     Reads challenges, sends each to a cheap model (Haiku) for ACCEPT/REJECT/DEFER,
     escalates DEFERs to a stronger model (Sonnet), and writes the filtered result
     (accepted + borderline only) to the output file.
+
+    Results are checkpointed as they complete.  If the run is interrupted, re-run
+    the same command and it will resume from the checkpoint automatically.
     """
     _setup_logging(verbose)
     from dotenv import find_dotenv, load_dotenv
@@ -519,16 +522,32 @@ def curate(
 
     t1 = tier1_model or DEFAULT_TIER1_MODEL
     t2 = tier2_model or DEFAULT_TIER2_MODEL
+
+    dest = output_path or input_path.with_stem(input_path.stem + "-curated")
+    checkpoint = Path(str(dest) + ".checkpoint")
+
+    if checkpoint.exists():
+        typer.echo(f"Resuming from checkpoint: {checkpoint}")
+
     typer.echo(
         f"Curating {len(challenges)} challenges (tier-1: {t1}, tier-2: {t2}) ..."
     )
 
     results = curate_challenges_sync(
-        challenges, tier1_model=t1, tier2_model=t2, max_concurrent=max_concurrent
+        challenges,
+        tier1_model=t1,
+        tier2_model=t2,
+        max_concurrent=max_concurrent,
+        checkpoint_path=checkpoint,
     )
-    accepted, rejected, borderline = apply_curation(challenges, results)
 
-    dest = output_path or input_path.with_stem(input_path.stem + "-curated")
+    # Separate errors from real results before partitioning
+    error_count = sum(1 for r in results if r.verdict == "error")
+    clean_challenges = [c for c, r in zip(challenges, results) if r.verdict != "error"]
+    clean_results = [r for r in results if r.verdict != "error"]
+
+    accepted, rejected, borderline = apply_curation(clean_challenges, clean_results)
+
     write_jsonl(accepted + borderline, dest)
 
     typer.echo("\nCuration results:")
@@ -536,14 +555,27 @@ def curate(
     typer.echo(f"  Accepted      : {len(accepted)}")
     typer.echo(f"  Rejected      : {len(rejected)}")
     typer.echo(f"  Borderline    : {len(borderline)}")
+    if error_count:
+        typer.echo(f"  Errors        : {error_count}")
     typer.echo(
         f"  Output        : {len(accepted) + len(borderline)} challenges -> {dest}"
     )
+
+    if error_count:
+        typer.echo(
+            f"\n{error_count} challenges had API errors."
+            f" Re-run the same command to retry (checkpoint: {checkpoint})"
+        )
 
     if rejected:
         typer.echo("\nRejected challenges:")
         for ch in rejected:
             typer.echo(f"  {ch.task_id}: {ch.curation_rationale}")
+
+    # Clean up checkpoint on full success (no errors)
+    if not error_count and checkpoint.exists():
+        checkpoint.unlink()
+        typer.echo("\nCheckpoint removed (all challenges processed successfully)")
 
 
 @app.command()

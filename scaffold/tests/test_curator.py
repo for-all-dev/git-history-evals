@@ -5,11 +5,23 @@ All tests are pure-function unit tests — no LLM API calls needed.
 
 from __future__ import annotations
 
+import asyncio
+from pathlib import Path
+from unittest.mock import AsyncMock, MagicMock, patch
+
+import pytest
+from anthropic import BadRequestError
+
 from scaffold.curator import (
     CurationResult,
+    _append_checkpoint,
     _build_curation_prompt,
+    _curate_one,
+    _is_permanent_error,
+    _load_checkpoint,
     _parse_response,
     apply_curation,
+    curate_challenges,
 )
 from scaffold.models import EvalChallenge, ProofHole
 
@@ -201,7 +213,6 @@ class TestApplyCuration:
         assert "t1" not in borderline_ids
 
     def test_mismatched_lengths_raises(self) -> None:
-        import pytest
 
         challenges = [_make_challenge(), _make_challenge()]
         results = [CurationResult(verdict="accept", model="m", rationale="r")]
@@ -241,3 +252,197 @@ class TestApplyCuration:
         assert accepted == []
         assert rejected == []
         assert borderline == []
+
+
+# ---------------------------------------------------------------------------
+# Checkpoint helpers
+# ---------------------------------------------------------------------------
+
+
+class TestCheckpoint:
+    def test_append_and_load_roundtrip(self, tmp_path: Path) -> None:
+        cp_path = tmp_path / "test.checkpoint"
+
+        r1 = CurationResult(verdict="accept", model="haiku", rationale="good")
+        r2 = CurationResult(verdict="reject", model="haiku", rationale="bad")
+
+        with open(cp_path, "w") as fh:
+            _append_checkpoint(fh, "task_1", r1, tier=1)
+            _append_checkpoint(fh, "task_2", r2, tier=1)
+
+        loaded = _load_checkpoint(cp_path)
+        assert len(loaded) == 2
+        assert loaded["task_1"]["verdict"] == "accept"
+        assert loaded["task_2"]["verdict"] == "reject"
+        assert loaded["task_1"]["tier"] == 1
+
+    def test_later_entries_override_earlier(self, tmp_path: Path) -> None:
+        cp_path = tmp_path / "test.checkpoint"
+
+        r_defer = CurationResult(verdict="defer", model="haiku", rationale="unsure")
+        r_accept = CurationResult(verdict="accept", model="sonnet", rationale="ok")
+
+        with open(cp_path, "w") as fh:
+            _append_checkpoint(fh, "task_1", r_defer, tier=1)
+            _append_checkpoint(fh, "task_1", r_accept, tier=2)
+
+        loaded = _load_checkpoint(cp_path)
+        assert len(loaded) == 1
+        assert loaded["task_1"]["verdict"] == "accept"
+        assert loaded["task_1"]["tier"] == 2
+
+    def test_load_missing_file_returns_empty(self, tmp_path: Path) -> None:
+        loaded = _load_checkpoint(tmp_path / "nonexistent.checkpoint")
+        assert loaded == {}
+
+    def test_load_corrupt_file_returns_empty(self, tmp_path: Path) -> None:
+        cp_path = tmp_path / "corrupt.checkpoint"
+        cp_path.write_text("not valid json\n")
+
+        loaded = _load_checkpoint(cp_path)
+        assert loaded == {}
+
+
+# ---------------------------------------------------------------------------
+# Error handling
+# ---------------------------------------------------------------------------
+
+
+class TestErrorHandling:
+    def test_is_permanent_error_credit_balance(self) -> None:
+        exc = Exception("Your credit balance is too low")
+        assert _is_permanent_error(exc) is True
+
+    def test_is_permanent_error_billing(self) -> None:
+        exc = Exception("billing account suspended")
+        assert _is_permanent_error(exc) is True
+
+    def test_is_not_permanent_error_rate_limit(self) -> None:
+        exc = Exception("rate limit exceeded")
+        assert _is_permanent_error(exc) is False
+
+    def test_curate_one_catches_api_error(self) -> None:
+        """_curate_one returns verdict='error' instead of raising."""
+        ch = _make_challenge()
+        client = MagicMock()
+        client.messages = MagicMock()
+        client.messages.create = AsyncMock(
+            side_effect=BadRequestError(
+                message="credit balance too low",
+                response=MagicMock(status_code=400, headers={}),
+                body={"error": {"message": "credit balance too low"}},
+            )
+        )
+        sem = asyncio.Semaphore(1)
+        abort = asyncio.Event()
+
+        result = asyncio.run(_curate_one(ch, client, "haiku", sem, abort))
+
+        assert result.verdict == "error"
+        assert "credit balance" in result.rationale.lower()
+        assert abort.is_set()  # permanent error triggers abort
+
+    def test_curate_one_respects_abort(self) -> None:
+        """_curate_one returns immediately when abort is already set."""
+        ch = _make_challenge()
+        client = MagicMock()
+        sem = asyncio.Semaphore(1)
+        abort = asyncio.Event()
+        abort.set()
+
+        result = asyncio.run(_curate_one(ch, client, "haiku", sem, abort))
+
+        assert result.verdict == "error"
+        assert "aborted" in result.rationale.lower()
+        # Should not have called the API
+        client.messages.create.assert_not_called()
+
+
+# ---------------------------------------------------------------------------
+# curate_challenges with checkpoint
+# ---------------------------------------------------------------------------
+
+
+class TestCurateChallengesCheckpoint:
+    def _mock_response(self, verdict: str, rationale: str) -> MagicMock:
+        resp = MagicMock()
+        content_block = MagicMock()
+        content_block.text = f"VERDICT: {verdict}\nRATIONALE: {rationale}"
+        resp.content = [content_block]
+        return resp
+
+    def test_resumes_from_checkpoint(self, tmp_path: Path) -> None:
+        """Challenges in checkpoint are skipped; only new ones hit the API."""
+        cp_path = tmp_path / "test.checkpoint"
+
+        # Pre-populate checkpoint with one result
+        with open(cp_path, "w") as fh:
+            _append_checkpoint(
+                fh,
+                "t0",
+                CurationResult(verdict="accept", model="haiku", rationale="cached"),
+                tier=1,
+            )
+
+        challenges = [
+            _make_challenge(task_id="t0"),
+            _make_challenge(task_id="t1"),
+        ]
+
+        with patch("scaffold.curator.AsyncAnthropic") as mock_cls:
+            client = MagicMock()
+            client.messages = MagicMock()
+            client.messages.create = AsyncMock(
+                return_value=self._mock_response("REJECT", "bad challenge")
+            )
+            mock_cls.return_value = client
+
+            results = asyncio.run(
+                curate_challenges(
+                    challenges,
+                    checkpoint_path=cp_path,
+                    max_concurrent=1,
+                )
+            )
+
+        assert len(results) == 2
+        # t0 should be from checkpoint
+        assert results[0].verdict == "accept"
+        assert results[0].rationale == "cached"
+        # t1 should be freshly processed
+        assert results[1].verdict == "reject"
+        # API should have been called only once (for t1)
+        assert client.messages.create.call_count == 1
+
+    def test_errors_retried_on_resume(self, tmp_path: Path) -> None:
+        """Challenges with verdict='error' in checkpoint are retried."""
+        cp_path = tmp_path / "test.checkpoint"
+
+        with open(cp_path, "w") as fh:
+            _append_checkpoint(
+                fh,
+                "t0",
+                CurationResult(verdict="error", model="haiku", rationale="API error"),
+                tier=1,
+            )
+
+        challenges = [_make_challenge(task_id="t0")]
+
+        with patch("scaffold.curator.AsyncAnthropic") as mock_cls:
+            client = MagicMock()
+            client.messages = MagicMock()
+            client.messages.create = AsyncMock(
+                return_value=self._mock_response("ACCEPT", "good now")
+            )
+            mock_cls.return_value = client
+
+            results = asyncio.run(
+                curate_challenges(
+                    challenges,
+                    checkpoint_path=cp_path,
+                    max_concurrent=1,
+                )
+            )
+
+        assert results[0].verdict == "accept"
+        assert client.messages.create.call_count == 1
