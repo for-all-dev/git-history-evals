@@ -117,13 +117,37 @@ challenges mined from the git history of {repo}, a formally verified codebase \
 ({proof_assistant}).
 
 Each challenge presents the repository state before a commit; the commit's \
-diff is the ground-truth solution. A challenge is VALUABLE when reproducing \
-the change requires genuine proof engineering: writing or repairing proofs, \
-adding or modifying definitions, lemmas, theorems, or specifications, or \
-adapting proofs to changed statements. A challenge is NOT valuable when the \
-change carries no proof obligations: cosmetic edits (whitespace, comments, \
-formatting), import-only or license-header changes, auto-generated or \
-mechanically derived boilerplate, or deletion of truly inert code.
+diff is the ground-truth solution. Judge whether the challenge belongs in an \
+evaluation dataset for AI proof synthesis.
+
+DEFAULT TO ACCEPT. The standard is whether the change INTERACTS WITH PROOF \
+OBLIGATIONS — not whether it is difficult or creative. Mechanical changes are \
+still substantive when they touch proof content.
+
+ACCEPT when the change involves any of the following, however small or \
+mechanical:
+- Edits inside proof scripts or proof bodies, including mechanical tactic \
+modernisations (e.g. Coq's omega->lia) — tactic selection is part of the \
+proof engineering task
+- Adding, modifying, or DELETING hand-written definitions, lemmas, theorems, \
+type-class instances, axioms, or assumptions — deletions carry proof \
+obligations too
+- Changes to statements, types, signatures, or specifications
+- Renaming or replacing identifiers inside definition or proof bodies — API \
+migrations change the proof engineering task
+- Changes to proof-automation or elaboration configuration (hint databases, \
+attribute or visibility changes, implicit-argument declarations, notation) \
+that affect how proofs are found or elaborated
+- Directives that shape the verified artifact (e.g. code extraction or \
+export configuration)
+- A new hand-written file containing definitions, lemmas, or proofs
+
+REJECT only when the change carries NO proof obligations:
+- Whitespace, formatting, or comment/documentation edits
+- Import-only or module-inclusion-only changes; license or header boilerplate
+- Auto-generated or mechanically derived file contents — generated \
+boilerplate is not hand proof engineering even when it contains definitions
+- Build-system, CI, or tooling noise
 
 Repo-specific context from automated profiling:
 {notes}
