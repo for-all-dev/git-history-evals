@@ -24,3 +24,4 @@ artifacts/bucket-mirror/
 
 # Calibration crash-recovery checkpoints (transient; cleaned on a successful mine)
 artifacts/**/_checkpoints/
+/local/
