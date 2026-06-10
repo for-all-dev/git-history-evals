@@ -91,6 +91,7 @@ class StubCalibrator(PromptCalibrator):
             raise AssertionError("Writer stub ran out of scripted replies")
         reply = self._writer_replies.pop(0)
         self.writer_messages.append({"role": "assistant", "content": reply})
+        self._save_writer_transcript()  # mirror the real seam's persistence
         return reply
 
     async def _complete(self, *, system, user, model, semaphore, max_tokens):
@@ -329,20 +330,48 @@ class TestCalibrationLoop:
         saved = json.loads((out / "calibration.json").read_text())
         assert saved["prompts"].keys() == report.prompts.keys()
 
-    def test_state_resumes(self, tmp_path) -> None:
+    def test_rerun_of_completed_run_is_free(self, tmp_path) -> None:
         calibrator = _make_calibrator(
             tmp_path, writer_replies=[_SEED_REPLY, _VARIANTS_REPLY, _CONVERGED_REPLY]
         )
         report = calibrator.run()
 
-        resumed = _make_calibrator(
-            tmp_path, writer_replies=[_SEED_REPLY, _CONVERGED_REPLY]
-        )
+        # A re-run after completion needs no writer turns, no labels, and no
+        # scoring — everything replays from the persisted state.
+        resumed = _make_calibrator(tmp_path, writer_replies=[])
         assert len(resumed.labels) == report.n_labeled
         assert resumed.scores  # tier-1 cache reloaded
-        # A resumed run re-labels nothing it already has.
         rerun = resumed.run()
-        assert resumed.n_label_calls == rerun.n_labeled - report.n_labeled
+        assert resumed.n_label_calls == 0
+        assert rerun.n_labeled == report.n_labeled
+        assert rerun.winner_prompt_id == report.winner_prompt_id
+        assert len(rerun.iterations) == len(report.iterations)
+
+    def test_crash_mid_iteration_resumes_without_relabeling(self, tmp_path) -> None:
+        # The writer stub runs out of replies during iteration 2's turn —
+        # after the iteration-2 sample was drawn and labeled.
+        crashed = _make_calibrator(
+            tmp_path, writer_replies=[_SEED_REPLY, _VARIANTS_REPLY]
+        )
+        with pytest.raises(AssertionError, match="scripted replies"):
+            crashed.run()
+        labels_at_crash = len(crashed.labels)
+        assert labels_at_crash == 35  # both iterations' samples were labeled
+
+        resumed = _make_calibrator(tmp_path, writer_replies=[_CONVERGED_REPLY])
+        report = resumed.run()
+
+        # No re-labeling: iteration 2 reused its persisted sample draw.
+        assert resumed.n_label_calls == 0
+        assert report.n_labeled == labels_at_crash
+        assert len(report.iterations) == 2
+        assert report.iterations[0].writer_action == "variants"
+        assert report.iterations[1].writer_action == "converged"
+        # The resumed writer conversation continued from the persisted
+        # transcript: seed + retry-free iteration 1 + iteration 2 turns.
+        assert len(resumed.writer_messages) == 6
+        # Seed prompt and both variants survived the crash.
+        assert len(report.prompts) == 3
 
     def test_converges_on_first_iteration(self, tmp_path) -> None:
         calibrator = _make_calibrator(

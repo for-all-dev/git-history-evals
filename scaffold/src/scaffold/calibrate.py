@@ -27,9 +27,12 @@ any repo gets its own calibrated prompt before the full curation run:
    labeled samples and the winner's criteria body + tuned thresholds are
    written as dataset-bundle artifacts (see write_artifacts).
 
-The expensive state (ground-truth labels, tier-1 scores, tier-2 verdicts) is
-checkpointed to a state directory; re-running after an interruption reuses it.
-The writer conversation itself restarts fresh on a re-run.
+The run is fault-tolerant: ground-truth labels, tier-1 scores, and tier-2
+verdicts are checkpointed as they complete, sample draws are persisted before
+labeling starts, the loop position is saved after every iteration, and the
+writer transcript is replayed on restart — so a crash or shutdown resumes the
+calibration (including the writer's accumulated context) rather than
+restarting it. Re-run the same command to resume.
 """
 
 from __future__ import annotations
@@ -208,7 +211,7 @@ class CalibrationConfig(BaseModel):
     pool_size: int = 3
     defer_cap: float = 0.10
     max_concurrent: int = 10
-    label_max_concurrent: int = 4
+    label_max_concurrent: int = 8
     seed: int = 0
 
 
@@ -429,6 +432,10 @@ class PromptCalibrator:
         self.last_eval: dict[str, PromptEvaluation] = {}
         self.api_calls: dict[str, int] = {}
         self.writer_messages: list[MessageParam] = []
+        self.saved_iterations: list[IterationRecord] = []
+        self.saved_samples: dict[str, dict[str, list[str]]] = {}
+        self.saved_current: str = ""
+        self.saved_pool: list[str] = []
 
         self._client: AsyncAnthropic | None = None
         self._load_state()
@@ -445,12 +452,64 @@ class PromptCalibrator:
         for line in self._read_lines("tier2.jsonl"):
             e = json.loads(line)
             self.tier2[(e["prompt_id"], e["task_id"])] = (e["verdict"], e["rationale"])
-        if self.labels or self.scores:
+
+        prompts_path = self.state_dir / "prompts.json"
+        if prompts_path.exists():
+            saved = json.loads(prompts_path.read_text())
+            for pid, entry in sorted(
+                saved.items(), key=lambda kv: kv[1].get("order", 0)
+            ):
+                self.prompts[pid] = entry["criteria"]
+                self.prompt_origins[pid] = entry["origin"]
+                self.prompt_order[pid] = entry.get("order", len(self.prompt_order))
+
+        transcript_path = self.state_dir / "writer_transcript.json"
+        if transcript_path.exists():
+            self.writer_messages = json.loads(transcript_path.read_text())
+
+        loop_path = self.state_dir / "loop_state.json"
+        if loop_path.exists():
+            loop = json.loads(loop_path.read_text())
+            self.saved_iterations = [
+                IterationRecord.model_validate(it) for it in loop.get("iterations", [])
+            ]
+            self.saved_samples = loop.get("samples", {})
+            self.saved_current = loop.get("current", "")
+            self.saved_pool = loop.get("pool", [])
+
+        if self.labels or self.scores or self.saved_iterations:
             logger.info(
-                "Loaded calibration state: %d labels, %d cached scores",
+                "Loaded calibration state: %d labels, %d cached scores, "
+                "%d completed iterations",
                 len(self.labels),
                 len(self.scores),
+                len(self.saved_iterations),
             )
+
+    def _save_loop_state(
+        self,
+        current: str,
+        pool: list[str],
+        iterations: list[IterationRecord],
+        samples: dict[str, dict[str, list[str]]],
+    ) -> None:
+        """Persist the loop position so a crashed run resumes, not restarts.
+
+        Written after the seed, after every sample draw (before the expensive
+        labeling step, so an interrupted iteration reuses its draw), and after
+        every completed iteration.
+        """
+        (self.state_dir / "loop_state.json").write_text(
+            json.dumps(
+                {
+                    "current": current,
+                    "pool": pool,
+                    "iterations": [it.model_dump() for it in iterations],
+                    "samples": samples,
+                },
+                indent=2,
+            )
+        )
 
     def _read_lines(self, name: str) -> list[str]:
         path = self.state_dir / name
@@ -776,7 +835,11 @@ class PromptCalibrator:
             (self.state_dir / "prompts.json").write_text(
                 json.dumps(
                     {
-                        p: {"origin": self.prompt_origins[p], "criteria": c}
+                        p: {
+                            "origin": self.prompt_origins[p],
+                            "order": self.prompt_order[p],
+                            "criteria": c,
+                        }
                         for p, c in self.prompts.items()
                     },
                     indent=2,
@@ -786,6 +849,9 @@ class PromptCalibrator:
 
     async def _seed_prompt(self) -> str:
         """Writer turn 0: draft the repo-specific section from the profile."""
+        for pid, origin in self.prompt_origins.items():
+            if origin.startswith("seed"):
+                return pid  # resumed run — seed already drafted
         user = (
             "## Task: draft the repo-specific criteria section\n\n"
             "Below is the universal core criteria body used for every repo, "
@@ -940,11 +1006,42 @@ class PromptCalibrator:
             config=self.config,
         )
 
-        current = await self._seed_prompt()
-        pool: list[str] = [current]
+        # Resume from persisted loop state when present (crash / interruption).
+        report.iterations = list(self.saved_iterations)
+        samples: dict[str, dict[str, list[str]]] = dict(self.saved_samples)
+        for record in report.iterations:
+            for evaluation in record.evaluations:
+                self.last_eval[evaluation.prompt_id] = evaluation
+        if self.saved_current and self.saved_current in self.prompts:
+            current = self.saved_current
+            pool = [p for p in self.saved_pool if p in self.prompts] or [current]
+            logger.info(
+                "Resuming calibration after %d completed iteration(s)",
+                len(report.iterations),
+            )
+        else:
+            current = await self._seed_prompt()
+            pool = [current]
+            self._save_loop_state(current, pool, report.iterations, samples)
 
-        for iteration in range(1, self.config.max_iterations + 1):
-            uniform, oversampled = await self._draw_sample(iteration, current)
+        loop_done = bool(report.iterations) and report.iterations[-1].writer_action in (
+            "converged",
+            "exhausted",
+        )
+
+        iteration = len(report.iterations)
+        while not loop_done and iteration < self.config.max_iterations:
+            iteration += 1
+            key = str(iteration)
+            if key in samples:
+                uniform = samples[key]["uniform"]
+                oversampled = samples[key]["oversampled"]
+            else:
+                uniform, oversampled = await self._draw_sample(iteration, current)
+                samples[key] = {"uniform": uniform, "oversampled": oversampled}
+                # Persist the draw before the expensive labeling step, so an
+                # interrupted iteration reuses it instead of re-drawing.
+                self._save_loop_state(current, pool, report.iterations, samples)
             if not uniform and not oversampled:
                 logger.info(
                     "Challenge pool exhausted — stopping at iteration %d", iteration
@@ -960,6 +1057,7 @@ class PromptCalibrator:
                         writer_action="exhausted",
                     )
                 )
+                self._save_loop_state(current, pool, report.iterations, samples)
                 break
 
             provenance = {t: "uniform" for t in uniform}
@@ -998,6 +1096,7 @@ class PromptCalibrator:
                         writer_note=str(payload),
                     )
                 )
+                self._save_loop_state(current, pool, report.iterations, samples)
                 logger.info("Writer declared convergence: %s", payload)
                 break
 
@@ -1023,6 +1122,7 @@ class PromptCalibrator:
                     writer_note=f"variants: {', '.join(variant_ids)}",
                 )
             )
+            self._save_loop_state(current, pool, report.iterations, samples)
             logger.info(
                 "Iteration %d: best %s (%d/%d misclassified, defer %s)",
                 iteration,
