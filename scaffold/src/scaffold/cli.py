@@ -476,6 +476,15 @@ def curate(
     output_path: Path = typer.Option(
         None, "--output", "-o", help="Output path (default: <input>-curated.jsonl)"
     ),
+    calibration: Path = typer.Option(
+        None,
+        "--calibration",
+        "-c",
+        help=(
+            "Path to a curation/ dir produced by `scaffold calibrate`; "
+            "loads the repo-calibrated prompts and thresholds"
+        ),
+    ),
     tier1_model: str = typer.Option(
         "",
         "--tier1-model",
@@ -503,10 +512,13 @@ def curate(
 ) -> None:
     """Run tiered LLM curation on a challenges JSONL file.
 
-    Tier 1 (Haiku) scores each challenge 0-100 on a rejection-confidence
+    Tier 1 (cheap model) scores each challenge 0-100 on a rejection-confidence
     scale.  Scores below the accept threshold are auto-accepted, scores above
     the reject threshold are auto-rejected, and scores in between are
-    escalated to tier 2 (Sonnet) for a categorical verdict.
+    escalated to tier 2 (mid model) for a categorical verdict.
+
+    Pass --calibration <bundle>/curation to use a repo-calibrated prompt
+    (see `scaffold calibrate`); otherwise the universal prompt is used.
 
     Results are checkpointed as they complete.  If the run is interrupted, re-run
     the same command and it will resume from the checkpoint automatically.
@@ -515,13 +527,14 @@ def curate(
     from dotenv import find_dotenv, load_dotenv
 
     from scaffold.curator import (
+        _TIER1_SYSTEM_PROMPT,
+        _TIER2_SYSTEM_PROMPT,
         DEFAULT_ACCEPT_THRESHOLD,
         DEFAULT_REJECT_THRESHOLD,
-        DEFAULT_TIER1_MODEL,
-        DEFAULT_TIER2_MODEL,
         apply_curation,
         curate_challenges_sync,
     )
+    from scaffold.model_roles import load_model_roles
     from scaffold.output import read_jsonl, write_jsonl
 
     dotenv_path = find_dotenv(usecwd=True)
@@ -533,10 +546,22 @@ def curate(
         typer.echo("No challenges found in input file.")
         raise typer.Exit(1)
 
-    t1 = tier1_model or DEFAULT_TIER1_MODEL
-    t2 = tier2_model or DEFAULT_TIER2_MODEL
+    roles = load_model_roles()
+    t1 = tier1_model or roles.cheap
+    t2 = tier2_model or roles.mid
+
+    tier1_prompt, tier2_prompt = _TIER1_SYSTEM_PROMPT, _TIER2_SYSTEM_PROMPT
     at = accept_threshold or DEFAULT_ACCEPT_THRESHOLD
     rt = reject_threshold or DEFAULT_REJECT_THRESHOLD
+    if calibration is not None:
+        from scaffold.calibrate import load_calibration
+
+        calibrated = load_calibration(calibration)
+        tier1_prompt = calibrated.tier1_system_prompt
+        tier2_prompt = calibrated.tier2_system_prompt
+        at = accept_threshold or calibrated.accept_threshold
+        rt = reject_threshold or calibrated.reject_threshold
+        typer.echo(f"Using calibrated prompts from {calibration}")
 
     dest = output_path or input_path.with_stem(input_path.stem + "-curated")
     checkpoint = Path(str(dest) + ".checkpoint")
@@ -557,6 +582,8 @@ def curate(
         reject_threshold=rt,
         max_concurrent=max_concurrent,
         checkpoint_path=checkpoint,
+        tier1_system_prompt=tier1_prompt,
+        tier2_system_prompt=tier2_prompt,
     )
 
     # Separate errors from real results before partitioning
@@ -597,6 +624,170 @@ def curate(
 
 
 @app.command()
+def calibrate(
+    input_path: Path = typer.Argument(
+        None,
+        help="Raw (uncurated) challenges JSONL. Omit when --bundle is given.",
+    ),
+    bundle: Path = typer.Option(
+        None,
+        "--bundle",
+        "-b",
+        help=(
+            "Dataset version dir (artifacts/<repo>-eval/<tag>-<hash>); infers "
+            "challenges.jsonl + miner/profile.json and writes curation/ inside"
+        ),
+    ),
+    profile: Path = typer.Option(
+        None,
+        "--profile",
+        "-p",
+        help="RepoProfile JSON (default: <bundle>/miner/profile.json)",
+    ),
+    output_dir: Path = typer.Option(
+        None, "--output-dir", "-o", help="Artifact dir (default: <bundle>/curation)"
+    ),
+    repo: str = typer.Option(
+        "", "--repo", help="Repo name for prompts/report (default: inferred)"
+    ),
+    max_iterations: int = typer.Option(5, "--max-iterations"),
+    first_sample_size: int = typer.Option(
+        500, "--first-sample", help="Uniform sample size for iteration 1"
+    ),
+    uniform_per_iteration: int = typer.Option(
+        200, "--uniform", help="Uniform sample size for iterations 2+"
+    ),
+    oversample_per_iteration: int = typer.Option(
+        100, "--oversample", help="Defer-zone oversample size for iterations 2+"
+    ),
+    seed: int = typer.Option(0, "--seed", help="RNG seed for sampling"),
+    max_concurrent: int = typer.Option(
+        10, "--max-concurrent", help="Max concurrent cheap/mid-model requests"
+    ),
+    cheap_model: str = typer.Option(
+        "", "--cheap-model", help="Override the cheap role"
+    ),
+    mid_model: str = typer.Option("", "--mid-model", help="Override the mid role"),
+    decision_model: str = typer.Option(
+        "", "--decision-model", help="Override the decision role"
+    ),
+    verbose: bool = typer.Option(False, "--verbose", "-v"),
+) -> None:
+    """Calibrate a repo-specific curation prompt against ground-truth labels.
+
+    Automates the manual tune-measure loop from issue #84: per iteration, draw
+    a fresh random sample, label it with the decision model, evaluate candidate
+    prompts (tier-1 scoring + mechanical threshold sweep + tier-2 escalation),
+    and let a persistent decision-model writer analyze failures and propose
+    variants until it judges the prompt converged (max 5 iterations).
+
+    Writes curation/{criteria.txt, tier1_prompt.txt, tier2_prompt.txt,
+    calibration.json}; pass that directory to `scaffold curate --calibration`
+    for the full run. Expensive state (labels, scores) is checkpointed under
+    curation/state/ — re-run the same command to resume after an interruption.
+    """
+    _setup_logging(verbose)
+    from dotenv import find_dotenv, load_dotenv
+
+    from scaffold.calibrate import (
+        CalibrationConfig,
+        PromptCalibrator,
+        write_artifacts,
+    )
+    from scaffold.model_roles import load_model_roles
+    from scaffold.output import read_jsonl
+    from scaffold.profile import load_profile
+
+    dotenv_path = find_dotenv(usecwd=True)
+    if dotenv_path:
+        load_dotenv(dotenv_path)
+
+    if bundle is not None:
+        input_path = input_path or bundle / "challenges.jsonl"
+        profile = profile or bundle / "miner" / "profile.json"
+        output_dir = output_dir or bundle / "curation"
+    if input_path is None or profile is None or output_dir is None:
+        typer.echo(
+            "Provide --bundle, or all of: challenges JSONL, --profile, --output-dir."
+        )
+        raise typer.Exit(1)
+
+    challenges = read_jsonl(input_path)
+    if not challenges:
+        typer.echo("No challenges found in input file.")
+        raise typer.Exit(1)
+    prof = load_profile(profile)
+
+    roles = load_model_roles()
+    if cheap_model:
+        roles.cheap = cheap_model
+    if mid_model:
+        roles.mid = mid_model
+    if decision_model:
+        roles.decision = decision_model
+
+    repo_name = repo or (challenges[0].repo if challenges[0].repo else input_path.stem)
+    config = CalibrationConfig(
+        max_iterations=max_iterations,
+        first_sample_size=first_sample_size,
+        uniform_per_iteration=uniform_per_iteration,
+        oversample_per_iteration=oversample_per_iteration,
+        seed=seed,
+        max_concurrent=max_concurrent,
+    )
+
+    typer.echo(
+        f"Calibrating curation prompt for {repo_name} "
+        f"({len(challenges)} challenges; cheap={roles.cheap}, mid={roles.mid}, "
+        f"decision={roles.decision}) ..."
+    )
+
+    calibrator = PromptCalibrator(
+        challenges,
+        prof,
+        repo=repo_name,
+        state_dir=Path(output_dir) / "state",
+        models=roles,
+        config=config,
+    )
+    report = calibrator.run()
+    write_artifacts(report, Path(output_dir))
+
+    winner = next(
+        e for e in report.final_evaluations if e.prompt_id == report.winner_prompt_id
+    )
+
+    def _pct(x: float | None) -> str:
+        return f"{x:.1%}" if x is not None else "n/a"
+
+    typer.echo("\nCalibration complete:")
+    typer.echo(f"  iterations     : {len(report.iterations)}")
+    typer.echo(
+        f"  labeled        : {report.n_labeled} "
+        f"({report.n_label_accept} accept / {report.n_label_reject} reject)"
+    )
+    typer.echo(
+        f"  winner         : {report.winner_prompt_id} "
+        f"({report.prompt_origins.get(report.winner_prompt_id, '?')})"
+    )
+    typer.echo(
+        f"  thresholds     : accept<={report.accept_threshold}, "
+        f"reject>={report.reject_threshold}"
+    )
+    typer.echo(
+        f"  misclass       : {_pct(winner.misclassification_rate)} "
+        f"(accumulated pool, n={winner.n_uniform})"
+    )
+    typer.echo(f"  false-accept   : {_pct(winner.false_accept_rate)}")
+    typer.echo(f"  false-reject   : {_pct(winner.false_reject_rate)}")
+    typer.echo(f"  defer rate     : {_pct(winner.defer_rate)}")
+    typer.echo(f"  artifacts      : {output_dir}")
+    typer.echo(
+        f"\nNext: uv run scaffold curate {input_path} --calibration {output_dir}"
+    )
+
+
+@app.command()
 def materialize(
     repo_path: Path = typer.Argument(..., help="Path to the proof engineering repo"),
     profile: Path = _PROFILE_OPT,
@@ -616,12 +807,12 @@ def materialize(
     tier1_model: str = typer.Option(
         "",
         "--tier1-model",
-        help="Tier-1 curation model (default: claude-haiku-3-5-20241022)",
+        help="Tier-1 curation model (default: the 'cheap' model role)",
     ),
     tier2_model: str = typer.Option(
         "",
         "--tier2-model",
-        help="Tier-2 curation model (default: claude-sonnet-4-6)",
+        help="Tier-2 curation model (default: the 'mid' model role)",
     ),
     promote: bool = typer.Option(
         False,

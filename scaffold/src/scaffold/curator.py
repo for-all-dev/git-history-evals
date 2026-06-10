@@ -32,6 +32,7 @@ from pathlib import Path
 from anthropic import AsyncAnthropic
 from pydantic import BaseModel
 
+from scaffold.model_roles import DEFAULT_CHEAP_MODEL, DEFAULT_MID_MODEL
 from scaffold.models import EvalChallenge
 
 logger = logging.getLogger(__name__)
@@ -40,8 +41,8 @@ logger = logging.getLogger(__name__)
 # Constants
 # ---------------------------------------------------------------------------
 
-DEFAULT_TIER1_MODEL = "claude-haiku-4-5"
-DEFAULT_TIER2_MODEL = "claude-sonnet-4-5"
+DEFAULT_TIER1_MODEL = DEFAULT_CHEAP_MODEL
+DEFAULT_TIER2_MODEL = DEFAULT_MID_MODEL
 DEFAULT_ACCEPT_THRESHOLD = 20
 DEFAULT_REJECT_THRESHOLD = 85
 _MAX_DIFF_CHARS = 8000
@@ -152,6 +153,43 @@ Before choosing REJECT, double-check: does the diff touch ANY Definition, \
 Lemma, Theorem, Instance, Hint, Parameter, proof body, type annotation, \
 identifier rename, or specification? If so, ACCEPT. If you are not sure, \
 use DEFER."""
+
+
+# ---------------------------------------------------------------------------
+# Calibrated-prompt assembly
+# ---------------------------------------------------------------------------
+#
+# The calibration loop (scaffold/calibrate.py) writes a single *criteria body*
+# per repo — the role framing plus accept/reject criteria, without any output
+# format instructions.  The two builders below append the tier-specific output
+# format, so the tier-1 and tier-2 prompts always share identical criteria.
+
+TIER1_OUTPUT_FORMAT = """\
+Rate the challenge on a scale from 0 to 100, where:
+- 0 = definitely should be ACCEPTED (clearly substantive proof engineering)
+- 100 = definitely should be REJECTED (clearly non-substantive)
+
+Respond with exactly two lines:
+SCORE: <integer 0-100>
+RATIONALE: <one sentence explaining your assessment>"""
+
+TIER2_OUTPUT_FORMAT = """\
+Respond with exactly two lines:
+VERDICT: ACCEPT | REJECT | DEFER
+RATIONALE: <one sentence explaining your decision>
+
+Use DEFER only when you genuinely cannot tell whether the challenge is \
+substantive."""
+
+
+def build_tier1_prompt(criteria_body: str) -> str:
+    """Render a tier-1 (numeric scoring) system prompt from a criteria body."""
+    return f"{criteria_body.rstrip()}\n\n{TIER1_OUTPUT_FORMAT}"
+
+
+def build_tier2_prompt(criteria_body: str) -> str:
+    """Render a tier-2 (categorical verdict) system prompt from a criteria body."""
+    return f"{criteria_body.rstrip()}\n\n{TIER2_OUTPUT_FORMAT}"
 
 
 # ---------------------------------------------------------------------------
@@ -370,6 +408,8 @@ async def curate_challenges(
     reject_threshold: int = DEFAULT_REJECT_THRESHOLD,
     max_concurrent: int = 10,
     checkpoint_path: Path | None = None,
+    tier1_system_prompt: str = _TIER1_SYSTEM_PROMPT,
+    tier2_system_prompt: str = _TIER2_SYSTEM_PROMPT,
 ) -> list[CurationResult]:
     """Run tiered LLM curation on a list of challenges.
 
@@ -383,6 +423,10 @@ async def curate_challenges(
     file as each completes.  On restart with the same path, completed entries
     are loaded and their challenges skipped — pass the same checkpoint to
     resume an interrupted run.
+
+    The system prompts default to the universal prompts above; pass
+    *tier1_system_prompt* / *tier2_system_prompt* to use repo-calibrated
+    prompts (see scaffold/calibrate.py and build_tier{1,2}_prompt).
     """
     if not challenges:
         return []
@@ -444,7 +488,7 @@ async def curate_challenges(
 
             async def _tier1_task(idx: int, ch: EvalChallenge) -> None:
                 raw = await _curate_one(
-                    ch, client, tier1_model, sem, _TIER1_SYSTEM_PROMPT, abort
+                    ch, client, tier1_model, sem, tier1_system_prompt, abort
                 )
                 if raw.verdict == "error":
                     results[idx] = raw
@@ -490,7 +534,7 @@ async def curate_challenges(
 
             async def _tier2_task(idx: int, ch: EvalChallenge) -> None:
                 raw = await _curate_one(
-                    ch, client, tier2_model, sem, _TIER2_SYSTEM_PROMPT, abort
+                    ch, client, tier2_model, sem, tier2_system_prompt, abort
                 )
                 if raw.verdict == "error":
                     results[idx] = raw
@@ -565,6 +609,8 @@ def curate_challenges_sync(
     reject_threshold: int = DEFAULT_REJECT_THRESHOLD,
     max_concurrent: int = 10,
     checkpoint_path: Path | None = None,
+    tier1_system_prompt: str = _TIER1_SYSTEM_PROMPT,
+    tier2_system_prompt: str = _TIER2_SYSTEM_PROMPT,
 ) -> list[CurationResult]:
     """Synchronous wrapper around :func:`curate_challenges`."""
     return asyncio.run(
@@ -576,6 +622,8 @@ def curate_challenges_sync(
             reject_threshold=reject_threshold,
             max_concurrent=max_concurrent,
             checkpoint_path=checkpoint_path,
+            tier1_system_prompt=tier1_system_prompt,
+            tier2_system_prompt=tier2_system_prompt,
         )
     )
 
