@@ -30,6 +30,24 @@
       "created_at": "2026-06-03T06:58:29.164138+00:00"
     },
     {
+      "manifest_hash": "518a666bda41104abc420382ce10d654bfa6a7c9062fb7b17bb5250844f11760",
+      "path": "fiat-crypto-eval/fiat-crypto-curated-v2-1aee9a9f/",
+      "dataset_id": "forall/fiat-crypto-eval",
+      "version": "fiat-crypto-curated-v2-1aee9a9f",
+      "schema_version": 1,
+      "row_version": 0,
+      "created_at": "2026-06-09T18:08:00+00:00"
+    },
+    {
+      "manifest_hash": "822e5110039596f5b1c4f8a66923a190d845a9e9a6fc898b0c66ef74dc69979b",
+      "path": "fiat-crypto-eval/fiat-crypto-curated-v1-76e70690/",
+      "dataset_id": "forall/fiat-crypto-eval",
+      "version": "fiat-crypto-curated-v1-76e70690",
+      "schema_version": 1,
+      "row_version": 0,
+      "created_at": "2026-06-09T15:29:40.381195+00:00"
+    },
+    {
       "manifest_hash": "6db8fa421c27f13a98fa139e16ebda3d21c14d7c3acd0ca2e133295d795d5810",
       "path": "fiat-crypto-eval/agent-recovered-f0b38f3c/",
       "dataset_id": "forall/fiat-crypto-eval",
