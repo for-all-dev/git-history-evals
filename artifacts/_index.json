@@ -66,6 +66,15 @@
       "created_at": "2026-06-09T18:08:00+00:00"
     },
     {
+      "manifest_hash": "0162ac4c9b73b8866717b398f6cb36ba2377d98ba4669002ffd4bf13337c0c1a",
+      "path": "fiat-crypto-eval/fiat-crypto-curated-v3-dc0abd63/",
+      "dataset_id": "forall/fiat-crypto-eval",
+      "version": "fiat-crypto-curated-v3-dc0abd63",
+      "schema_version": 1,
+      "row_version": 0,
+      "created_at": "2026-06-11T04:57:55.538444+00:00"
+    },
+    {
       "manifest_hash": "41efbf3f6f33393703ff5063adb8b1cdc09177f00c778bc5968c85179c983cca",
       "path": "fiat-crypto-eval/init-draft/",
       "dataset_id": "forall/fiat-crypto-eval",
