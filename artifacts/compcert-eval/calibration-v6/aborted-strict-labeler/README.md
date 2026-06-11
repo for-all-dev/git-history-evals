@@ -1,0 +1,1 @@
+First attempt aborted 2026-06-10: the cold-start GT labeler graded stricter than the v5 doctrine (rejected omega->lia renames, extraction directives, lemma deletions). Kept for reference; labeler fixed in ca283d5.
