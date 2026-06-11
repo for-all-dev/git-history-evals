@@ -24,4 +24,10 @@ artifacts/bucket-mirror/
 
 # Calibration crash-recovery checkpoints (transient; cleaned on a successful mine)
 artifacts/**/_checkpoints/
+
+# Curation-calibration loop runtime state (labels/score caches for crash resume —
+# see scaffold/calibrate.py; the durable copies live in the Space next to the bundle)
+artifacts/**/calibration-*/**/state/
+# Writer-conversation provenance — mirrored to the Space, too bulky for git
+artifacts/**/writer_transcript.json
 /local/
