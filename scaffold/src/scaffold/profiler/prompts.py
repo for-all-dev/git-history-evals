@@ -32,7 +32,13 @@ CALIBRATION STRATEGY
 3. Find declaration patterns: regexes matching theorem/lemma/def headers where
    GROUP 1 is the declaration name (e.g. Coq:
    `^\\s*(?:Theorem|Lemma|Definition|...)\\s+(\\w+)`). Read real files to get the
-   keyword set right.
+   keyword set right. Also set `proof_start_regex` and `proof_end_regex` —
+   multiline regexes marking where a proof body begins and its terminator
+   (Coq: `^\\s*Proof\\b` / `^\\s*(?:Qed|Defined|Admitted|Abort)\\s*\\.`;
+   Isabelle: e.g. `^\\s*(?:proof|apply|by)\\b` / `^\\s*(?:qed|done|sorry|oops)\\b`).
+   The spec_change miner splices old proof bodies under new statements using
+   these spans; the defaults are Coq-shaped, so non-Coq repos MUST override
+   them or spec_change challenges silently mine as zero.
 4. Study commit-message conventions: `git_log` / `sample_commits(touching_glob)`
    and `grep` for how the team phrases proof completions, new lemmas, spec
    changes, refactors, fixes, and infra/CI noise. Turn each into a bank of

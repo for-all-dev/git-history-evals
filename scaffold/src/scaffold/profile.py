@@ -22,6 +22,12 @@ from pathlib import Path
 
 from pydantic import BaseModel, Field, field_validator
 
+# Coq-shaped defaults for the proof-span regexes. Profiles written before
+# these fields existed (and hand-built Coq profiles) fall back to them, so
+# loading an older profile JSON keeps the exact pre-existing behavior.
+DEFAULT_PROOF_START_REGEX = r"^\s*Proof\b"
+DEFAULT_PROOF_END_REGEX = r"^\s*(?:Qed|Defined|Admitted|Abort)\s*\."
+
 # Default order in which message-based commit classes are tried (highest wins).
 # Mirrors the legacy classify_commit decision tree. proof_optimise is excluded:
 # it is derived from the diff (net proof lines), not the message.
@@ -121,6 +127,24 @@ class RepoProfile(BaseModel):
     declaration_patterns: list[str] = Field(
         description="Regexes matching theorem/lemma/def declarations; group 1 must be the name.",
     )
+    proof_start_regex: str = Field(
+        default=DEFAULT_PROOF_START_REGEX,
+        description=(
+            "Multiline regex marking where a proof body begins after its "
+            "declaration (Coq: '^\\s*Proof\\b'; Isabelle: "
+            "'^\\s*(?:proof|apply|by)\\b'). Used by the spec_change splicer. "
+            "Defaults to the Coq pattern for backward compatibility."
+        ),
+    )
+    proof_end_regex: str = Field(
+        default=DEFAULT_PROOF_END_REGEX,
+        description=(
+            "Multiline regex marking a proof terminator (Coq: "
+            "Qed/Defined/Admitted/Abort; Isabelle: e.g. "
+            "'^\\s*(?:qed|done|sorry|oops)\\b'). Used by the spec_change "
+            "splicer. Defaults to the Coq pattern for backward compatibility."
+        ),
+    )
 
     # --- commit-message classification --------------------------------------
     commit_signals: dict[str, list[str]] = Field(
@@ -184,6 +208,16 @@ class RepoProfile(BaseModel):
         for i, p in enumerate(v):
             _check_regex(p, f"declaration_patterns[{i}]", re.MULTILINE)
         return v
+
+    @field_validator("proof_start_regex")
+    @classmethod
+    def _validate_proof_start_regex(cls, v: str) -> str:
+        return _check_regex(v, "proof_start_regex", re.MULTILINE)
+
+    @field_validator("proof_end_regex")
+    @classmethod
+    def _validate_proof_end_regex(cls, v: str) -> str:
+        return _check_regex(v, "proof_end_regex", re.MULTILINE)
 
     @field_validator("commit_signals")
     @classmethod
@@ -250,6 +284,8 @@ class CompiledProfile:
     exclude_globs: list[str]
     hole_res: list[tuple[re.Pattern[str], str]]
     declaration_res: list[re.Pattern[str]]
+    proof_start_re: re.Pattern[str]
+    proof_end_re: re.Pattern[str]
     commit_signal_res: dict[str, re.Pattern[str]]
     proof_context_re: re.Pattern[str] | None
     tactic_re: re.Pattern[str]
@@ -278,6 +314,15 @@ class CompiledProfile:
                 raise ValueError(
                     f"invalid regex in declaration_patterns[{i}]: {e}"
                 ) from e
+
+        try:
+            proof_start_re = re.compile(profile.proof_start_regex, re.MULTILINE)
+        except re.error as e:
+            raise ValueError(f"invalid regex in proof_start_regex: {e}") from e
+        try:
+            proof_end_re = re.compile(profile.proof_end_regex, re.MULTILINE)
+        except re.error as e:
+            raise ValueError(f"invalid regex in proof_end_regex: {e}") from e
 
         # Validate individual commit signals before joining with "|".
         commit_signal_res: dict[str, re.Pattern[str]] = {}
@@ -337,6 +382,8 @@ class CompiledProfile:
             exclude_globs=exclude_globs,
             hole_res=hole_res,
             declaration_res=declaration_res,
+            proof_start_re=proof_start_re,
+            proof_end_re=proof_end_re,
             commit_signal_res=commit_signal_res,
             proof_context_re=proof_context_re,
             tactic_re=tactic_re,

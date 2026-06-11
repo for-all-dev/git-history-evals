@@ -319,7 +319,9 @@ def mine_commit(
 # Declaration-aware parsing (for spec_change splicing)
 # ---------------------------------------------------------------------------
 
-# Coq proof-start and proof-end patterns.
+# Default (Coq) proof-start and proof-end patterns. Profiles carry their own
+# via proof_start_regex / proof_end_regex (compiled.proof_start_re /
+# proof_end_re); these remain as fallbacks for callers without a profile.
 _PROOF_START_RE = re.compile(r"^\s*Proof\b", re.MULTILINE)
 _PROOF_END_RE = re.compile(r"^\s*(?:Qed|Defined|Admitted|Abort)\s*\.", re.MULTILINE)
 # Coq declaration keyword that introduces a named theorem/lemma.
@@ -345,16 +347,23 @@ class DeclSpan:
 
 
 def parse_decl_spans(
-    content: str, declaration_res: list[re.Pattern[str]]
+    content: str,
+    declaration_res: list[re.Pattern[str]],
+    proof_start_re: re.Pattern[str] | None = None,
+    proof_end_re: re.Pattern[str] | None = None,
 ) -> list[DeclSpan]:
-    """Parse top-level declaration spans from Coq-like source content.
+    """Parse top-level declaration spans from proof source content.
 
     Returns a list of ``DeclSpan`` objects sorted by position. Each span
-    covers the declaration statement (up to ``Proof.``) and the proof body
-    (``Proof.`` through the terminator ``Qed.``/``Defined.``/``Admitted.``).
+    covers the declaration statement (up to the proof-start marker) and the
+    proof body (proof start through the terminator). The proof-span regexes
+    come from the profile (``proof_start_regex`` / ``proof_end_regex``);
+    omitted, they fall back to the Coq patterns (``Proof.`` … ``Qed.``).
 
     Falls back to ``_COQ_DECL_RE`` if *declaration_res* is empty.
     """
+    proof_start = proof_start_re or _PROOF_START_RE
+    proof_end = proof_end_re or _PROOF_END_RE
     decl_patterns = declaration_res or [_COQ_DECL_RE]
     lines = content.splitlines()
 
@@ -379,7 +388,7 @@ def parse_decl_spans(
         region = "\n".join(lines[decl_line:end_bound])
 
         # Find ``Proof.`` within the region.
-        pm = _PROOF_START_RE.search(region)
+        pm = proof_start.search(region)
         if pm:
             # Count newlines up to the match to get relative line offset.
             proof_line_rel = region[: pm.start()].count("\n")
@@ -394,7 +403,7 @@ def parse_decl_spans(
         search_start = (proof_line_abs - decl_line) if proof_line_abs is not None else 0
         # Search after the Proof. line (or from the decl line).
         tail = "\n".join(lines[decl_line + search_start : end_bound])
-        em = _PROOF_END_RE.search(tail)
+        em = proof_end.search(tail)
         if em:
             end_line_rel = tail[: em.start()].count("\n")
             end_line_abs = decl_line + search_start + end_line_rel
@@ -423,14 +432,20 @@ def splice_spec_change(
     parent_content: str,
     child_content: str,
     declaration_res: list[re.Pattern[str]],
+    proof_start_re: re.Pattern[str] | None = None,
+    proof_end_re: re.Pattern[str] | None = None,
 ) -> tuple[str, list[str]] | None:
     """Create a spec_change challenge by splicing new statement + old proof.
 
     Returns ``(spliced_content, changed_decl_names)`` or ``None`` if no
     statement changed between parent and child.
     """
-    parent_spans = parse_decl_spans(parent_content, declaration_res)
-    child_spans = parse_decl_spans(child_content, declaration_res)
+    parent_spans = parse_decl_spans(
+        parent_content, declaration_res, proof_start_re, proof_end_re
+    )
+    child_spans = parse_decl_spans(
+        child_content, declaration_res, proof_start_re, proof_end_re
+    )
 
     parent_by_name = {s.name: s for s in parent_spans}
     child_by_name = {s.name: s for s in child_spans}
@@ -596,7 +611,11 @@ def mine_spec_change_commit(
             continue
 
         result = splice_spec_change(
-            parent_content, child_content, compiled.declaration_res
+            parent_content,
+            child_content,
+            compiled.declaration_res,
+            compiled.proof_start_re,
+            compiled.proof_end_re,
         )
         if result is None:
             continue
