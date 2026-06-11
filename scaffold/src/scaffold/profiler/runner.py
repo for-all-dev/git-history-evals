@@ -59,18 +59,12 @@ class ProfileBuildResult:
 def _configure_logfire() -> None:
     """Wire Logfire so pydantic-ai + CodeMode spans register (user requirement).
 
-    ``send_to_logfire='if-token-present'`` keeps this a no-op when no token is
-    configured, so calibration never blocks on telemetry.
+    Delegates to the shared helper (scaffold/telemetry.py) so the profiler,
+    curator, and calibrator all trace identically.
     """
-    try:
-        import logfire
+    from scaffold.telemetry import configure_telemetry
 
-        logfire.configure(
-            send_to_logfire="if-token-present", service_name="scaffold-profiler"
-        )
-        logfire.instrument_pydantic_ai()
-    except Exception as exc:  # logfire is optional at runtime
-        logger.warning("logfire not configured: %s", exc)
+    configure_telemetry("scaffold-profiler")
 
 
 def _git_remote(repo_path: Path) -> str:
