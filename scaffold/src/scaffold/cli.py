@@ -531,17 +531,18 @@ def curate(
         _TIER2_SYSTEM_PROMPT,
         DEFAULT_ACCEPT_THRESHOLD,
         DEFAULT_REJECT_THRESHOLD,
-        apply_curation,
         curate_challenges_sync,
     )
     from scaffold.model_roles import load_model_roles
-    from scaffold.output import read_jsonl, write_jsonl
+    from scaffold.output import read_jsonl_slim, write_curated_stream
 
     dotenv_path = find_dotenv(usecwd=True)
     if dotenv_path:
         load_dotenv(dotenv_path)
 
-    challenges = read_jsonl(input_path)
+    # Slim load: curation only reads diff + metadata, and large datasets
+    # (fiat-crypto is 1GB / 25k challenges) OOM if fully materialized.
+    challenges = read_jsonl_slim(input_path)
     if not challenges:
         typer.echo("No challenges found in input file.")
         raise typer.Exit(1)
@@ -586,25 +587,38 @@ def curate(
         tier2_system_prompt=tier2_prompt,
     )
 
-    # Separate errors from real results before partitioning
+    # Partition by verdict; survivors are re-read from the input file and
+    # stream-written with full fidelity (slim loading blanked heavy fields).
     error_count = sum(1 for r in results if r.verdict == "error")
-    clean_challenges = [c for c, r in zip(challenges, results) if r.verdict != "error"]
-    clean_results = [r for r in results if r.verdict != "error"]
+    keep_verdicts: dict[str, tuple[str, str, str]] = {}
+    rejected: list[tuple[str, str]] = []
+    n_accepted = n_borderline = 0
+    for challenge, result in zip(challenges, results):
+        if result.verdict == "error":
+            continue
+        if result.verdict == "reject":
+            rejected.append((challenge.task_id, result.rationale))
+        else:
+            keep_verdicts[challenge.task_id] = (
+                result.verdict,
+                result.model,
+                result.rationale,
+            )
+            if result.verdict == "accept":
+                n_accepted += 1
+            else:
+                n_borderline += 1
 
-    accepted, rejected, borderline = apply_curation(clean_challenges, clean_results)
-
-    write_jsonl(accepted + borderline, dest)
+    n_written = write_curated_stream(input_path, dest, keep_verdicts)
 
     typer.echo("\nCuration results:")
     typer.echo(f"  Total input   : {len(challenges)}")
-    typer.echo(f"  Accepted      : {len(accepted)}")
+    typer.echo(f"  Accepted      : {n_accepted}")
     typer.echo(f"  Rejected      : {len(rejected)}")
-    typer.echo(f"  Borderline    : {len(borderline)}")
+    typer.echo(f"  Borderline    : {n_borderline}")
     if error_count:
         typer.echo(f"  Errors        : {error_count}")
-    typer.echo(
-        f"  Output        : {len(accepted) + len(borderline)} challenges -> {dest}"
-    )
+    typer.echo(f"  Output        : {n_written} challenges -> {dest}")
 
     if error_count:
         typer.echo(
@@ -613,9 +627,10 @@ def curate(
         )
 
     if rejected:
-        typer.echo("\nRejected challenges:")
-        for ch in rejected:
-            typer.echo(f"  {ch.task_id}: {ch.curation_rationale}")
+        shown = rejected[:50]
+        typer.echo(f"\nRejected challenges (showing {len(shown)} of {len(rejected)}):")
+        for task_id, rationale in shown:
+            typer.echo(f"  {task_id}: {rationale}")
 
     # Clean up checkpoint on full success (no errors)
     if not error_count and checkpoint.exists():
@@ -695,7 +710,7 @@ def calibrate(
         write_artifacts,
     )
     from scaffold.model_roles import load_model_roles
-    from scaffold.output import read_jsonl
+    from scaffold.output import read_jsonl_slim
     from scaffold.profile import load_profile
 
     dotenv_path = find_dotenv(usecwd=True)
@@ -712,7 +727,9 @@ def calibrate(
         )
         raise typer.Exit(1)
 
-    challenges = read_jsonl(input_path)
+    # Slim load — calibration reads diff + metadata only (memory safety on
+    # large datasets; see read_jsonl_slim).
+    challenges = read_jsonl_slim(input_path)
     if not challenges:
         typer.echo("No challenges found in input file.")
         raise typer.Exit(1)
