@@ -1,0 +1,5 @@
+{
+  "cheap": "claude-haiku-4-5",
+  "mid": "claude-sonnet-4-6",
+  "decision": "claude-opus-4-8"
+}
