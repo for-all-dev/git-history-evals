@@ -373,11 +373,19 @@ async def _curate_one(
                     model=model,
                     rationale="Skipped: pipeline aborted due to permanent API error",
                 )
+            # Cache the curation system prompt across the batch. NB: the tier-1
+            # (~600-token) and tier-2 prompts sit below the per-model cacheable
+            # minimum (Haiku 4096, Sonnet 2048 tokens), so this is a no-op on the
+            # built-in prompts and won't show cache reads. It starts paying off
+            # only if a calibrated criteria body grows past the threshold; the
+            # varying per-challenge diff is the user message, so the system
+            # prompt is the one stable prefix worth marking.
             response = await client.messages.create(
                 model=model,
                 max_tokens=150,
                 system=system_prompt,
                 messages=[{"role": "user", "content": prompt}],
+                cache_control={"type": "ephemeral"},
             )
     except Exception as exc:
         if _is_permanent_error(exc):

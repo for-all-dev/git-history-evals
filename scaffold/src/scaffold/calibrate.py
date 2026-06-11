@@ -592,11 +592,18 @@ class PromptCalibrator:
             defer_cap=self.config.defer_cap,
             n_variants=self.config.n_variants,
         )
+        # The writer is a single persistent conversation that accumulates every
+        # iteration's eval table and (up to 40, ~1500-char) failure diffs, so by
+        # the second turn the re-sent history is many thousands of tokens. The
+        # top-level cache_control auto-places a breakpoint on the last cacheable
+        # block and moves it forward as the conversation grows, so each turn
+        # re-reads the prior turns at ~0.1x instead of full Opus input price.
         async with self._get_client().messages.stream(
             model=self.models.decision,
             max_tokens=_WRITER_MAX_TOKENS,
             system=system,
             messages=self.writer_messages,
+            cache_control={"type": "ephemeral"},
         ) as stream:
             message = await stream.get_final_message()
         self.api_calls[self.models.decision] = (

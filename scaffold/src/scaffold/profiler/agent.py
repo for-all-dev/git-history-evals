@@ -17,7 +17,7 @@ functions can be reasoned about independently.
 from __future__ import annotations
 
 import os
-from typing import cast
+from typing import Any, cast
 
 from pydantic_ai import Agent
 from pydantic_ai_harness import CodeMode
@@ -26,6 +26,25 @@ from scaffold.profile import RepoProfile
 
 from .prompts import SYS_PROMPT_PROFILER
 from .tools import TOOL_NAMES
+
+# Anthropic prompt-caching for the calibration loop. The agent re-sends a large,
+# static prefix on every step — the CodeMode ``run_code`` tool schema (rendered
+# first) and the system prompt — plus a transcript that grows across the dozens
+# of tool round-trips a calibration takes. We cache the tool definitions and
+# instructions (fixed breakpoints) and pass the top-level ``anthropic_cache``
+# flag, which moves a breakpoint forward over the growing message history. After
+# the first step the prefix re-reads at ~0.1x instead of full price.
+#
+# These are ``AnthropicModelSettings`` keys (a plain dict to avoid importing the
+# anthropic model module at construction time — see the lazy import below);
+# non-anthropic models ignore the ``anthropic_``-prefixed keys. Typed ``Any``
+# because the keys are an ``AnthropicModelSettings`` TypedDict that we don't want
+# to import at module load (see the lazy anthropic import below).
+_CACHE_SETTINGS: Any = {
+    "anthropic_cache_tool_definitions": True,
+    "anthropic_cache_instructions": True,
+    "anthropic_cache": True,
+}
 
 
 def make_profiler_agent(
@@ -50,6 +69,7 @@ def make_profiler_agent(
             capabilities=[code_mode],
             output_type=RepoProfile,
             system_prompt=SYS_PROMPT_PROFILER,
+            model_settings=_CACHE_SETTINGS,
         )
     else:
         agent = Agent(
@@ -58,6 +78,7 @@ def make_profiler_agent(
             output_type=RepoProfile,
             system_prompt=SYS_PROMPT_PROFILER,
             defer_model_check=True,
+            model_settings=_CACHE_SETTINGS,
         )
     return cast("Agent[None, RepoProfile]", agent)
 
