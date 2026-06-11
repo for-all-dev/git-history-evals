@@ -31,3 +31,5 @@ artifacts/**/calibration-*/**/state/
 # Writer-conversation provenance — mirrored to the Space, too bulky for git
 artifacts/**/writer_transcript.json
 /local/
+
+/hf/**/*.jsonl
