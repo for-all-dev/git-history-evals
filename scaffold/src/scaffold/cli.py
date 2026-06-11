@@ -535,10 +535,12 @@ def curate(
     )
     from scaffold.model_roles import load_model_roles
     from scaffold.output import read_jsonl_slim, write_curated_stream
+    from scaffold.telemetry import configure_telemetry
 
     dotenv_path = find_dotenv(usecwd=True)
     if dotenv_path:
         load_dotenv(dotenv_path)
+    configure_telemetry("scaffold-curator")
 
     # Slim load: curation only reads diff + metadata, and large datasets
     # (fiat-crypto is 1GB / 25k challenges) OOM if fully materialized.
@@ -712,10 +714,12 @@ def calibrate(
     from scaffold.model_roles import load_model_roles
     from scaffold.output import read_jsonl_slim
     from scaffold.profile import load_profile
+    from scaffold.telemetry import configure_telemetry
 
     dotenv_path = find_dotenv(usecwd=True)
     if dotenv_path:
         load_dotenv(dotenv_path)
+    configure_telemetry("scaffold-calibrator")
 
     if bundle is not None:
         input_path = input_path or bundle / "challenges.jsonl"
@@ -849,9 +853,12 @@ def materialize(
     if do_curate:
         from dotenv import find_dotenv, load_dotenv
 
+        from scaffold.telemetry import configure_telemetry
+
         dotenv_path = find_dotenv(usecwd=True)
         if dotenv_path:
             load_dotenv(dotenv_path)
+        configure_telemetry("scaffold-curator")
 
     prof = load_profile(profile)
     dv = mine_and_materialize(
