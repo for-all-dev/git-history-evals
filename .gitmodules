@@ -7,6 +7,7 @@
 [submodule "data/l4v"]
 	path = data/l4v
 	url = https://github.com/seL4/l4v.git
+	ignore = untracked
 [submodule "data/fiat-crypto"]
 	path = data/fiat-crypto
 	url = https://github.com/mit-plv/fiat-crypto.git

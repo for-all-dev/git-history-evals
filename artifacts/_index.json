@@ -92,6 +92,24 @@
       "schema_version": 1,
       "row_version": 0,
       "created_at": "2026-05-29T03:26:40.220358+00:00"
+    },
+    {
+      "manifest_hash": "b8ff596ce41c72c8122163f02851226f6d5f8d16f2dd626b15f47735965196ed",
+      "path": "l4v-eval/l4v-curated-v1-50b089a6/",
+      "dataset_id": "forall/l4v-eval",
+      "version": "l4v-curated-v1-50b089a6",
+      "schema_version": 1,
+      "row_version": 0,
+      "created_at": "2026-06-11T21:16:40.421370+00:00"
+    },
+    {
+      "manifest_hash": "8d755e1ff198f868c47d22792b357da7c6fc23ce07f7a5d47782c7231a773986",
+      "path": "l4v-eval/l4v-v1-da4e4fff/",
+      "dataset_id": "forall/l4v-eval",
+      "version": "l4v-v1-da4e4fff",
+      "schema_version": 1,
+      "row_version": 0,
+      "created_at": "2026-06-11T06:48:39.573986+00:00"
     }
   ]
 }

@@ -188,7 +188,7 @@ def dump_commits(
 
     Produces:
       <output_dir>/<repo_name>-commits-all.jsonl   — every commit
-      <output_dir>/<repo_name>-commits-coq.jsonl   — only commits touching proof files
+      <output_dir>/<repo_name>-commits.jsonl       — only commits touching proof files
     """
     _setup_logging(verbose)
 
@@ -202,15 +202,15 @@ def dump_commits(
     output_dir.mkdir(parents=True, exist_ok=True)
 
     all_path = output_dir / f"{name}-commits-all.jsonl"
-    coq_path = output_dir / f"{name}-commits-coq.jsonl"
+    proof_path = output_dir / f"{name}-commits.jsonl"
 
-    coq_records = [r for r in records if r.touches_proof_files]
+    proof_records = [r for r in records if r.touches_proof_files]
 
     write_commit_records(records, all_path)
-    write_commit_records(coq_records, coq_path)
+    write_commit_records(proof_records, proof_path)
 
     typer.echo(f"All commits  : {len(records):>6} records -> {all_path}")
-    typer.echo(f"Coq commits  : {len(coq_records):>6} records -> {coq_path}")
+    typer.echo(f"Proof commits: {len(proof_records):>6} records -> {proof_path}")
 
 
 @app.command()
