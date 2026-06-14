@@ -38,6 +38,10 @@ logger = logging.getLogger(__name__)
 
 SCHEMA_VERSION = 1
 ROW_VERSION = 0  # same pre-canonical EvalChallenge row shape as init-draft
+# HuggingFace namespace these datasets publish under (`<HF_ORG>/<repo>-eval`).
+# Historical manifests carry the legacy `forall/...` id and are left immutable
+# (their id is content-addressed); new mines use the correct org going forward.
+HF_ORG = "for-all-dev"
 _ROW_VERSION_NOTES = (
     "Pre-canonical: same EvalChallenge row shape as fiat-crypto-eval/init-draft "
     "(task_id/commit_hash/file_path/challenge_file_content/solution_file_content/"
@@ -340,7 +344,7 @@ def materialize_dataset_version(
         stats["curation"] = curation_stats
 
     manifest, version, manifest_hash = build_manifest(
-        dataset_id=f"forall/{repo_path.name}-eval",
+        dataset_id=f"{HF_ORG}/{repo_path.name}-eval",
         source=source,
         miner=miner,
         assistant=profile.proof_assistant,
