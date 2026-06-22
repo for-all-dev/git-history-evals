@@ -1,0 +1,15 @@
+#!/usr/bin/env bash
+# Run the ablator with the Isabelle/Scala classpath assembled by `isabelle`.
+# Works both from a checkout (uses ./build/ablator.jar + `isabelle` on PATH)
+# and when installed by the nix flake (placeholders substituted at install).
+set -euo pipefail
+
+JAR="@JAR@"
+ISABELLE="@ISABELLE@"
+case "$JAR" in @*@) JAR="$(cd "$(dirname "$0")/.." && pwd)/build/ablator.jar" ;; esac
+case "$ISABELLE" in @*@) ISABELLE="$(command -v isabelle)" ;; esac
+
+MAIN="${ABLATE_MAIN:-proofablate.Ablate}"
+ISA_JAR="$("$ISABELLE" getenv -b ISABELLE_SCALA_JAR)"
+CP="$("$ISABELLE" getenv -b ISABELLE_CLASSPATH)"
+exec "$ISABELLE" java -cp "$JAR:$ISA_JAR:$CP" "$MAIN" "$@"
