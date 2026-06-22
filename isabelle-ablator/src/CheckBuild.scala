@@ -88,11 +88,17 @@ object CheckBuild {
           File.write(root_path, new_root)
 
           // 2. ablate every theory in the copy
+          val thys = Ablate.collect_theories(List(work.implode))
+          val centrality: String => Int =
+            if (spec.uses_centrality) {
+              val fan = Centrality.fan_in(syntax, thys, progress)
+              (nm => fan.getOrElse(nm, 0))
+            } else (_ => 0)
           var n_files = 0; var n_total = 0; var n_ablated = 0
-          for (thy <- Ablate.collect_theories(List(work.implode))) {
+          for (thy <- thys) {
             val text = File.read(thy)
             val rng = new Random(seed_base ^ thy.implode.hashCode.toLong)
-            val res = Ablate.ablate(syntax, text, spec, rng)
+            val res = Ablate.ablate(syntax, text, spec, rng, centrality)
             File.write(thy, res.text)
             n_files += 1; n_total += res.total; n_ablated += res.ablated
           }

@@ -71,9 +71,10 @@ Records are **indented by default** (a stream of pretty JSON objects, nice in
 one-object-per-line JSONL (e.g. HuggingFace upload). Each record carries
 `challenge_file_content` (proofs → `sorry`), `solution_file_content` (ground
 truth), the difficulty knobs used, and `holes_filled` — the removed proofs, each
-with `theorem_name`, `depth`, `n_commands`, `n_lines`, `is_leaf`, and `method`
-(e.g. `by:simp`, `apply`, `structured`), so a single dump can be **stratified by
-difficulty post-hoc**. Field names mirror the git-history datasets in `../artifacts`.
+with `theorem_name`, `depth`, `n_commands`, `n_lines`, `is_leaf`, `centrality`
+(corpus fan-in), and `method` (e.g. `by:simp`, `apply`, `structured`), so a
+single dump can be **stratified by difficulty post-hoc**. Field names mirror the
+git-history datasets in `../artifacts`.
 
 Or via the flake directly: `nix run .# -- --all theory.thy`.
 
@@ -101,8 +102,18 @@ true bottom of the proof tree), `--min-size N`/`--max-size N` (filter by proof
 seeded spread; mutually exclusive with `-p`). `--count` is exact when matches
 don't nest (a single depth, or `--leaves-only`); with overlapping ranges an
 ablated ancestor can shadow selected descendants, so it's best-effort up to N.
-Centrality/dependency-based difficulty (ablate the lemmas other proofs lean on)
-is a planned follow-up.
+
+**Centrality.** Difficulty also has a dependency axis: removing a lemma that
+many proofs lean on is harder and more consequential than removing a leaf. A
+corpus-wide **fan-in** is computed by textual name-citation (a fact `B` is cited
+by theorem `A` if `A`'s proof mentions `B`) — no prover needed. `--min-centrality
+N`/`--max-centrality N` filter by it, and `--count N --by-centrality` ablates the
+N *most-cited* matching lemmas (e.g. "blank the 5 load-bearing lemmas in each
+theory"). `centrality` is recorded on every hole regardless. On `src/HOL/Algebra`
+the top-cited come out as `one_closed`, `subringE`, `is_group`, `inv_closed`, …
+— the genuinely foundational lemmas. It's approximate (matched by name; short
+names that collide with variables are dropped); the accurate version via
+Isabelle's `export_theory` theorem deps is a planned upgrade.
 
 ### Options
 
@@ -116,9 +127,12 @@ is a planned follow-up.
 | `--leaves-only` | only ablate goals whose proof has no nested goal |
 | `--min-size N` | only ablate proofs with ≥ N proof commands (default `0`) |
 | `--max-size N` | only ablate proofs with ≤ N proof commands; `N` may be `inf` |
+| `--min-centrality N` | only ablate lemmas with corpus fan-in ≥ N |
+| `--max-centrality N` | only ablate lemmas with corpus fan-in ≤ N; `N` may be `inf` |
 | `-p PROB` | probability of ablating each selected proof (default `0.5`) |
 | `--all` | ablate every selected proof (`-p 1.0`) |
 | `--count N` | ablate exactly `min(N, matching)` proofs, a random spread (excl. `-p`/`--all`) |
+| `--by-centrality` | with `--count`, pick the most-cited proofs instead of random |
 | `-s SESSION` | session whose keyword table to parse with (default `HOL`) |
 | `-d DIR` | extra session root directory (repeatable) |
 | `--afp DIR` | AFP `thys` dir added (`-d`) for `--check-build` deps (repeatable) |
@@ -180,5 +194,6 @@ entries. `--keep` preserves the working copies for inspection.
 - `src/Ablate.scala` — ablation library + CLI + JSONL records (`proofablate.Ablate`)
 - `src/Check.scala` — corpus self-test, run via `ablate --check` (`proofablate.Check`)
 - `src/CheckBuild.scala` — build validation, run via `ablate --check-build`
+- `src/Centrality.scala` — corpus fan-in (dependency centrality)
 - `build.sh` — `isabelle scalac` → `build/ablator.jar`
 - `bin/ablate` — classpath wrapper (checkout or nix-installed)

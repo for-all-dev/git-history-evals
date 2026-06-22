@@ -85,16 +85,22 @@ object Ablate {
   sealed case class Spec(
     prob: Double = 0.5,
     count: Option[Int] = None,
+    by_centrality: Boolean = false,  // for `count`: pick the most-cited, not random
     min_depth: Int = 1,
     max_depth: Int = 1,
     leaves_only: Boolean = false,
-    min_size: Int = 0,            // proof-command count, inclusive lower bound
-    max_size: Int = Int.MaxValue  // inclusive upper bound
-  )
+    min_size: Int = 0,               // proof-command count, inclusive lower bound
+    max_size: Int = Int.MaxValue,    // inclusive upper bound
+    min_centrality: Int = 0,         // fan-in (distinct theorems citing this lemma)
+    max_centrality: Int = Int.MaxValue
+  ) {
+    def uses_centrality: Boolean =
+      min_centrality > 0 || max_centrality != Int.MaxValue || by_centrality
+  }
 
   /** A removed proof and its difficulty signals. */
   sealed case class Hole(theorem_name: String, depth: Int, n_commands: Int, n_lines: Int,
-    is_leaf: Boolean, method: String, proof_text: String)
+    is_leaf: Boolean, centrality: Int, method: String, proof_text: String)
 
   sealed case class Result(text: String, total: Int, ablated: Int, holes: List[Hole])
 
@@ -110,18 +116,19 @@ object Ablate {
    *  exactly those — exact when matches don't nest (a single depth, or
    *  `--leaves-only`); otherwise an ablated ancestor may shadow selected
    *  descendants, so it is best-effort up to N. */
-  def ablate(syntax: Outer_Syntax, text: CharSequence, spec: Spec, rng: Random): Result = {
+  def ablate(syntax: Outer_Syntax, text: CharSequence, spec: Spec,
+    rng: Random, centrality: String => Int = (_ => 0)): Result = {
     val spans = syntax.parse_spans(text).toArray
     val n = spans.length
 
     def src(j: Int): String = Token.implode(spans(j).content)
 
     // One pass; `decide(stmt_index)` says whether to ablate each matching proof.
-    // Returns the result plus the statement-span indices of all matching proofs.
-    def walk_all(decide: Int => Boolean): (Result, List[Int]) = {
+    // Returns the result plus, for every matching proof, (stmt index, centrality).
+    def walk_all(decide: Int => Boolean): (Result, List[(Int, Int)]) = {
     val out = new mutable.StringBuilder
     val holes = new mutable.ListBuffer[Hole]
-    val matches = new mutable.ListBuffer[Int]
+    val matches = new mutable.ListBuffer[(Int, Int)]
     var total = 0
     var ablated = 0
     var i = 0
@@ -180,21 +187,23 @@ object Ablate {
       depth = d + 1
       val goal_depth = d + 1
       val m = measure(i, d)
+      val cent = centrality(name)
 
       val candidate =
         is_ablatable(k) && m.clean &&
           goal_depth >= spec.min_depth && goal_depth <= spec.max_depth &&
           (!spec.leaves_only || m.is_leaf) &&
-          m.n_commands >= spec.min_size && m.n_commands <= spec.max_size
+          m.n_commands >= spec.min_size && m.n_commands <= spec.max_size &&
+          cent >= spec.min_centrality && cent <= spec.max_centrality
 
       if (candidate) {
         total += 1
-        matches += stmt_idx
+        matches += ((stmt_idx, cent))
         if (decide(stmt_idx)) {
           out ++= (if (m.lead.nonEmpty) m.lead else " ")    // separate glued proofs
           out ++= "sorry"
           ablated += 1
-          holes += Hole(name, goal_depth, m.n_commands, n_lines(m.text), m.is_leaf, m.method, m.text)
+          holes += Hole(name, goal_depth, m.n_commands, n_lines(m.text), m.is_leaf, cent, m.method, m.text)
           i = m.end; depth = d
         } else walk_body(d)                                  // not selected: keep, recurse deeper
       }
@@ -216,12 +225,14 @@ object Ablate {
 
     spec.count match {
       case Some(target) =>
-        // enumerate matching proofs (decide=false), pick a random subset of N,
-        // then ablate exactly those. rng is used only for the selection.
-        val cands = walk_all(_ => false)._2
+        // enumerate matching proofs (decide=false), pick a subset of N, then
+        // ablate exactly those. Random spread, or the most-cited if --by-centrality.
+        val cands = walk_all(_ => false)._2   // List[(stmt_idx, centrality)]
         val selected: Set[Int] =
-          if (cands.length <= target) cands.toSet
-          else rng.shuffle(cands).take(target).toSet
+          if (cands.length <= target) cands.map(_._1).toSet
+          else if (spec.by_centrality)
+            cands.sortBy { case (idx, c) => (-c, idx) }.take(target).map(_._1).toSet
+          else rng.shuffle(cands.map(_._1)).take(target).toSet
         walk_all(selected.contains)._1.copy(total = cands.length)
       case None =>
         walk_all(_ => rng.nextDouble() < spec.prob)._1
@@ -290,8 +301,8 @@ object Ablate {
     val holes: List[JSON.T] =
       result.holes.map(h => ListMap[String, JSON.T](
         "theorem_name" -> h.theorem_name, "depth" -> h.depth, "n_commands" -> h.n_commands,
-        "n_lines" -> h.n_lines, "is_leaf" -> h.is_leaf, "method" -> h.method,
-        "proof_text" -> h.proof_text))
+        "n_lines" -> h.n_lines, "is_leaf" -> h.is_leaf, "centrality" -> h.centrality,
+        "method" -> h.method, "proof_text" -> h.proof_text))
     ListMap[String, JSON.T](
       "task_id" -> task_id(path),
       "proof_assistant" -> "isabelle",
@@ -301,12 +312,15 @@ object Ablate {
       "challenge_type" -> "proof_ablate",
       "difficulty" -> difficulty.map(d => d: JSON.T).getOrElse(null),
       "count" -> spec.count.map(c => c: JSON.T).getOrElse(null),
+      "by_centrality" -> spec.by_centrality,
       "ablation_prob" -> (if (spec.count.isDefined) (null: JSON.T) else spec.prob),
       "min_depth" -> spec.min_depth,
       "max_depth" -> depth_json(spec.max_depth),
       "leaves_only" -> spec.leaves_only,
       "min_size" -> spec.min_size,
       "max_size" -> depth_json(spec.max_size),
+      "min_centrality" -> spec.min_centrality,
+      "max_centrality" -> depth_json(spec.max_centrality),
       "seed" -> seed,
       "n_proofs" -> result.total,
       "n_ablated" -> result.ablated,
@@ -341,10 +355,13 @@ object Ablate {
       |    --leaves-only    only ablate goals whose proof has no nested goal
       |    --min-size N     only ablate proofs with >= N proof commands (default: 0)
       |    --max-size N     only ablate proofs with <= N proof commands; N may be `inf`
+      |    --min-centrality N  only ablate lemmas cited by >= N other proofs (corpus fan-in)
+      |    --max-centrality N  only ablate lemmas cited by <= N other proofs; N may be `inf`
       |    -p PROB          probability of ablating each selected proof (default: 0.5)
       |    --all            ablate every selected proof (equivalent to -p 1.0)
-      |    --count N        ablate ~N selected proofs per theory, spread across it
+      |    --count N        ablate exactly min(N, matching) selected proofs per theory
       |                     (mutually exclusive with -p / --all)
+      |    --by-centrality  with --count, pick the most-cited proofs (not random)
       |
       |  Other:
       |    -s SESSION       session whose syntax/keywords to parse with (default: HOL)
@@ -372,6 +389,9 @@ object Ablate {
     var leavesOpt: Option[Boolean] = None
     var minSizeOpt: Option[Int] = None
     var maxSizeOpt: Option[Int] = None
+    var minCentralityOpt: Option[Int] = None
+    var maxCentralityOpt: Option[Int] = None
+    var byCentrality = false
     val paths = new mutable.ListBuffer[String]
     val build_targets = new mutable.ListBuffer[String]
     val afp_dirs = new mutable.ListBuffer[String]
@@ -390,6 +410,9 @@ object Ablate {
         case "--leaves-only" :: tl => leavesOpt = Some(true); rest = tl
         case "--min-size" :: v :: tl => minSizeOpt = Some(parse_depth(v)); rest = tl
         case "--max-size" :: v :: tl => maxSizeOpt = Some(parse_depth(v)); rest = tl
+        case "--min-centrality" :: v :: tl => minCentralityOpt = Some(parse_depth(v)); rest = tl
+        case "--max-centrality" :: v :: tl => maxCentralityOpt = Some(parse_depth(v)); rest = tl
+        case "--by-centrality" :: tl => byCentrality = true; rest = tl
         case "-s" :: v :: tl => session = v; rest = tl
         case "-d" :: v :: tl => dirs = dirs ::: List(Path.explode(v)); rest = tl
         case "-p" :: v :: tl => probOpt = Some(v.toDouble); rest = tl
@@ -414,14 +437,20 @@ object Ablate {
       Console.err.println("--count cannot be combined with -p / --all (they set the rate two ways)")
       sys.exit(2)
     }
+    if (byCentrality && countOpt.isEmpty) {
+      Console.err.println("--by-centrality only applies with --count"); sys.exit(2)
+    }
     val spec = Spec(
       prob = probOpt.orElse(preset.map(_.prob)).getOrElse(0.5),
       count = countOpt,
+      by_centrality = byCentrality,
       min_depth = minDepthOpt.orElse(preset.map(_.min_depth)).getOrElse(1),
       max_depth = maxDepthOpt.orElse(preset.map(_.max_depth)).getOrElse(1),
       leaves_only = leavesOpt.orElse(preset.map(_.leaves_only)).getOrElse(false),
       min_size = minSizeOpt.getOrElse(0),
-      max_size = maxSizeOpt.getOrElse(Int.MaxValue))
+      max_size = maxSizeOpt.getOrElse(Int.MaxValue),
+      min_centrality = minCentralityOpt.getOrElse(0),
+      max_centrality = maxCentralityOpt.getOrElse(Int.MaxValue))
 
     if (spec.min_depth < 1) { Console.err.println("--min-depth must be >= 1"); sys.exit(2) }
     if (paths.isEmpty && build_targets.isEmpty) { Console.err.println(usage); sys.exit(2) }
@@ -435,6 +464,9 @@ object Ablate {
         (if (spec.leaves_only) " leaves-only" else "") +
         (if (spec.min_size > 0 || spec.max_size != Int.MaxValue)
           s" size ${spec.min_size}..${depth_json(spec.max_size)}" else "") +
+        (if (spec.uses_centrality)
+          s" centrality ${spec.min_centrality}..${depth_json(spec.max_centrality)}" +
+            (if (spec.by_centrality) " by-centrality" else "") else "") +
         spec.count.map(c => s" count=$c").getOrElse(f" p=${spec.prob}%.2f") +
         difficulty.map(d => s" [$d]").getOrElse("")
 
@@ -451,8 +483,17 @@ object Ablate {
     if (!quiet) progress.echo(s"[session $session: ${syntax.keywords.kinds.size} keywords; " +
       s"${theories.length} theories; $spec_line]")
 
+    // corpus fan-in over all input theories: always for the emit path (so the
+    // metadata is complete for post-hoc stratification), and for --check only
+    // when a centrality filter is actually in play.
+    val centrality: String => Int =
+      if (!check || spec.uses_centrality) {
+        val fan = Centrality.fan_in(syntax, theories, progress)
+        (name => fan.getOrElse(name, 0))
+      } else (_ => 0)
+
     if (check) {
-      val ok = Check.run(syntax, theories, spec)
+      val ok = Check.run(syntax, theories, spec, centrality)
       if (!ok) sys.exit(1)
       return
     }
@@ -461,7 +502,7 @@ object Ablate {
     for (thy <- theories) {
       val original = File.read(thy)
       val rng = new Random(base ^ thy.implode.hashCode.toLong)
-      val result = ablate(syntax, original, spec, rng)
+      val result = ablate(syntax, original, spec, rng, centrality)
       val obj = record(thy, session, spec, base, difficulty, original, result)
       System.out.println(if (compact) JSON.Format(obj) else JSON.Format.pretty_print(obj))
       emitted += 1

@@ -24,7 +24,8 @@ object Check {
       sp.kind.keyword_kind.exists(Keyword.theory_goal.contains))
 
   /** Returns true if all checks pass. */
-  def run(syntax: Outer_Syntax, theories: List[Path], spec: Ablate.Spec): Boolean = {
+  def run(syntax: Outer_Syntax, theories: List[Path], spec: Ablate.Spec,
+    centrality: String => Int = (_ => 0)): Boolean = {
     var n_files = 0
     var n_goals = 0
     var n_ablated = 0
@@ -41,11 +42,11 @@ object Check {
         val text = File.read(thy)
 
         // --check ignores --count/-p: prob 0 must be identity, prob 1 must ablate all candidates
-        val identity = Ablate.ablate(syntax, text, spec.copy(prob = 0.0, count = None), new Random(0))
+        val identity = Ablate.ablate(syntax, text, spec.copy(prob = 0.0, count = None), new Random(0), centrality)
         if (identity.text != text) roundtrip_fail += name
 
         val t = System.nanoTime()
-        val all = Ablate.ablate(syntax, text, spec.copy(prob = 1.0, count = None), new Random(0))
+        val all = Ablate.ablate(syntax, text, spec.copy(prob = 1.0, count = None), new Random(0), centrality)
         ablate_ns += System.nanoTime() - t
         n_files += 1
         n_goals += all.total
