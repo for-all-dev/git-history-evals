@@ -33,3 +33,5 @@ artifacts/**/writer_transcript.json
 /local/
 
 /hf/**/*.jsonl
+
+/docs/meetings/*.pdf
