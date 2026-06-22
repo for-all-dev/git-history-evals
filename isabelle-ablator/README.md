@@ -31,10 +31,11 @@ goals and any session-specific commands are recognised.
    (`have`/`show`/`obtain`/…) and `prf_open` (`{`) push; `qed`/`prf_close` (`}`)
    pop; `qed_global` (`oops`) closes.
 4. Replace a goal's proof with `sorry` iff its depth is in `[--min-depth, --max-depth]`
-   (and a per-proof coin `-p` fires), keeping the statement and the proof's leading
-   indentation. Shallower goals keep their structure and we recurse in; deeper goals
-   are left verbatim. Everything outside proofs is emitted verbatim — `-p 0` is the
-   identity.
+   (and a per-proof coin `-p` fires), keeping the statement and placing `sorry`
+   right after it on the same line (e.g. `have a: "Q" sorry`) rather than dangling
+   on its own line. Shallower goals keep their structure and we recurse in; deeper
+   goals are left verbatim. Everything outside proofs is emitted verbatim — `-p 0`
+   is the identity.
 
 **Depth** = open goal/block-stack level when the goal opens (so `{ }` blocks add a
 level). Because `sorry` erases a whole proof body, ablating a goal stops the descent

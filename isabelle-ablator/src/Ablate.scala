@@ -200,8 +200,9 @@ object Ablate {
         total += 1
         matches += ((stmt_idx, cent))
         if (decide(stmt_idx)) {
-          out ++= (if (m.lead.nonEmpty) m.lead else " ")    // separate glued proofs
-          out ++= "sorry"
+          // sit `sorry` right after the statement (swallow the gap to the old
+          // proof) so it never dangles flush-left on its own line.
+          out ++= " sorry"
           ablated += 1
           holes += Hole(name, goal_depth, m.n_commands, n_lines(m.text), m.is_leaf, cent, m.method, m.text)
           i = m.end; depth = d
