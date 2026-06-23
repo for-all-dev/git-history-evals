@@ -92,7 +92,9 @@ object Ablate {
     min_size: Int = 0,               // proof-command count, inclusive lower bound
     max_size: Int = Int.MaxValue,    // inclusive upper bound
     min_centrality: Int = 0,         // fan-in (distinct theorems citing this lemma)
-    max_centrality: Int = Int.MaxValue
+    max_centrality: Int = Int.MaxValue,
+    truncate: Boolean = false,       // drop everything after the last inserted `sorry`
+    shrink_context: Boolean = false  // drop top-level goals after the last ablated one
   ) {
     def uses_centrality: Boolean =
       min_centrality > 0 || max_centrality != Int.MaxValue || by_centrality
@@ -107,6 +109,27 @@ object Ablate {
   // Measured properties of a goal body.
   private sealed case class Body(end: Int, lead: String, text: String,
     n_commands: Int, is_leaf: Boolean, method: String, clean: Boolean)
+
+  // Drop top-level goal segments that start after the last ablated top-level
+  // goal (keeping definitions / `end` / comments), to focus the model on the
+  // theorem in front of it rather than later theorems. `segs` is the list of
+  // top-level (end-offset, is-goal, had-sorry) in document order.
+  private def shrink_context(full: String, segs: List[(Int, Boolean, Boolean)]): String = {
+    val last = segs.lastIndexWhere { case (_, is_goal, had_sorry) => is_goal && had_sorry }
+    if (last < 0) full
+    else {
+      val sb = new mutable.StringBuilder
+      var prev = 0
+      var idx = 0
+      for ((end, is_goal, _) <- segs) {
+        if (idx <= last || !is_goal) sb ++= full.substring(prev, end)
+        prev = end
+        idx += 1
+      }
+      // collapse the blank-line runs left where dropped goals used to be
+      sb.toString.replaceAll("\n[ \t]*\n([ \t]*\n)+", "\n\n")
+    }
+  }
 
   /** Ablate proofs selected by `spec`, each replaced by `sorry`.
    *
@@ -129,6 +152,8 @@ object Ablate {
     val out = new mutable.StringBuilder
     val holes = new mutable.ListBuffer[Hole]
     val matches = new mutable.ListBuffer[(Int, Int)]
+    val top_segs = new mutable.ListBuffer[(Int, Boolean, Boolean)]  // (end offset, is goal, had sorry)
+    var last_sorry_end = -1                                          // out offset just after the last `sorry`
     var total = 0
     var ablated = 0
     var i = 0
@@ -203,6 +228,7 @@ object Ablate {
           // sit `sorry` right after the statement (swallow the gap to the old
           // proof) so it never dangles flush-left on its own line.
           out ++= " sorry"
+          last_sorry_end = out.length
           ablated += 1
           holes += Hole(name, goal_depth, m.n_commands, n_lines(m.text), m.is_leaf, cent, m.method, m.text)
           i = m.end; depth = d
@@ -216,12 +242,24 @@ object Ablate {
 
     while (i < n) {
       kind_of(spans(i)) match {
-        case Some(k) if is_goal(k) => handle_goal()
-        case _ => out ++= src(i); i += 1
+        case Some(k) if is_goal(k) =>
+          val ablated0 = ablated
+          handle_goal()
+          top_segs += ((out.length, true, ablated > ablated0))
+        case _ =>
+          out ++= src(i); i += 1
+          top_segs += ((out.length, false, false))
       }
     }
 
-    (Result(out.toString, total, ablated, holes.toList), matches.toList)
+    // optional context shaping (challenge-only; --check / --check-build disable these)
+    val full = out.toString
+    val shaped =
+      if (spec.truncate && last_sorry_end >= 0) full.substring(0, last_sorry_end)
+      else if (spec.shrink_context) shrink_context(full, top_segs.toList)
+      else full
+
+    (Result(shaped, total, ablated, holes.toList), matches.toList)
     }  // walk_all
 
     spec.count match {
@@ -287,29 +325,30 @@ object Ablate {
 
   /* (challenge, solution) record, aligned with the dataset row schema */
 
-  private def task_id(path: Path): String =
-    "ablate_" + SHA1.digest(path.implode).toString.substring(0, 12)
+  private def task_id(file_path: String, variant: Option[Int]): String =
+    "ablate_" + SHA1.digest(file_path).toString.substring(0, 12) + variant.map("_" + _).getOrElse("")
 
-  private def theory_name(path: Path): String = {
-    val b = path.file.getName
+  private def theory_name(file_path: String): String = {
+    val b = file_path.split('/').lastOption.getOrElse(file_path)
     if (b.endsWith(".thy")) b.dropRight(4) else b
   }
 
   private def depth_json(d: Int): JSON.T = if (d == Int.MaxValue) "inf" else d
 
-  def record(path: Path, session: String, spec: Spec, seed: Long, difficulty: Option[String],
-    original: String, result: Result): JSON.Object.T = {
+  def record(file_path: String, session: String, spec: Spec, seed: Long, variant: Option[Int],
+    difficulty: Option[String], original: String, result: Result): JSON.Object.T = {
     val holes: List[JSON.T] =
       result.holes.map(h => ListMap[String, JSON.T](
         "theorem_name" -> h.theorem_name, "depth" -> h.depth, "n_commands" -> h.n_commands,
         "n_lines" -> h.n_lines, "is_leaf" -> h.is_leaf, "centrality" -> h.centrality,
         "method" -> h.method, "proof_text" -> h.proof_text))
     ListMap[String, JSON.T](
-      "task_id" -> task_id(path),
+      "task_id" -> task_id(file_path, variant),
       "proof_assistant" -> "isabelle",
       "session" -> session,
-      "file_path" -> path.implode,
-      "theory" -> theory_name(path),
+      "file_path" -> file_path,
+      "theory" -> theory_name(file_path),
+      "variant" -> variant.map(v => v: JSON.T).getOrElse(null),
       "challenge_type" -> "proof_ablate",
       "difficulty" -> difficulty.map(d => d: JSON.T).getOrElse(null),
       "count" -> spec.count.map(c => c: JSON.T).getOrElse(null),
@@ -364,23 +403,30 @@ object Ablate {
       |                     (mutually exclusive with -p / --all)
       |    --by-centrality  with --count, pick the most-cited proofs (not random)
       |
+      |  Context shaping (challenge text only; ignored by --check / --check-build):
+      |    --truncate       drop everything after the last inserted `sorry`
+      |    --shrink-context drop top-level lemmas/theorems after the last ablated one
+      |
       |  Other:
       |    -s SESSION       session whose syntax/keywords to parse with (default: HOL)
-      |    -d DIR           extra session root directory (repeatable)
+      |    -d DIR           extra session root dir; also stripped from emitted paths (repeatable)
       |    --afp DIR        AFP `thys` dir added (-d) for --check-build deps (repeatable)
       |    --keep           keep --check-build working copies
+      |    --repeat N       emit up to N deduplicated ablations per theory (default: 1)
       |    --seed N         RNG seed for reproducibility (default: nondeterministic)
+      |    --text           output the ablated theory text instead of JSONL records
       |    --compact        emit strict one-object-per-line JSONL (no indentation)
-      |    -q               quiet: suppress incidental progress on stderr
+      |    -v               verbose: show progress/summary on stderr
       |""".stripMargin
 
   def main(args: Array[String]): Unit = {
     var session = "HOL"
     var dirs: List[Path] = Nil
     var seed: Option[Long] = None
-    var quiet = false
+    var verbose = false
     var check = false
     var compact = false
+    var text_mode = false
     var keep = false
     var difficulty: Option[String] = None
     var probOpt: Option[Double] = None
@@ -393,6 +439,9 @@ object Ablate {
     var minCentralityOpt: Option[Int] = None
     var maxCentralityOpt: Option[Int] = None
     var byCentrality = false
+    var truncate = false
+    var shrinkContext = false
+    var repeat = 1
     val paths = new mutable.ListBuffer[String]
     val build_targets = new mutable.ListBuffer[String]
     val afp_dirs = new mutable.ListBuffer[String]
@@ -405,6 +454,7 @@ object Ablate {
         case "--afp" :: v :: tl => afp_dirs += v; rest = tl
         case "--keep" :: tl => keep = true; rest = tl
         case "--compact" :: tl => compact = true; rest = tl
+        case "--text" :: tl => text_mode = true; rest = tl
         case "--difficulty" :: v :: tl => difficulty = Some(v); rest = tl
         case "--min-depth" :: v :: tl => minDepthOpt = Some(parse_depth(v)); rest = tl
         case "--max-depth" :: v :: tl => maxDepthOpt = Some(parse_depth(v)); rest = tl
@@ -414,13 +464,16 @@ object Ablate {
         case "--min-centrality" :: v :: tl => minCentralityOpt = Some(parse_depth(v)); rest = tl
         case "--max-centrality" :: v :: tl => maxCentralityOpt = Some(parse_depth(v)); rest = tl
         case "--by-centrality" :: tl => byCentrality = true; rest = tl
+        case "--truncate" :: tl => truncate = true; rest = tl
+        case "--shrink-context" :: tl => shrinkContext = true; rest = tl
+        case "--repeat" :: v :: tl => repeat = v.toInt; rest = tl
         case "-s" :: v :: tl => session = v; rest = tl
         case "-d" :: v :: tl => dirs = dirs ::: List(Path.explode(v)); rest = tl
         case "-p" :: v :: tl => probOpt = Some(v.toDouble); rest = tl
         case "--count" :: v :: tl => countOpt = Some(v.toInt); rest = tl
         case "--seed" :: v :: tl => seed = Some(v.toLong); rest = tl
         case "--all" :: tl => probOpt = Some(1.0); rest = tl
-        case "-q" :: tl => quiet = true; rest = tl
+        case "-v" :: tl => verbose = true; rest = tl
         case ("-h" | "--help") :: _ => println(usage); return
         case arg :: tl if arg.startsWith("-") && arg != "-" =>
           Console.err.println("Unknown option: " + arg); Console.err.println(usage); sys.exit(2)
@@ -451,13 +504,20 @@ object Ablate {
       min_size = minSizeOpt.getOrElse(0),
       max_size = maxSizeOpt.getOrElse(Int.MaxValue),
       min_centrality = minCentralityOpt.getOrElse(0),
-      max_centrality = maxCentralityOpt.getOrElse(Int.MaxValue))
+      max_centrality = maxCentralityOpt.getOrElse(Int.MaxValue),
+      truncate = truncate,
+      shrink_context = shrinkContext)
 
     if (spec.min_depth < 1) { Console.err.println("--min-depth must be >= 1"); sys.exit(2) }
     if (paths.isEmpty && build_targets.isEmpty) { Console.err.println(usage); sys.exit(2) }
 
-    val progress = if (quiet) new Progress else new Console_Progress()
-    val syntax = load_syntax(session, dirs, progress)
+    // progress to stderr so stdout stays clean for JSONL / --text output
+    val progress = if (verbose) new Console_Progress(stderr = true) else new Progress
+    // -d dirs serve double duty: those that are session roots (have ROOT/ROOTS)
+    // feed session resolution; all of them strip emitted file-path prefixes.
+    val session_dirs = dirs.filter(d =>
+      (d + Path.basic("ROOT")).file.isFile || (d + Path.basic("ROOTS")).file.isFile)
+    val syntax = load_syntax(session, session_dirs, progress)
     val base = seed.getOrElse(new Random().nextLong())
 
     def spec_line: String =
@@ -473,7 +533,7 @@ object Ablate {
 
     // build-validation mode
     if (build_targets.nonEmpty) {
-      if (!quiet) progress.echo(s"[session $session; $spec_line; ${build_targets.length} build target(s)]")
+      if (verbose) progress.echo(s"[session $session; $spec_line; ${build_targets.length} build target(s)]")
       val ok = CheckBuild.run(syntax, build_targets.toList.map(Path.explode),
         afp_dirs.toList.map(Path.explode), spec, base, keep, progress)
       if (!ok) sys.exit(1)
@@ -481,14 +541,14 @@ object Ablate {
     }
 
     val theories = collect_theories(paths.toList)
-    if (!quiet) progress.echo(s"[session $session: ${syntax.keywords.kinds.size} keywords; " +
+    if (verbose) progress.echo(s"[session $session: ${syntax.keywords.kinds.size} keywords; " +
       s"${theories.length} theories; $spec_line]")
 
-    // corpus fan-in over all input theories: always for the emit path (so the
-    // metadata is complete for post-hoc stratification), and for --check only
+    // corpus fan-in over all input theories: always for JSONL emit (so the
+    // metadata is complete for post-hoc stratification), and otherwise only
     // when a centrality filter is actually in play.
     val centrality: String => Int =
-      if (!check || spec.uses_centrality) {
+      if (spec.uses_centrality || (!check && !text_mode)) {
         val fan = Centrality.fan_in(syntax, theories, progress)
         (name => fan.getOrElse(name, 0))
       } else (_ => 0)
@@ -499,16 +559,43 @@ object Ablate {
       return
     }
 
+    // emitted file path: strip the longest matching -d prefix (so JSONL paths
+    // are relative, not /home/.../...); otherwise the absolute path.
+    val strip = dirs.map(_.absolute.implode).sortBy(-_.length)
+    def display_path(thy: Path): String = {
+      val abs = thy.absolute.implode
+      strip.iterator.flatMap { base =>
+        if (abs == base) Some(thy.file.getName)
+        else if (abs.startsWith(base + "/")) Some(abs.substring(base.length + 1))
+        else None
+      }.nextOption().getOrElse(abs)
+    }
+
+    val n_repeat = math.max(1, repeat)
     var emitted = 0
     for (thy <- theories) {
       val original = File.read(thy)
-      val rng = new Random(base ^ thy.implode.hashCode.toLong)
-      val result = ablate(syntax, original, spec, rng, centrality)
-      val obj = record(thy, session, spec, base, difficulty, original, result)
-      System.out.println(if (compact) JSON.Format(obj) else JSON.Format.pretty_print(obj))
-      emitted += 1
+      val display = display_path(thy)
+      val seen = new mutable.HashSet[String]   // dedup identical ablations of this theory
+      var k = 0
+      var produced = 0
+      while (k < n_repeat) {
+        val rng = new Random(base ^ thy.implode.hashCode.toLong ^ (k.toLong * 0x9E3779B97F4A7C15L))
+        val result = ablate(syntax, original, spec, rng, centrality)
+        if (seen.add(result.text)) {           // best-effort dedup across repeats
+          if (text_mode) System.out.print(result.text)   // raw ablated theory, byte-exact
+          else {
+            val variant = if (n_repeat > 1) Some(produced) else None
+            val obj = record(display, session, spec, base, variant, difficulty, original, result)
+            System.out.println(if (compact) JSON.Format(obj) else JSON.Format.pretty_print(obj))
+          }
+          produced += 1
+          emitted += 1
+        }
+        k += 1
+      }
     }
     System.out.flush()
-    if (!quiet) progress.echo(s"[emitted $emitted records]")
+    if (verbose) progress.echo(s"[emitted $emitted ${if (text_mode) "theories" else "records"}]")
   }
 }

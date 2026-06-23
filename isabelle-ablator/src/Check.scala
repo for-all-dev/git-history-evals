@@ -41,12 +41,14 @@ object Check {
       try {
         val text = File.read(thy)
 
-        // --check ignores --count/-p: prob 0 must be identity, prob 1 must ablate all candidates
-        val identity = Ablate.ablate(syntax, text, spec.copy(prob = 0.0, count = None), new Random(0), centrality)
+        // --check ignores --count/-p and context shaping: prob 0 must be the
+        // identity, prob 1 must ablate all candidates.
+        val base = spec.copy(count = None, truncate = false, shrink_context = false)
+        val identity = Ablate.ablate(syntax, text, base.copy(prob = 0.0), new Random(0), centrality)
         if (identity.text != text) roundtrip_fail += name
 
         val t = System.nanoTime()
-        val all = Ablate.ablate(syntax, text, spec.copy(prob = 1.0, count = None), new Random(0), centrality)
+        val all = Ablate.ablate(syntax, text, base.copy(prob = 1.0), new Random(0), centrality)
         ablate_ns += System.nanoTime() - t
         n_files += 1
         n_goals += all.total

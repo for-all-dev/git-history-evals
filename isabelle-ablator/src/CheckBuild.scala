@@ -94,11 +94,13 @@ object CheckBuild {
               val fan = Centrality.fan_in(syntax, thys, progress)
               (nm => fan.getOrElse(nm, 0))
             } else (_ => 0)
+          // context shaping would truncate the file and break the build
+          val build_spec = spec.copy(truncate = false, shrink_context = false)
           var n_files = 0; var n_total = 0; var n_ablated = 0
           for (thy <- thys) {
             val text = File.read(thy)
             val rng = new Random(seed_base ^ thy.implode.hashCode.toLong)
-            val res = Ablate.ablate(syntax, text, spec, rng, centrality)
+            val res = Ablate.ablate(syntax, text, build_spec, rng, centrality)
             File.write(thy, res.text)
             n_files += 1; n_total += res.total; n_ablated += res.ablated
           }

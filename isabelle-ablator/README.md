@@ -64,8 +64,13 @@ theory** to stdout:
 ./bin/ablate --difficulty L4 dir/                  # hard: every proof gone (code+spec)
 ./bin/ablate --min-depth 2 --max-depth inf t.thy   # keep skeletons, sorry sub-proofs
 ./bin/ablate --leaves-only --min-size 5 t.thy      # only big terminal proofs
+./bin/ablate --text --all theory.thy               # just the ablated theory (no JSON)
 ./bin/ablate --compact dir/ > out.jsonl            # strict one-line-per-record JSONL
 ```
+
+Output is JSONL by default; `--text` instead writes the ablated theory source
+itself to stdout (byte-exact at `-p 0`). Progress is silent by default; pass `-v`
+for a stderr summary.
 
 Records are **indented by default** (a stream of pretty JSON objects, nice in
 `less`/`bat`); still `jq`-readable (`jq -c . out`). Use `--compact` for strict
@@ -116,6 +121,29 @@ the top-cited come out as `one_closed`, `subringE`, `is_group`, `inv_closed`, �
 names that collide with variables are dropped); the accurate version via
 Isabelle's `export_theory` theorem deps is a planned upgrade.
 
+### Focusing the challenge, and augmentation
+
+Two flags shape the **challenge text** to keep the model on the theorem in front
+of it rather than extrapolating to later ones (they're prompt-shaping, so they're
+ignored by `--check`/`--check-build`):
+
+- `--truncate` drops everything after the last inserted `sorry` — the file ends
+  at the proof to complete.
+- `--shrink-context` drops top-level lemmas/theorems that come *after* the last
+  ablated one (keeping earlier context, definitions, and `end`).
+
+`--repeat N` emits up to N ablations of each theory, **deduplicated** by the
+resulting text — data augmentation that's only fruitful with a stochastic
+selector (`-p`, `--count`); with `--all` every repeat is identical so it collapses
+to one. Each variant gets its own `task_id` suffix and a `variant` field.
+
+`-d DIR` doubles as a path-prefix strip: emitted `file_path`s (and the
+path-derived `task_id`) drop a matching `-d` prefix, so datasets don't carry
+machine-specific absolute paths like `/home/you/...`. The `-d` dirs that are
+actual session roots (have `ROOT`/`ROOTS`) also feed session resolution; the
+rest are used for stripping only — so it's fine to pass the directory your
+theories live under even if it isn't a session root.
+
 ### Options
 
 | flag | meaning |
@@ -134,13 +162,17 @@ Isabelle's `export_theory` theorem deps is a planned upgrade.
 | `--all` | ablate every selected proof (`-p 1.0`) |
 | `--count N` | ablate exactly `min(N, matching)` proofs, a random spread (excl. `-p`/`--all`) |
 | `--by-centrality` | with `--count`, pick the most-cited proofs instead of random |
+| `--truncate` | challenge: drop everything after the last inserted `sorry` |
+| `--shrink-context` | challenge: drop top-level lemmas/theorems after the last ablated one |
+| `--repeat N` | emit up to N deduplicated ablations per theory (default `1`) |
 | `-s SESSION` | session whose keyword table to parse with (default `HOL`) |
-| `-d DIR` | extra session root directory (repeatable) |
+| `-d DIR` | session root dir; also stripped from emitted `file_path`s (repeatable) |
 | `--afp DIR` | AFP `thys` dir added (`-d`) for `--check-build` deps (repeatable) |
 | `--keep` | keep `--check-build` working copies |
 | `--seed N` | RNG seed for reproducibility (per-file seed derived from it) |
+| `--text` | output the ablated theory source instead of JSONL records |
 | `--compact` | strict one-object-per-line JSONL (no indentation) |
-| `-q` | suppress incidental progress on stderr |
+| `-v` | verbose: show progress/summary on stderr |
 
 ## Self-test (`--check`)
 
