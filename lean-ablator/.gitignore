@@ -1,0 +1,5 @@
+/.lake
+/.wasm
+# wasm build outputs (regenerate with ./build-wasm.sh)
+/web/ablator.js
+/web/ablator.wasm

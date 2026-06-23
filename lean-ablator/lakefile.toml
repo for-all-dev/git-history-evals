@@ -1,0 +1,20 @@
+name = "ablator"
+version = "0.1.0"
+defaultTargets = ["Ablator", "ablate", "ablate-test"]
+
+# Pure-Lean syntactic ablator for Lean theories. No external dependencies
+# (no `import Lean`, no Mathlib) so the core stays small and WASM-friendly:
+# Lean -> C -> emscripten. See README.md.
+
+[[lean_lib]]
+name = "Ablator"
+
+[[lean_exe]]
+name = "ablate"
+root = "Main"
+# Statically link so the produced binary (and the WASM target) is self-contained.
+supportInterpreter = false
+
+[[lean_exe]]
+name = "ablate-test"
+root = "Tests"
