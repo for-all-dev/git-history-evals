@@ -108,6 +108,20 @@ def main : IO UInt32 := do
     let defSrc := "def foo := 5\ndef bar : Nat := 7\n"
     let dab := ablate (tokenize defSrc) { prob := 1.0, minDepth := 1, maxDepth := 1 } (Rng.mk 0) (fun _ => (0:Int))
     check "untyped def kept, typed def ablated" (dab.ablated == 1 && has dab.text "def foo := 5" && has dab.text "def bar : Nat := sorry")
+
+    -- 11. anonymous-constructor `by`-components: ⟨…, by …⟩ -> ⟨…, by sorry⟩
+    let anonSrc := "def m (n : Nat) : { k : Nat // 0 ≤ k } := ⟨n, by omega⟩\n"
+    let an := ablate (tokenize anonSrc) { prob := 1.0, minDepth := 2, maxDepth := INF } (Rng.mk 0) (fun _ => (0:Int))
+    check "anon: ⟨n, by sorry⟩" (an.ablated == 1 && has an.text "⟨n, by sorry⟩")
+    check "anon: method=anon" (an.holes.toList.all (fun h : Hole => h.method == "anon"))
+    -- two components both ablate
+    let an2 := ablate (tokenize "theorem t (n : Nat) : 0 ≤ n ∧ 0 ≤ n := ⟨by omega, by omega⟩\n")
+                 { prob := 1.0, minDepth := 2, maxDepth := INF } (Rng.mk 0) (fun _ => (0:Int))
+    check "anon: both components ablated" (an2.ablated == 2)
+    -- a `by` nested in parens is NOT a component, so it is kept
+    let anP := ablate (tokenize "def v (n : Nat) : { k : Nat // 0 ≤ k } := ⟨id (by exact n), by omega⟩\n")
+                 { prob := 1.0, minDepth := 2, maxDepth := INF } (Rng.mk 0) (fun _ => (0:Int))
+    check "anon: paren-nested by kept" (anP.ablated == 1 && has anP.text "id (by exact n)")
   ).run {}
   let total := tally.passed + tally.failed
   IO.println s!"ablate-test: {tally.passed}/{total} passed"

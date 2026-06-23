@@ -166,17 +166,51 @@ def nestedBinderName (toks : Array Token) (binderIdx assignIdx : Nat) : String :
       if t.isIdent then return t.src else return ""
   return ""
 
+/-- Innermost still-open bracket char enclosing token `i` (a backward scan),
+    or `none` at top level. Used to spot anonymous-constructor components. -/
+def enclosingBracket (toks : Array Token) (i : Nat) : Option Char := Id.run do
+  let mut depth := 0
+  let mut j := i
+  while j > 0 do
+    j := j - 1
+    let t := toks[j]!
+    if isCloseBracket t then depth := depth + 1
+    else if isOpenBracket t then
+      if depth == 0 then return t.src.get 0 else depth := depth - 1
+  return none
+
+/-- Source of the proper token immediately before `i` (skipping whitespace). -/
+def prevProperSrc (toks : Array Token) (i : Nat) : Option String := Id.run do
+  let mut j := i
+  while j > 0 do
+    j := j - 1
+    if toks[j]!.isProper then return toks[j]!.src
+  return none
+
+/-- End of an anonymous-constructor component starting at `start`: the first
+    bracket-depth-0 `,` (next component) or closing bracket (end of `⟨…⟩`). -/
+def componentEnd (toks : Array Token) (start hi : Nat) : Nat := Id.run do
+  let mut depth := 0
+  for j in [start:hi] do
+    let t := toks[j]!
+    if isOpenBracket t then depth := depth + 1
+    else if isCloseBracket t then
+      if depth == 0 then return j else depth := depth - 1
+    else if depth == 0 && t.isSymNamed "," then return j
+  return hi
+
 /-- A focusing bullet token: `·`, or ASCII `.` *followed by space* (so the
     leading-dot of `.gate`/`.map` projections is never mistaken for a bullet). -/
 def isBulletLead (toks : Array Token) (i : Nat) : Bool :=
   let t := toks[i]!
   t.isSym && (t.src == "·" || (t.src == "." && i + 1 < toks.size && toks[i+1]!.isSpace))
 
-/-- The three kinds of body we can replace with `sorry`. -/
+/-- The kinds of body we can replace with `sorry`. -/
 inductive UnitKind where
   | binder   -- `have`/`let`/… `x : T := <value>`
   | bullet   -- `·` / `.` focused tactic block
   | arm      -- `| pat => <rhs>` match/`fun` arm
+  | anon     -- `by <tac>` component of an anonymous constructor `⟨…, by …⟩`
   deriving DecidableEq, Inhabited
 
 /-- A detected ablation unit: its content range, the column it opened at, an
@@ -190,11 +224,19 @@ structure FoundUnit where
   hasType   : Bool
   deriving Inhabited
 
-/-- Detect an ablatable unit opening at token `i` — a line-leading
+/-- Detect an ablatable unit opening at token `i`: an anonymous-constructor
+    `by`-component (bracket-position based, any column), or a line-leading
     binder / bullet / match-arm indented deeper than `parentCol`. -/
 def detectUnit (toks : Array Token) (i outerHi parentCol : Nat) : Option FoundUnit :=
   let t := toks[i]!
-  if !(t.firstOnLine && t.isProper && t.col > parentCol) then none
+  -- `⟨…, by …⟩` / `⟨by …⟩`: a tactic proof in constructor-component position.
+  -- Replacing yields `by sorry` (header = the `by`), which is type-safe because
+  -- the component elaborates against the field's expected type.
+  if t.isIdentNamed "by" && enclosingBracket toks i == some '⟨'
+      && (prevProperSrc toks i == some "⟨" || prevProperSrc toks i == some ",") then
+    some { kind := .anon, contentLo := i+1, blockEnd := componentEnd toks (i+1) outerHi,
+           unitCol := t.col, name := "", hasType := true }
+  else if !(t.firstOnLine && t.isProper && t.col > parentCol) then none
   else
     let bEnd := blockEnd toks (i+1) outerHi t.col
     if t.isIdent && Keyword.isBinder t.src then
@@ -300,6 +342,7 @@ private def decideAblate (stmtIdx : Nat) : W Bool := do
 private def methodLabel (toks : Array Token) (contentLo contentHi : Nat) : UnitKind → String
   | .bullet => "bullet"
   | .arm    => "arm"
+  | .anon   => "anon"
   | .binder => classifyMethod toks contentLo contentHi
 
 mutual

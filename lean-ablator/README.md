@@ -60,6 +60,10 @@ def classify : Nat → Nat
 * **Typed binders** — `have x : T := e`, `let x : T := e`, `replace`.
 * **Focus bullets** — `·` (and ASCII `.`), replaced as `· sorry`.
 * **Match / `fun` arms** — `| pat => rhs`, replaced as `| pat => sorry`.
+* **Anonymous-constructor `by`-components** — a tactic proof in a `⟨…⟩` slot,
+  e.g. `⟨state, by tac⟩`, replaced as `⟨state, by sorry⟩`. Only `by`-blocks in
+  *direct* component position qualify (a `by` nested inside `(…)` is left alone),
+  since those are the unambiguous, type-safe proof slots.
 
 **Type-ascription safety.** A binder or declaration is ablated *only if it
 carries an explicit type* — `have h : T := e` and `def f : T := e` ablate, but
@@ -68,11 +72,12 @@ carries an explicit type* — `have h : T := e` and `def f : T := e` ablate, but
 get their type from context, so they always qualify. The engine never corrupts
 source: it only deletes a cleanly-delimited body and splices ` sorry` (verified
 to **type-check**, and round-tripped losslessly over the whole Lean 4 source
-tree — 8,360 nested bullets/arms/binders at depth ≥ 2, 0 failures).
+tree — 8,682 nested bullets/arms/binders/anon-components at depth ≥ 2, 0
+failures).
 
 Everything outside a selected body is emitted verbatim, so `-p 0` is the
 identity. A `method` field on each hole records the kind (`bullet`, `arm`,
-`by:<tac>`, `calc`, `trivial`, `term`) for post-hoc stratification.
+`anon`, `by:<tac>`, `calc`, `trivial`, `term`) for post-hoc stratification.
 
 ## Build & run
 
