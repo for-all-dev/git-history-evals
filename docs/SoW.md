@@ -30,16 +30,26 @@ In the long run, proofs are cheap. Having a proof oracle even a few months soone
 
 ## Milestones
 
-### [ ] June 18th ish
+### [x] June 18th ish
 
 Preliminary huggingface MVPs for a couple of the repos. Scaffold repo is possibly not agentic yet, but written in a way that can turn agentic easily. 
 
 ### [ ] July 18th ish
 
-Scaffold repo is agentic, repo and proofstack agnostic. Some way of attaching a slider to the generator of the dataset to ablate more or ablate less and export dataset on the fly. Reproducible pipeline where all tools are installed automatically (i.e. docker or nix). Rudimentary/preliminary baselines demonstration. Huggingface posts continually updated. 
+Scaffold repo is agentic, repo and proofstack agnostic (done). Expanding to Isabelle's AFP, with nonmath repos as priority. Some way of attaching a slider to the generator of the dataset to ablate more or ablate less and export dataset on the fly — with symbolic ablations and perturbations as a more contamination-proof alternative to git-history deletion. Reproducible pipeline where all tools are installed automatically (i.e. docker or nix). Rudimentary/preliminary baselines demonstration. Huggingface posts continually updated.
 
 ### [ ] August 18th ish
 
 Approximately conference tier writeup (not necessarily submitted or worried about specific peer review), with accompanying websites consisting of baseline information and lightweight “scaling laws” information. MIT licensed scaffold repo with method clear to reproduce for repos we did not ship to huggingface (including, in principle, sensitive/confidential repos). 
 
 Since the goal is to get stolen by frontier companies, ideally we’d catch wind of some internal pilots happening on posttraining teams by now, but this shouldn’t be a hard KPI because if it happens it might not be right away and we might not hear about it. 
+
+# Changelog
+
+**June 22 Checkin notes:**
+- Posted three benches on HuggingFace
+- Scaffold is already language and repo agnostic (achieved milestone 2 criterion early)
+- Limited baselines information gathered (open question: how important is it to get signal on this going forward?)
+- Galois is considering using the scaffold on private repos with kestrel and kry10 to streamline their work
+- Updated July 18th milestone to incorporate: AFP expansion, symbolic ablations/perturbations as contamination-proof alternative
+
