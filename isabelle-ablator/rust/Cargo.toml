@@ -15,11 +15,12 @@ required-features = ["cli"]
 
 [dependencies]
 serde_json = { version = "1", features = ["preserve_order"] }
+clap = { version = "4", features = ["derive"], optional = true }
 wasm-bindgen = { version = "0.2", optional = true }
 
 [features]
 default = ["cli"]
-cli = []
+cli = ["dep:clap"]
 wasm = ["dep:wasm-bindgen"]
 
 [profile.release]

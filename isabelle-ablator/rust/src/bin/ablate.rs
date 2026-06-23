@@ -2,52 +2,108 @@
 //! (Build validation `--check-build` stays in the Scala tool; this tool is the
 //! portable/WASM ablation engine.)
 
+use clap::Parser;
 use isabelle_ablator::ablate::{ablate, preset_of, Rng, Spec, INF, LADDER};
 use isabelle_ablator::centrality;
+use isabelle_ablator::count_theory_goals;
 use isabelle_ablator::record::record;
 use isabelle_ablator::span::Syntax;
-use isabelle_ablator::{count_theory_goals};
-use std::collections::HashMap;
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use std::process::exit;
 use std::time::{Instant, SystemTime, UNIX_EPOCH};
 
-const USAGE: &str = "\
-Usage: ablate [OPTIONS] PATH...
+/// Ablate proofs in Isabelle theories, replacing them with `sorry`.
+///
+/// PATH... is any mix of .thy files and directories (walked for *.thy).
+/// Default: emit one indented JSON (challenge, solution) record per theory.
+#[derive(Parser, Debug)]
+#[command(name = "ablate", version, about, long_about = None)]
+struct Cli {
+    /// .thy files and/or directories to ablate
+    #[arg(value_name = "PATH", required = true)]
+    paths: Vec<String>,
 
-  Ablate proofs in Isabelle theories, replacing them with `sorry`.
-  PATH... is any mix of .thy files and directories (walked for *.thy).
-  Default: emit one indented JSON (challenge, solution) record per theory.
+    /// run the corpus self-test (round-trip + delimitation) instead of emitting
+    #[arg(long)]
+    check: bool,
 
-  Modes:
-    --check          run the corpus self-test (round-trip + delimitation)
+    /// difficulty preset ladder L0 (easy) .. L4 (code+spec only)
+    #[arg(long, value_name = "L")]
+    difficulty: Option<String>,
 
-  Difficulty (raw knobs override any --difficulty preset):
-    --difficulty L   preset ladder L0 (easy) .. L4 (code+spec only)
-    --min-depth N    ablate goals at nesting depth >= N (default: 1)
-    --max-depth N    ablate goals at nesting depth <= N; N may be `inf`
-    --leaves-only    only ablate goals whose proof has no nested goal
-    --min-size N / --max-size N   proof-command-count window (N may be `inf`)
-    --min-centrality N / --max-centrality N   corpus fan-in window
-    -p PROB          probability of ablating each selected proof (default: 0.5)
-    --all            ablate every selected proof (-p 1.0)
-    --count N        ablate exactly min(N, matching) proofs (excl. -p/--all)
-    --by-centrality  with --count, pick the most-cited proofs
+    /// ablate goals at nesting depth >= N (default 1)
+    #[arg(long, value_name = "N")]
+    min_depth: Option<String>,
+    /// ablate goals at nesting depth <= N; N may be `inf` (default 1)
+    #[arg(long, value_name = "N")]
+    max_depth: Option<String>,
+    /// only ablate goals whose proof has no nested goal
+    #[arg(long)]
+    leaves_only: bool,
+    /// only ablate proofs with >= N proof commands
+    #[arg(long, value_name = "N", default_value = "0")]
+    min_size: String,
+    /// only ablate proofs with <= N proof commands; N may be `inf`
+    #[arg(long, value_name = "N", default_value = "inf")]
+    max_size: String,
+    /// only ablate lemmas with corpus fan-in >= N
+    #[arg(long, value_name = "N", default_value = "0")]
+    min_centrality: String,
+    /// only ablate lemmas with corpus fan-in <= N; N may be `inf`
+    #[arg(long, value_name = "N", default_value = "inf")]
+    max_centrality: String,
 
-  Context shaping (challenge text only; ignored by --check):
-    --truncate       drop everything after the last inserted `sorry`
-    --shrink-context drop top-level lemmas/theorems after the last ablated one
+    /// probability of ablating each selected proof (default 0.5)
+    #[arg(short = 'p', long, value_name = "PROB", conflicts_with_all = ["all", "count"])]
+    prob: Option<f64>,
+    /// ablate every selected proof (-p 1.0)
+    #[arg(long, conflicts_with = "count")]
+    all: bool,
+    /// ablate exactly min(N, matching) selected proofs per theory
+    #[arg(long, value_name = "N")]
+    count: Option<u64>,
+    /// with --count, pick the most-cited proofs (not random)
+    #[arg(long, requires = "count")]
+    by_centrality: bool,
 
-  Other:
-    -d DIR           strip DIR prefix from emitted file paths (repeatable)
-    --keywords FILE  load a name->kind keyword table JSON (default: baked-in HOL)
-    --repeat N       emit up to N deduplicated ablations per theory (default: 1)
-    --seed N         RNG seed (default: time-based)
-    --text           output the ablated theory text instead of JSONL
-    --compact        strict one-object-per-line JSONL (no indentation)
-    -v               verbose: progress/summary on stderr
-";
+    /// drop everything after the last inserted `sorry` (challenge only)
+    #[arg(long)]
+    truncate: bool,
+    /// drop top-level lemmas/theorems after the last ablated one (challenge only)
+    #[arg(long)]
+    shrink_context: bool,
+
+    /// session name (for the record's `session` field)
+    #[arg(short = 's', long, default_value = "HOL")]
+    session: String,
+    /// strip DIR prefix from emitted file paths (repeatable)
+    #[arg(short = 'd', long = "strip-dir", value_name = "DIR")]
+    strip_dir: Vec<String>,
+    /// load a name->kind keyword table JSON (default: baked-in HOL)
+    #[arg(long, value_name = "FILE")]
+    keywords: Option<String>,
+    /// emit up to N deduplicated ablations per theory
+    #[arg(long, value_name = "N", default_value_t = 1)]
+    repeat: u64,
+    /// RNG seed (default: time-based)
+    #[arg(long, value_name = "N")]
+    seed: Option<i64>,
+    /// output the ablated theory text instead of JSONL records
+    #[arg(long)]
+    text: bool,
+    /// strict one-object-per-line JSONL (no indentation)
+    #[arg(long)]
+    compact: bool,
+    /// verbose: progress/summary on stderr
+    #[arg(short = 'v', long)]
+    verbose: bool,
+}
+
+fn die(msg: &str) -> ! {
+    eprintln!("error: {msg}");
+    exit(2)
+}
 
 fn parse_depth(s: &str) -> i64 {
     if s == "inf" || s == "infinity" {
@@ -57,18 +113,13 @@ fn parse_depth(s: &str) -> i64 {
     }
 }
 
-fn die(msg: &str) -> ! {
-    eprintln!("{msg}");
-    exit(2)
-}
-
 fn collect_theories(paths: &[String]) -> Vec<PathBuf> {
     let mut out = Vec::new();
     fn walk(p: &Path, out: &mut Vec<PathBuf>) {
         if p.is_dir() {
             let mut kids: Vec<_> = std::fs::read_dir(p)
                 .map(|rd| rd.filter_map(|e| e.ok().map(|e| e.path())).collect())
-                .unwrap_or_else(|_| Vec::new());
+                .unwrap_or_default();
             kids.sort();
             for k in kids {
                 walk(&k, out);
@@ -94,121 +145,73 @@ fn fnv1a(s: &str) -> u64 {
 }
 
 fn main() {
-    let args: Vec<String> = std::env::args().skip(1).collect();
-    let mut session = "HOL".to_string();
-    let mut keywords_file: Option<String> = None;
-    let mut seed: Option<i64> = None;
-    let mut verbose = false;
-    let mut check = false;
-    let mut compact = false;
-    let mut text_mode = false;
-    let mut difficulty: Option<String> = None;
-    let mut prob_opt: Option<f64> = None;
-    let mut count_opt: Option<u64> = None;
-    let mut min_depth_opt: Option<i64> = None;
-    let mut max_depth_opt: Option<i64> = None;
-    let mut leaves_opt: Option<bool> = None;
-    let mut min_size_opt: Option<i64> = None;
-    let mut max_size_opt: Option<i64> = None;
-    let mut min_cent_opt: Option<i64> = None;
-    let mut max_cent_opt: Option<i64> = None;
-    let mut by_centrality = false;
-    let mut truncate = false;
-    let mut shrink_context = false;
-    let mut repeat: u64 = 1;
-    let mut paths: Vec<String> = Vec::new();
-    let mut strip_dirs: Vec<String> = Vec::new();
+    let cli = Cli::parse();
 
-    let mut it = args.iter();
-    while let Some(a) = it.next() {
-        let mut next = || it.next().cloned().unwrap_or_else(|| die(&format!("missing arg for {a}")));
-        match a.as_str() {
-            "--check" => check = true,
-            "--compact" => compact = true,
-            "--text" => text_mode = true,
-            "-v" => verbose = true,
-            "--all" => prob_opt = Some(1.0),
-            "--by-centrality" => by_centrality = true,
-            "--truncate" => truncate = true,
-            "--shrink-context" => shrink_context = true,
-            "--leaves-only" => leaves_opt = Some(true),
-            "--difficulty" => difficulty = Some(next()),
-            "--min-depth" => min_depth_opt = Some(parse_depth(&next())),
-            "--max-depth" => max_depth_opt = Some(parse_depth(&next())),
-            "--min-size" => min_size_opt = Some(parse_depth(&next())),
-            "--max-size" => max_size_opt = Some(parse_depth(&next())),
-            "--min-centrality" => min_cent_opt = Some(parse_depth(&next())),
-            "--max-centrality" => max_cent_opt = Some(parse_depth(&next())),
-            "-p" => prob_opt = Some(next().parse().unwrap_or_else(|_| die("bad -p"))),
-            "--count" => count_opt = Some(next().parse().unwrap_or_else(|_| die("bad --count"))),
-            "--repeat" => repeat = next().parse().unwrap_or_else(|_| die("bad --repeat")),
-            "--seed" => seed = Some(next().parse().unwrap_or_else(|_| die("bad --seed"))),
-            "-s" => session = next(),
-            "-d" => strip_dirs.push(next()),
-            "--keywords" => keywords_file = Some(next()),
-            "-h" | "--help" => {
-                print!("{USAGE}");
-                return;
-            }
-            s if s.starts_with('-') && s != "-" => die(&format!("Unknown option: {s}\n{USAGE}")),
-            s => paths.push(s.to_string()),
-        }
-    }
-
-    let preset = difficulty.as_deref().map(|d| {
-        preset_of(d).unwrap_or_else(|| die(&format!("Unknown --difficulty {d} (expected L0..L{})", LADDER.len() - 1)))
+    let preset = cli.difficulty.as_deref().map(|d| {
+        preset_of(d).unwrap_or_else(|| {
+            die(&format!("unknown --difficulty {d} (expected L0..L{})", LADDER.len() - 1))
+        })
     });
-    if count_opt.is_some() && prob_opt.is_some() {
-        die("--count cannot be combined with -p / --all");
-    }
-    if by_centrality && count_opt.is_none() {
-        die("--by-centrality only applies with --count");
-    }
 
     let spec = Spec {
-        prob: prob_opt.or(preset.map(|p| p.prob)).unwrap_or(0.5),
-        count: count_opt,
-        by_centrality,
-        min_depth: min_depth_opt.or(preset.map(|p| p.min_depth)).unwrap_or(1),
-        max_depth: max_depth_opt.or(preset.map(|p| p.max_depth)).unwrap_or(1),
-        leaves_only: leaves_opt.or(preset.map(|p| p.leaves_only)).unwrap_or(false),
-        min_size: min_size_opt.unwrap_or(0),
-        max_size: max_size_opt.unwrap_or(INF),
-        min_centrality: min_cent_opt.unwrap_or(0),
-        max_centrality: max_cent_opt.unwrap_or(INF),
-        truncate,
-        shrink_context,
+        prob: cli
+            .prob
+            .or(cli.all.then_some(1.0))
+            .or(preset.map(|p| p.prob))
+            .unwrap_or(0.5),
+        count: cli.count,
+        by_centrality: cli.by_centrality,
+        min_depth: cli
+            .min_depth
+            .as_deref()
+            .map(parse_depth)
+            .or(preset.map(|p| p.min_depth))
+            .unwrap_or(1),
+        max_depth: cli
+            .max_depth
+            .as_deref()
+            .map(parse_depth)
+            .or(preset.map(|p| p.max_depth))
+            .unwrap_or(1),
+        leaves_only: cli.leaves_only || preset.map(|p| p.leaves_only).unwrap_or(false),
+        min_size: parse_depth(&cli.min_size),
+        max_size: parse_depth(&cli.max_size),
+        min_centrality: parse_depth(&cli.min_centrality),
+        max_centrality: parse_depth(&cli.max_centrality),
+        truncate: cli.truncate,
+        shrink_context: cli.shrink_context,
     };
     if spec.min_depth < 1 {
         die("--min-depth must be >= 1");
     }
-    if paths.is_empty() {
-        die(USAGE);
-    }
 
-    let syntax = match keywords_file {
+    let syntax = match &cli.keywords {
         Some(f) => {
-            let json = std::fs::read_to_string(&f).unwrap_or_else(|e| die(&format!("read {f}: {e}")));
+            let json = std::fs::read_to_string(f).unwrap_or_else(|e| die(&format!("read {f}: {e}")));
             Syntax::new(isabelle_ablator::keyword::Keywords::from_json(&json))
         }
         None => Syntax::hol(),
     };
-    let base: i64 = seed.unwrap_or_else(|| {
-        SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_nanos() as i64
-    });
+    let base: i64 = cli
+        .seed
+        .unwrap_or_else(|| SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_nanos() as i64);
 
-    let theories = collect_theories(&paths);
-    // read all up front (centrality + emit both need contents)
+    let theories = collect_theories(&cli.paths);
     let docs: Vec<(PathBuf, String)> = theories
         .iter()
         .filter_map(|p| std::fs::read_to_string(p).ok().map(|t| (p.clone(), t)))
         .collect();
-    if verbose {
-        eprintln!("[session {session}: {} keywords; {} theories]", syntax.keywords.kinds.len(), docs.len());
+    if cli.verbose {
+        eprintln!(
+            "[session {}: {} keywords; {} theories]",
+            cli.session,
+            syntax.keywords.kinds.len(),
+            docs.len()
+        );
     }
 
     // corpus fan-in (always for JSONL emit; otherwise only when filtered)
-    let need_cent = spec.uses_centrality() || (!check && !text_mode);
+    let need_cent = spec.uses_centrality() || (!cli.check && !cli.text);
     let fan: HashMap<String, i64> = if need_cent {
         centrality::fan_in(&syntax, docs.iter().map(|(_, t)| t.as_str()))
     } else {
@@ -216,7 +219,7 @@ fn main() {
     };
     let centrality_fn = |name: &str| *fan.get(name).unwrap_or(&0);
 
-    if check {
+    if cli.check {
         let ok = run_check(&syntax, &docs, &spec, &centrality_fn);
         if !ok {
             exit(1);
@@ -225,7 +228,8 @@ fn main() {
     }
 
     // path display: strip longest matching -d prefix
-    let mut strip: Vec<String> = strip_dirs
+    let mut strip: Vec<String> = cli
+        .strip_dir
         .iter()
         .filter_map(|d| std::fs::canonicalize(d).ok().map(|p| p.to_string_lossy().into_owned()))
         .collect();
@@ -245,7 +249,7 @@ fn main() {
         abs
     };
 
-    let n_repeat = repeat.max(1);
+    let n_repeat = cli.repeat.max(1);
     let mut emitted = 0u64;
     for (path, original) in &docs {
         let display = display_path(path);
@@ -257,12 +261,21 @@ fn main() {
             let mut rng = Rng::new((base as u64) ^ pf ^ k.wrapping_mul(0x9E3779B97F4A7C15));
             let result = ablate(&spans, &spec, &mut rng, &centrality_fn);
             if seen.insert(result.text.clone()) {
-                if text_mode {
+                if cli.text {
                     print!("{}", result.text);
                 } else {
                     let variant = if n_repeat > 1 { Some(produced) } else { None };
-                    let obj = record(&display, &session, &spec, base, variant, difficulty.as_deref(), original, &result);
-                    if compact {
+                    let obj = record(
+                        &display,
+                        &cli.session,
+                        &spec,
+                        base,
+                        variant,
+                        cli.difficulty.as_deref(),
+                        original,
+                        &result,
+                    );
+                    if cli.compact {
                         println!("{}", serde_json::to_string(&obj).unwrap());
                     } else {
                         println!("{}", serde_json::to_string_pretty(&obj).unwrap());
@@ -273,8 +286,8 @@ fn main() {
             }
         }
     }
-    if verbose {
-        eprintln!("[emitted {emitted} {}]", if text_mode { "theories" } else { "records" });
+    if cli.verbose {
+        eprintln!("[emitted {emitted} {}]", if cli.text { "theories" } else { "records" });
     }
 }
 
@@ -328,8 +341,11 @@ fn run_check(
     let pct = if n_goals > 0 { 100.0 * n_ablated as f64 / n_goals as f64 } else { 0.0 };
     println!("cleanly ablated      : {n_ablated} ({pct:.2}%)");
     if ablate_s > 0.0 {
-        println!("ablation time        : {ablate_s:.2} s ({:.0} theories/s, {:.0} goals/s)",
-            n_files as f64 / ablate_s, n_goals as f64 / ablate_s);
+        println!(
+            "ablation time        : {ablate_s:.2} s ({:.0} theories/s, {:.0} goals/s)",
+            n_files as f64 / ablate_s,
+            n_goals as f64 / ablate_s
+        );
     }
     println!("self-test wall time  : {wall_s:.2} s");
     println!("round-trip failures  : {}", roundtrip_fail.len());

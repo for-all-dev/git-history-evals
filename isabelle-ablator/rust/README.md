@@ -57,6 +57,28 @@ python3 -m http.server -d web 8000               # open http://localhost:8000/
 preset / knobs, and the ablated challenge updates live. Everything runs
 client-side — nothing is uploaded.
 
+## Fuzzing
+
+The parser is fuzzed with [`cargo-fuzz`](https://github.com/rust-fuzz/cargo-fuzz)
+(libFuzzer). The target `fuzz/fuzz_targets/parse_roundtrip.rs` feeds arbitrary
+UTF-8 to `parse_spans` and asserts the **round-trip invariant** (concatenating
+every span's source reproduces the input) — the property the whole tool relies
+on — then runs ablation over the result (full depth range + truncate +
+shrink-context) to catch panics.
+
+`cargo-fuzz` needs nightly (for the sanitizer); get it from nix:
+
+```bash
+cd rust
+nix shell nixpkgs#cargo-fuzz -c \
+  env RUSTUP_TOOLCHAIN=nightly cargo fuzz run parse_roundtrip -- -max_total_time=60
+```
+
+The corpus is seeded with real HOL theories (`fuzz/corpus/parse_roundtrip/`).
+A crash artifact (if any) is replayable with `cargo fuzz run parse_roundtrip <artifact>`.
+A 150 s run (seeded from HOL) did **70k+ executions**, grew the corpus to ~1000
+inputs, and found **no crashes and no round-trip violations**.
+
 ## Layout
 
 - `src/tokenize.rs` — Symbol matcher, Scan scanners, keyword lexicon, `explode`
