@@ -1,0 +1,28 @@
+[package]
+name = "isabelle-ablator"
+version = "0.1.0"
+edition = "2021"
+description = "Syntactic ablation of Isabelle theories — a Rust/WASM port of the Isabelle/Scala ablator."
+license = "MIT"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[[bin]]
+name = "ablate"
+path = "src/bin/ablate.rs"
+required-features = ["cli"]
+
+[dependencies]
+serde_json = { version = "1", features = ["preserve_order"] }
+clap = { version = "4", features = ["derive"], optional = true }
+wasm-bindgen = { version = "0.2", optional = true }
+
+[features]
+default = ["cli"]
+cli = ["dep:clap"]
+wasm = ["dep:wasm-bindgen"]
+
+[profile.release]
+opt-level = "s"
+lto = true
