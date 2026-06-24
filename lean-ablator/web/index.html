@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Lean Ablator</title>
+<style>
+  :root { --bg:#1e1e2e; --fg:#cdd6f4; --mut:#9399b2; --acc:#a6e3a1; --acc2:#89b4fa; --pan:#181825; --bd:#313244; }
+  * { box-sizing: border-box; }
+  body { margin:0; font:14px/1.5 ui-sans-serif,system-ui,sans-serif; background:var(--bg); color:var(--fg); }
+  header { padding:14px 20px; border-bottom:1px solid var(--bd); }
+  header h1 { margin:0; font-size:18px; } header p { margin:4px 0 0; color:var(--mut); font-size:13px; }
+  header code { color:var(--acc); }
+  main { display:grid; grid-template-columns: 290px 1fr 1fr; gap:0; height:calc(100vh - 70px); }
+  .panel { padding:14px 16px; overflow:auto; border-right:1px solid var(--bd); }
+  .panel h2 { font-size:12px; text-transform:uppercase; letter-spacing:.06em; color:var(--mut); margin:0 0 8px; }
+  textarea, pre { width:100%; height:calc(100% - 70px); font:13px/1.45 ui-monospace,Menlo,Consolas,monospace;
+    background:var(--pan); color:var(--fg); border:1px solid var(--bd); border-radius:6px; padding:10px; resize:none; white-space:pre; overflow:auto; tab-size:2; }
+  pre { margin:0; }
+  pre .sorry { color:var(--acc); font-weight:600; }
+  label { display:block; margin:8px 0 2px; color:var(--mut); font-size:12px; }
+  input[type=text], input[type=number], select { width:100%; background:var(--pan); color:var(--fg);
+    border:1px solid var(--bd); border-radius:5px; padding:5px 7px; }
+  .row { display:flex; gap:8px; } .row > * { flex:1; }
+  .chk { display:flex; align-items:center; gap:6px; margin-top:8px; color:var(--fg); }
+  .chk input { width:auto; }
+  .presets { display:flex; flex-wrap:wrap; gap:5px; margin:6px 0 10px; }
+  .presets button { flex:1; min-width:42px; background:var(--pan); color:var(--acc2); border:1px solid var(--bd);
+    border-radius:5px; padding:5px 0; cursor:pointer; font:inherit; }
+  .presets button:hover { border-color:var(--acc2); }
+  hr { border:none; border-top:1px solid var(--bd); margin:12px 0; }
+  .stats { color:var(--mut); font-size:12px; margin-bottom:6px; }
+  .stats b { color:var(--acc); }
+  .holes { font:12px ui-monospace,monospace; }
+  .hole { color:var(--mut); border-bottom:1px solid var(--bd); padding:4px 0; }
+  .hole b { color:var(--fg); } .hole .m { color:var(--acc2); }
+</style>
+</head>
+<body>
+<header>
+  <h1>Lean Ablator <span style="color:var(--mut);font-weight:400">— in-browser proof ablation</span></h1>
+  <p>The real Lean-in-Lean ablator, compiled to WebAssembly, replacing selected proof/definition bodies with <code>sorry</code>. Everything runs in your browser — nothing is uploaded.</p>
+</header>
+<main>
+  <section class="panel" id="controls">
+    <h2>Difficulty preset</h2>
+    <div class="presets" id="presets">
+      <button data-l="0">L0</button><button data-l="1">L1</button>
+      <button data-l="2">L2</button><button data-l="3">L3</button><button data-l="4">L4</button>
+    </div>
+
+    <h2>Rate</h2>
+    <select id="rateMode"><option value="prob">probability</option><option value="count">exact count</option></select>
+    <div id="probBox"><label>probability <span id="probVal">0.50</span></label>
+      <input type="range" id="prob" min="0" max="1" step="0.05" value="0.5" style="width:100%"></div>
+    <div id="countBox" style="display:none">
+      <label>count (per file)</label><input type="number" id="count" value="3" min="0">
+      <div class="chk"><input type="checkbox" id="byCent"><label style="margin:0">by centrality (most-cited)</label></div>
+    </div>
+
+    <hr><h2>Selection</h2>
+    <div class="row"><div><label>min depth</label><input type="text" id="minDepth" value="1"></div>
+      <div><label>max depth</label><input type="text" id="maxDepth" value="1"></div></div>
+    <div class="chk"><input type="checkbox" id="leaves"><label style="margin:0">leaves only</label></div>
+    <div class="row"><div><label>min size</label><input type="text" id="minSize" value="0"></div>
+      <div><label>max size</label><input type="text" id="maxSize" value="inf"></div></div>
+    <div class="row"><div><label>min centrality</label><input type="text" id="minCent" value="0"></div>
+      <div><label>max centrality</label><input type="text" id="maxCent" value="inf"></div></div>
+
+    <hr><h2>Context shaping</h2>
+    <div class="chk"><input type="checkbox" id="truncate"><label style="margin:0">truncate after last sorry</label></div>
+    <div class="chk"><input type="checkbox" id="shrink"><label style="margin:0">shrink context</label></div>
+
+    <hr><label>seed</label><input type="number" id="seed" value="42">
+  </section>
+
+  <section class="panel">
+    <h2>Lean source (input)</h2>
+    <textarea id="input" spellcheck="false"></textarea>
+  </section>
+
+  <section class="panel" style="border-right:none">
+    <h2>Ablated challenge <span id="status" style="color:var(--mut);font-weight:400"></span></h2>
+    <div class="stats" id="stats"></div>
+    <pre id="output"></pre>
+    <div class="holes" id="holes"></div>
+  </section>
+</main>
+
+<script src="coi-serviceworker.js"></script>
+<script src="ablator.js"></script>
+<script>
+const SAMPLE = `namespace Demo
+
+/-- zero is a right identity for addition. -/
+theorem add_zero (n : Nat) : n + 0 = n := by
+  simp
+
+-- match arms ablate individually:  | pat => sorry
+def classify (n : Nat) : Nat :=
+  match n with
+  | 0 => 100
+  | k + 1 => k
+
+-- bullets ablate individually:  · sorry
+theorem and_comm (p q : Prop) (h : p ∧ q) : q ∧ p := by
+  apply And.intro
+  · exact h.2
+  · exact h.1
+
+-- a typed have ablates;  an untyped have/let is kept (sorry can't be typed)
+theorem double_nonneg (n : Nat) : 0 ≤ n + n := by
+  have h : 0 ≤ n := Nat.zero_le n
+  omega
+
+def double (n : Nat) : Nat := n + n
+
+end Demo
+`;
+
+const INF = 0xFFFFFFFF;
+const $ = id => document.getElementById(id);
+const PRESETS = [ // L0..L4 (mirrors the CLI LADDER)
+  {prob:0.3,minDepth:'1',maxDepth:'inf',leaves:true},
+  {prob:1.0,minDepth:'1',maxDepth:'inf',leaves:true},
+  {prob:1.0,minDepth:'2',maxDepth:'inf',leaves:false},
+  {prob:0.5,minDepth:'1',maxDepth:'1',leaves:false},
+  {prob:1.0,minDepth:'1',maxDepth:'1',leaves:false},
+];
+
+function u32(s){ s=String(s).trim(); return (s===''||s==='inf'||s==='infinity') ? INF : (parseInt(s)>>>0); }
+
+let Module = null;
+const SIG = ['string','number','number','number','number','number','number','number','number','number','number','number','number','number'];
+
+function ablate(text) {
+  const rate = $('rateMode').value;
+  const count = rate === 'count' ? (parseInt($('count').value)||0) : INF;
+  const byCent = rate === 'count' && $('byCent').checked ? 1 : 0;
+  const permille = rate === 'prob' ? Math.round(parseFloat($('prob').value)*1000) : 0;
+  const args = [
+    text,
+    u32($('minDepth').value), u32($('maxDepth').value), $('leaves').checked?1:0,
+    u32($('minSize').value), u32($('maxSize').value),
+    u32($('minCent').value), u32($('maxCent').value),
+    count, byCent, permille,
+    $('truncate').checked?1:0, $('shrink').checked?1:0,
+    Number($('seed').value)||0,
+  ];
+  const ptr = Module.ccall('ablate_json', 'number', SIG, args);
+  const json = Module.UTF8ToString(ptr);
+  Module._free(ptr);
+  return JSON.parse(json);
+}
+
+function escapeHtml(s){ return s.replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c])); }
+
+function run() {
+  if (!Module) return;
+  try {
+    const r = ablate($('input').value);
+    $('output').innerHTML = escapeHtml(r.text).replace(/\bsorry\b/g, '<span class="sorry">sorry</span>');
+    $('stats').innerHTML = `ablated <b>${r.ablated}</b> / ${r.total} matching bodies`;
+    $('holes').innerHTML = (r.holes_filled||[]).map(h =>
+      `<div class="hole"><b>${escapeHtml(h.theorem_name||'(anon)')}</b> — depth ${h.depth}, `
+      + `${h.n_lines} lines, <span class="m">${escapeHtml(h.method)}</span>`
+      + (h.centrality>0?`, fan-in ${h.centrality}`:'') + (h.is_leaf?', leaf':'') + `</div>`).join('');
+    $('status').textContent = '';
+  } catch (e) {
+    $('status').textContent = ' — error: ' + e;
+  }
+}
+
+// wire up controls
+$('rateMode').onchange = () => {
+  const c = $('rateMode').value === 'count';
+  $('countBox').style.display = c ? '' : 'none';
+  $('probBox').style.display = c ? 'none' : '';
+  run();
+};
+$('prob').oninput = () => { $('probVal').textContent = parseFloat($('prob').value).toFixed(2); run(); };
+$('presets').onclick = e => {
+  const l = e.target.dataset.l; if (l === undefined) return;
+  const p = PRESETS[+l];
+  $('rateMode').value='prob'; $('rateMode').onchange();
+  $('prob').value=p.prob; $('probVal').textContent=p.prob.toFixed(2);
+  $('minDepth').value=p.minDepth; $('maxDepth').value=p.maxDepth; $('leaves').checked=p.leaves;
+  run();
+};
+for (const id of ['minDepth','maxDepth','leaves','minSize','maxSize','minCent','maxCent',
+                  'truncate','shrink','seed','count','byCent'])
+  $(id).addEventListener('input', run);
+$('input').addEventListener('input', () => { clearTimeout(window._t); window._t=setTimeout(run, 150); });
+
+$('input').value = SAMPLE;
+$('status').textContent = '(loading wasm…)';
+createAblator().then(M => {
+  Module = M;
+  $('status').textContent = '';
+  run();
+}).catch(e => { $('status').textContent = ' — failed to load wasm: ' + e; });
+</script>
+</body>
+</html>
