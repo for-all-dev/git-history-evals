@@ -8,7 +8,7 @@
 # does everything client-side.
 #
 # Run inside the emscripten dev shell:
-#     nix develop .#wasm -c ./build-wasm.sh
+#     nix develop -c ./build-wasm.sh
 # or:
 #     nix shell nixpkgs#emscripten nixpkgs#zstd nixpkgs#curl -c ./build-wasm.sh
 set -euo pipefail
@@ -18,7 +18,7 @@ LEAN_VER="4.15.0"
 TC_DIR=".wasm/lean-${LEAN_VER}-linux_wasm32"
 TC_URL="https://github.com/leanprover/lean4/releases/download/v${LEAN_VER}/lean-${LEAN_VER}-linux_wasm32.tar.zst"
 
-command -v emcc >/dev/null || { echo "emcc not found — run inside 'nix develop .#wasm' or 'nix shell nixpkgs#emscripten'"; exit 1; }
+command -v emcc >/dev/null || { echo "emcc not found — run inside 'nix develop' or 'nix shell nixpkgs#emscripten'"; exit 1; }
 
 # 1. fetch + unpack the prebuilt wasm32 Lean toolchain (runtime libs + headers)
 if [ ! -d "$TC_DIR" ]; then

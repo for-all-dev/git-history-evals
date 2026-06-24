@@ -49,9 +49,13 @@ session table can be supplied with `--keywords table.json`. Build validation
 ## Website (in-browser ablation)
 
 ```bash
-./build-wasm.sh                                  # -> web/pkg/ (≈190 KB wasm)
+nix develop -c ./build-wasm.sh                   # -> web/pkg/ (≈190 KB wasm)
 python3 -m http.server -d web 8000               # open http://localhost:8000/
 ```
+
+The `flake.nix` provides the dev shell (rustup + wasm-pack + the WASM tooling);
+`cargo`/`rustc` and the `wasm32-unknown-unknown` target come from `rustup`. Run
+`nix develop` for an interactive shell (or `nix develop -c <cmd>` for one-offs).
 
 `web/index.html` is a single-page app: paste a theory, pick the difficulty
 preset / knobs, and the ablated challenge updates live. Everything runs

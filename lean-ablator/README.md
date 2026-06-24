@@ -206,7 +206,7 @@ client-side** (no server, nothing uploaded). Keeping the core `import Lean`- and
 `IO`-free is what makes this possible.
 
 ```bash
-nix develop .#wasm -c ./build-wasm.sh      # -> web/ablator.{js,wasm}
+nix develop -c ./build-wasm.sh             # -> web/ablator.{js,wasm}
 python3 -m http.server -d web 8000         # open http://localhost:8000/
 ```
 
@@ -227,9 +227,10 @@ How it works:
 * `wasm/uv_stubs.c` satisfies a few `libuv` temp-file symbols the runtime
   references but the pure ablation path never calls.
 
-The `flake.nix` provides the emscripten toolchain (`nix develop .#wasm`); the
-Lean toolchain comes from `elan`. Build outputs (`web/ablator.{js,wasm}`) are
-git-ignored — regenerate with `build-wasm.sh`.
+The `flake.nix` dev shell provides everything needed (`nix develop`): `elan`
+(which fetches the pinned Lean toolchain via `lean-toolchain`) plus the
+emscripten toolchain — nothing has to be pre-installed. Build outputs
+(`web/ablator.{js,wasm}`) are git-ignored — regenerate with `build-wasm.sh`.
 
 ## Layout
 
