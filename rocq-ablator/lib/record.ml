@@ -38,6 +38,7 @@ let result_json (r : Ablate.result) : Yojson.Safe.t =
   `Assoc
     [
       ("text", `String r.text);
+      ("solution", `String r.solution);
       ("total", `Int r.total);
       ("ablated", `Int r.ablated);
       ("holes", `List (List.map hole_json r.holes));
@@ -45,7 +46,7 @@ let result_json (r : Ablate.result) : Yojson.Safe.t =
 
 let record ~(file_path : string) ~(session : string) ~(spec : Ablate.spec)
     ~(seed : int) ~(variant : int option) ~(difficulty : string option)
-    ~(original : string) ~(result : Ablate.result) : Yojson.Safe.t =
+    ~(result : Ablate.result) : Yojson.Safe.t =
   let opt_int = function Some n -> `Int n | None -> `Null in
   let opt_str = function Some s -> `String s | None -> `Null in
   `Assoc
@@ -74,5 +75,5 @@ let record ~(file_path : string) ~(session : string) ~(spec : Ablate.spec)
       ("n_ablated", `Int result.ablated);
       ("holes_filled", `List (List.map hole_json result.holes));
       ("challenge_file_content", `String result.text);
-      ("solution_file_content", `String original);
+      ("solution_file_content", `String result.solution);
     ]

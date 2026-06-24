@@ -40,12 +40,13 @@ def holeJson (h : Hole) : Json :=
 def resultJson (result : AblationResult) : Json :=
   Json.obj [
     ("text", Json.str result.text),
+    ("solution", Json.str result.solution),
     ("total", Json.num result.total),
     ("ablated", Json.num result.ablated),
     ("holes_filled", Json.arr (result.holes.map holeJson).toList) ]
 
 def record (filePath session : String) (spec : Spec) (seed : Int) (variant : Option Nat)
-    (difficulty : Option String) (original : String) (result : AblationResult) : Json :=
+    (difficulty : Option String) (result : AblationResult) : Json :=
   let optNat : Option Nat → Json := fun o => match o with | some n => Json.num (Int.ofNat n) | none => Json.null
   let optStr : Option String → Json := fun o => match o with | some s => Json.str s | none => Json.null
   Json.obj [
@@ -72,6 +73,6 @@ def record (filePath session : String) (spec : Spec) (seed : Int) (variant : Opt
     ("n_ablated", Json.num result.ablated),
     ("holes_filled", Json.arr (result.holes.map holeJson).toList),
     ("challenge_file_content", Json.str result.text),
-    ("solution_file_content", Json.str original) ]
+    ("solution_file_content", Json.str result.solution) ]
 
 end Ablator

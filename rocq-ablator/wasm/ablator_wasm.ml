@@ -54,7 +54,8 @@ let spec_from (opts : Yojson.Safe.t) : Ablate.spec =
       min_centrality = as_int_inf (g "min_centrality") 0;
       max_centrality = as_int_inf (g "max_centrality") inf;
       truncate = as_bool (g "truncate") false;
-      shrink_context = as_bool (g "shrink_context") false;
+      shrink_challenge = as_bool (g "shrink_challenge") false;
+      shrink_solution = as_bool (g "shrink_solution") false;
       allow_defined = as_bool (g "allow_defined") false;
     }
 

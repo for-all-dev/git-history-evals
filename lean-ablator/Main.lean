@@ -30,9 +30,10 @@ def usage : String :=
     --count N        ablate exactly min(N, matching) bodies (excl. -p/--all)
     --by-centrality  with --count, pick the most-cited bodies
 
-  Context shaping (challenge text only; ignored by --check):
-    --truncate       drop everything after the last inserted `sorry`
-    --shrink-context drop top-level decls after the last ablated one
+  Context shaping (ignored by --check):
+    --truncate          drop challenge text after the last inserted `sorry`
+    --shrink-challenge  drop challenge top-level decls after the last ablated one
+    --shrink-solution   drop solution top-level decls after the last ablated one
 
   Other:
     -s SESSION       session/library label recorded in output (default: lean)
@@ -63,7 +64,8 @@ structure Opts where
   maxCentOpt   : Option Int := none
   byCentrality : Bool := false
   truncate     : Bool := false
-  shrinkCtx    : Bool := false
+  shrinkChallenge : Bool := false
+  shrinkSolution  : Bool := false
   repeatN      : Nat := 1
   paths        : Array String := #[]
   stripDirs    : Array String := #[]
@@ -89,8 +91,9 @@ partial def parseArgs (args : List String) (o : Opts) : Except String Opts := do
     | "-v"               => parseArgs rest { o with verbose := true }
     | "--all"            => parseArgs rest { o with probOpt := some 1.0 }
     | "--by-centrality"  => parseArgs rest { o with byCentrality := true }
-    | "--truncate"       => parseArgs rest { o with truncate := true }
-    | "--shrink-context" => parseArgs rest { o with shrinkCtx := true }
+    | "--truncate"         => parseArgs rest { o with truncate := true }
+    | "--shrink-challenge" => parseArgs rest { o with shrinkChallenge := true }
+    | "--shrink-solution"  => parseArgs rest { o with shrinkSolution := true }
     | "--leaves-only"    => parseArgs rest { o with leavesOpt := some true }
     | "--difficulty"     => needArg fun v => { o with difficulty := some v }
     | "--min-depth"      => match rest with
@@ -187,7 +190,8 @@ def buildSpec (o : Opts) (preset : Option Preset) : Spec :=
     minCentrality := o.minCentOpt.getD 0
     maxCentrality := o.maxCentOpt.getD INF
     truncate := o.truncate
-    shrinkContext := o.shrinkCtx }
+    shrinkChallenge := o.shrinkChallenge
+    shrinkSolution := o.shrinkSolution }
 
 structure Doc where
   path : System.FilePath
@@ -200,7 +204,7 @@ structure Doc where
     statement preservation. Returns `true` on all-clean. -/
 def runCheck (docs : Array Doc) (spec : Spec) (centrality : String → Int) : IO Bool := do
   -- disable count / context shaping (validate the ablation itself)
-  let baseSpec := { spec with count := none, truncate := false, shrinkContext := false }
+  let baseSpec := { spec with count := none, truncate := false, shrinkChallenge := false, shrinkSolution := false }
   let mut nFiles := 0
   let mut nGoals : Int := 0
   let mut nAblated : Int := 0
@@ -304,7 +308,7 @@ def main (args : List String) : IO UInt32 := do
         else
           let variant := if nRepeat > 1 then some produced else none
           let obj := Ablator.record d.display o.session spec (Int.ofNat seedBase.toNat)
-                       variant o.difficulty d.text result
+                       variant o.difficulty result
           IO.println (if o.compact then obj.compact else obj.pretty)
         produced := produced + 1
         emitted := emitted + 1

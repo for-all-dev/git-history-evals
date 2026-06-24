@@ -24,7 +24,8 @@ type spec = {
   min_centrality : int;
   max_centrality : int;
   truncate : bool;
-  shrink_context : bool;
+  shrink_challenge : bool; (* drop challenge top-level goals after the last hole *)
+  shrink_solution : bool; (* drop solution top-level goals after the last hole *)
   allow_defined : bool; (* ablate Defined-terminated proofs too (opacity risk) *)
 }
 
@@ -41,7 +42,8 @@ let default_spec =
     min_centrality = 0;
     max_centrality = inf;
     truncate = false;
-    shrink_context = false;
+    shrink_challenge = false;
+    shrink_solution = false;
     allow_defined = false;
   }
 
@@ -59,7 +61,13 @@ type hole = {
   proof_text : string;
 }
 
-type result = { text : string; total : int; ablated : int; holes : hole list }
+type result = {
+  text : string; (* the ablated challenge *)
+  solution : string; (* the original, optionally shrunk to match *)
+  total : int;
+  ablated : int;
+  holes : hole list;
+}
 
 (* ---------- SplitMix64 PRNG (seedable, reproducible) ---------- *)
 
@@ -222,6 +230,13 @@ let walk_all (spans : Span.t array) (spec : spec) (centrality : string -> int)
       Buffer.add_string b (Span.source spans.(k))
     done;
     Buffer.contents b
+  in
+  let src_len lo hi =
+    let c = ref 0 in
+    for k = lo to hi - 1 do
+      c := !c + String.length (Span.source spans.(k))
+    done;
+    !c
   in
   let count_cmds lo hi =
     let c = ref 0 in
@@ -499,31 +514,44 @@ let walk_all (spans : Span.t array) (spec : spec) (centrality : string -> int)
     end
   in
 
-  (* top-level pass *)
+  (* top-level pass. Each segment records its end offset in BOTH the challenge
+     output ([buflen]) and the original text ([orig]), so the challenge and the
+     solution can be shrunk independently. *)
   let i = ref 0 in
+  let orig = ref 0 in
   while !i < n do
     let s = spans.(!i) in
     if Span.is_goal s then begin
       let abl0 = !ablated in
-      i := handle_goal !i;
-      top_segs := (buflen (), true, !ablated > abl0) :: !top_segs
+      let g = !i in
+      i := handle_goal g;
+      orig := !orig + src_len g !i;
+      top_segs := (buflen (), !orig, true, !ablated > abl0) :: !top_segs
     end
     else begin
       emit (Span.source s);
+      orig := !orig + String.length (Span.source s);
       incr i;
-      top_segs := (buflen (), false, false) :: !top_segs
+      top_segs := (buflen (), !orig, false, false) :: !top_segs
     end
   done;
 
   let full = Buffer.contents out in
+  let original = src_range 0 n in
   let segs = Array.of_list (List.rev !top_segs) in
-  let shaped =
+  let chal_segs = Array.map (fun (c, _, g, a) -> (c, g, a)) segs in
+  let sol_segs = Array.map (fun (_, o, g, a) -> (o, g, a)) segs in
+  let text =
     if spec.truncate && !last_admit_end >= 0 then String.sub full 0 !last_admit_end
-    else if spec.shrink_context then Shape.shrink_context full segs
+    else if spec.shrink_challenge then Shape.shrink full chal_segs
     else full
   in
+  let solution =
+    if spec.shrink_solution then Shape.shrink original sol_segs else original
+  in
   ( {
-      text = shaped;
+      text;
+      solution;
       total = !total;
       ablated = !ablated;
       holes = List.rev !holes;

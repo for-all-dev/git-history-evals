@@ -95,7 +95,7 @@ object CheckBuild {
               (nm => fan.getOrElse(nm, 0))
             } else (_ => 0)
           // context shaping would truncate the file and break the build
-          val build_spec = spec.copy(truncate = false, shrink_context = false)
+          val build_spec = spec.copy(truncate = false, shrink_challenge = false, shrink_solution = false)
           var n_files = 0; var n_total = 0; var n_ablated = 0
           for (thy <- thys) {
             val text = File.read(thy)

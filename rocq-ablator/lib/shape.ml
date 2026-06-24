@@ -1,6 +1,7 @@
-(* Context shaping (truncate / shrink_context), ported from the Isabelle
-   ablator's [ablate.rs]. [segs] are (byte-offset end in the output, is_goal,
-   had_admit) triples, one per top-level segment. *)
+(* Context shaping, ported from the Isabelle ablator's [ablate.rs]. [segs] are
+   (byte-offset end in the text, is_goal, had_ablation) triples, one per
+   top-level segment. The same operation shrinks either the challenge or the
+   solution — only the offsets differ. *)
 
 (* collapse runs of >=2 blank lines into a single blank line *)
 let collapse_blank_lines (s : string) : string =
@@ -40,7 +41,7 @@ let collapse_blank_lines (s : string) : string =
   Buffer.contents out
 
 (* drop top-level goal segments after the last ablated one, then tidy blanks *)
-let shrink_context (full : string) (segs : (int * bool * bool) array) : string =
+let shrink (full : string) (segs : (int * bool * bool) array) : string =
   let last = ref (-1) in
   Array.iteri (fun idx (_, is_goal, had) -> if is_goal && had then last := idx) segs;
   if !last < 0 then full

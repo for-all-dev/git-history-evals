@@ -43,7 +43,7 @@ object Check {
 
         // --check ignores --count/-p and context shaping: prob 0 must be the
         // identity, prob 1 must ablate all candidates.
-        val base = spec.copy(count = None, truncate = false, shrink_context = false)
+        val base = spec.copy(count = None, truncate = false, shrink_challenge = false, shrink_solution = false)
         val identity = Ablate.ablate(syntax, text, base.copy(prob = 0.0), new Random(0), centrality)
         if (identity.text != text) roundtrip_fail += name
 

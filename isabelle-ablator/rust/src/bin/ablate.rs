@@ -70,9 +70,12 @@ struct Cli {
     /// drop everything after the last inserted `sorry` (challenge only)
     #[arg(long)]
     truncate: bool,
-    /// drop top-level lemmas/theorems after the last ablated one (challenge only)
+    /// drop challenge top-level lemmas/theorems after the last ablated one
     #[arg(long)]
-    shrink_context: bool,
+    shrink_challenge: bool,
+    /// drop solution top-level lemmas/theorems after the last ablated one
+    #[arg(long)]
+    shrink_solution: bool,
 
     /// session name (for the record's `session` field)
     #[arg(short = 's', long, default_value = "HOL")]
@@ -179,7 +182,8 @@ fn main() {
         min_centrality: parse_depth(&cli.min_centrality),
         max_centrality: parse_depth(&cli.max_centrality),
         truncate: cli.truncate,
-        shrink_context: cli.shrink_context,
+        shrink_challenge: cli.shrink_challenge,
+        shrink_solution: cli.shrink_solution,
     };
     if spec.min_depth < 1 {
         die("--min-depth must be >= 1");
@@ -272,7 +276,6 @@ fn main() {
                         base,
                         variant,
                         cli.difficulty.as_deref(),
-                        original,
                         &result,
                     );
                     if cli.compact {
@@ -298,7 +301,13 @@ fn run_check(
     centrality_fn: &dyn Fn(&str) -> i64,
 ) -> bool {
     // disable count / context shaping (validate the proof ablation itself)
-    let base_spec = Spec { count: None, truncate: false, shrink_context: false, ..spec.clone() };
+    let base_spec = Spec {
+        count: None,
+        truncate: false,
+        shrink_challenge: false,
+        shrink_solution: false,
+        ..spec.clone()
+    };
     let mut n_files = 0;
     let mut n_goals = 0i64;
     let mut n_ablated = 0i64;

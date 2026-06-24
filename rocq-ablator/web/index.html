@@ -70,7 +70,8 @@
 
     <hr><h2>Context shaping</h2>
     <div class="chk"><input type="checkbox" id="truncate"><label style="margin:0">truncate after last hole</label></div>
-    <div class="chk"><input type="checkbox" id="shrink"><label style="margin:0">shrink context</label></div>
+    <div class="chk"><input type="checkbox" id="shrinkChal"><label style="margin:0">shrink challenge</label></div>
+    <div class="chk"><input type="checkbox" id="shrinkSol"><label style="margin:0">shrink solution</label></div>
 
     <hr><label>seed</label><input type="number" id="seed" value="42">
   </section>
@@ -141,7 +142,8 @@ function opts() {
     min_centrality: depthVal($('minCent').value),
     max_centrality: depthVal($('maxCent').value),
     truncate: $('truncate').checked,
-    shrink_context: $('shrink').checked,
+    shrink_challenge: $('shrinkChal').checked,
+    shrink_solution: $('shrinkSol').checked,
     allow_defined: $('allowDefined').checked,
   };
   if ($('rateMode').value === 'count') {
@@ -192,7 +194,7 @@ $('presets').onclick = e => {
   run();
 };
 for (const id of ['minDepth','maxDepth','leaves','minSize','maxSize','minCent','maxCent',
-                  'truncate','shrink','allowDefined','seed','count','byCent'])
+                  'truncate','shrinkChal','shrinkSol','allowDefined','seed','count','byCent'])
   $(id).addEventListener('input', run);
 $('input').addEventListener('input', () => { clearTimeout(window._t); window._t=setTimeout(run, 150); });
 

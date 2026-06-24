@@ -24,7 +24,7 @@ Checked against `../scala` over the **entire Isabelle/HOL core library**
 | round-trip / delimitation / re-parse failures | 0 | 0 |
 | ablation pass | ~0.5 s | ~20 s |
 
-Byte-level differential of `--all --text` (and `--shrink-context`, `--truncate`,
+Byte-level differential of `--all --text` (and `--shrink-challenge`, `--truncate`,
 `--by-centrality --count`, depth `2..inf` sub-proofs) is **identical** to the
 Scala output across sampled theories. Random `-p`/`--count` selections use a
 different RNG by design, so only deterministic configs are byte-compared.
@@ -41,7 +41,7 @@ cargo build --release            # -> target/release/ablate
 
 Same flags as the Scala tool — `--difficulty`, `--min-depth`/`--max-depth`,
 `--leaves-only`, `--min-size`/`--max-size`, `--min-centrality`/`--max-centrality`,
-`-p`/`--all`/`--count`/`--by-centrality`, `--truncate`/`--shrink-context`,
+`-p`/`--all`/`--count`/`--by-centrality`, `--truncate`/`--shrink-challenge`/`--shrink-solution`,
 `--repeat`, `-d` (path strip), `--text`/`--compact`, `--seed`, `-v`. A custom
 session table can be supplied with `--keywords table.json`. Build validation
 (`--check-build`, needs `isabelle build`) stays in the Scala tool.
@@ -68,7 +68,7 @@ The parser is fuzzed with [`cargo-fuzz`](https://github.com/rust-fuzz/cargo-fuzz
 UTF-8 to `parse_spans` and asserts the **round-trip invariant** (concatenating
 every span's source reproduces the input) — the property the whole tool relies
 on — then runs ablation over the result (full depth range + truncate +
-shrink-context) to catch panics.
+shrink-challenge + shrink-solution) to catch panics.
 
 `cargo-fuzz` needs nightly (for the sanitizer); get it from nix:
 

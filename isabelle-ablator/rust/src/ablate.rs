@@ -22,7 +22,8 @@ pub struct Spec {
     pub min_centrality: i64,
     pub max_centrality: i64,
     pub truncate: bool,
-    pub shrink_context: bool,
+    pub shrink_challenge: bool,
+    pub shrink_solution: bool,
 }
 
 impl Default for Spec {
@@ -39,7 +40,8 @@ impl Default for Spec {
             min_centrality: 0,
             max_centrality: INF,
             truncate: false,
-            shrink_context: false,
+            shrink_challenge: false,
+            shrink_solution: false,
         }
     }
 }
@@ -65,6 +67,7 @@ pub struct Hole {
 #[derive(Clone, Debug)]
 pub struct AblationResult {
     pub text: String,
+    pub solution: String,
     pub total: i64,
     pub ablated: i64,
     pub holes: Vec<Hole>,
@@ -187,7 +190,9 @@ struct Walker<'a> {
     out: String,
     holes: Vec<Hole>,
     matches: Vec<(usize, i64)>,
-    top_segs: Vec<(usize, bool, bool)>, // (end offset in `out`, is_goal, had_sorry)
+    // (end offset in `out`, end offset in the original, is_goal, had_sorry)
+    top_segs: Vec<(usize, usize, bool, bool)>,
+    orig: usize, // chars of the original consumed so far
     last_sorry_end: i64,
     total: i64,
     ablated: i64,
@@ -344,15 +349,25 @@ impl<'a> Walker<'a> {
             match kind_of(&self.spans[self.i]) {
                 Some(k) if is_goal(k) => {
                     let ablated0 = self.ablated;
+                    let start = self.i;
                     self.handle_goal();
-                    self.top_segs
-                        .push((self.out.chars().count(), true, self.ablated > ablated0));
+                    for j in start..self.i {
+                        self.orig += self.spans[j].source().chars().count();
+                    }
+                    self.top_segs.push((
+                        self.out.chars().count(),
+                        self.orig,
+                        true,
+                        self.ablated > ablated0,
+                    ));
                 }
                 _ => {
                     let s = self.src(self.i);
+                    self.orig += s.chars().count();
                     self.out.push_str(&s);
                     self.i += 1;
-                    self.top_segs.push((self.out.chars().count(), false, false));
+                    self.top_segs
+                        .push((self.out.chars().count(), self.orig, false, false));
                 }
             }
         }
@@ -374,6 +389,7 @@ fn walk_all(
         holes: Vec::new(),
         matches: Vec::new(),
         top_segs: Vec::new(),
+        orig: 0,
         last_sorry_end: -1,
         total: 0,
         ablated: 0,
@@ -383,16 +399,28 @@ fn walk_all(
     w.run();
 
     let full = w.out;
-    let shaped = if spec.truncate && w.last_sorry_end >= 0 {
+    let original: String = spans.iter().map(|s| s.source()).collect();
+    // each top segment carries both its challenge-offset and its original-offset,
+    // so the challenge and the solution can be shrunk independently.
+    let chal_segs: Vec<(usize, bool, bool)> =
+        w.top_segs.iter().map(|(c, _, g, a)| (*c, *g, *a)).collect();
+    let sol_segs: Vec<(usize, bool, bool)> =
+        w.top_segs.iter().map(|(_, o, g, a)| (*o, *g, *a)).collect();
+    let text = if spec.truncate && w.last_sorry_end >= 0 {
         full.chars().take(w.last_sorry_end as usize).collect()
-    } else if spec.shrink_context {
-        shrink_context(&full, &w.top_segs)
+    } else if spec.shrink_challenge {
+        shrink(&full, &chal_segs)
     } else {
         full
     };
+    let solution = if spec.shrink_solution {
+        shrink(&original, &sol_segs)
+    } else {
+        original
+    };
 
     (
-        AblationResult { text: shaped, total: w.total, ablated: w.ablated, holes: w.holes },
+        AblationResult { text, solution, total: w.total, ablated: w.ablated, holes: w.holes },
         w.matches,
     )
 }
@@ -433,8 +461,10 @@ pub fn ablate(
 }
 
 // Drop top-level goal segments after the last ablated top-level goal, then
-// collapse the blank-line runs left behind (Ablate.scala shrink_context).
-fn shrink_context(full: &str, segs: &[(usize, bool, bool)]) -> String {
+// collapse the blank-line runs left behind (Ablate.scala `shrink`). The same
+// operation shrinks either the challenge or the solution; only the offsets in
+// `segs` differ.
+fn shrink(full: &str, segs: &[(usize, bool, bool)]) -> String {
     let last = segs
         .iter()
         .rposition(|(_, is_goal, had_sorry)| *is_goal && *had_sorry);

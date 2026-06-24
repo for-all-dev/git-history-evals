@@ -41,8 +41,9 @@ structure Spec where
   maxSize       : Int := INF
   minCentrality : Int := 0
   maxCentrality : Int := INF
-  truncate      : Bool := false
-  shrinkContext : Bool := false
+  truncate       : Bool := false
+  shrinkChallenge : Bool := false
+  shrinkSolution  : Bool := false
   deriving Inhabited
 
 def Spec.usesCentrality (s : Spec) : Bool :=
@@ -61,10 +62,11 @@ structure Hole where
   deriving Inhabited
 
 structure AblationResult where
-  text    : String
-  total   : Int
-  ablated : Int
-  holes   : Array Hole
+  text     : String
+  solution : String
+  total    : Int
+  ablated  : Int
+  holes    : Array Hole
   deriving Inhabited
 
 /-- How a candidate is chosen for ablation. -/
@@ -315,7 +317,9 @@ structure WState where
   total      : Int := 0
   ablated    : Int := 0
   lastSorryEnd : Int := -1
-  topSegs    : Array (Nat × Bool × Bool) := #[]
+  origLen    : Nat := 0
+  -- (challenge-offset-end, original-offset-end, isGoal, hadSorry)
+  topSegs    : Array (Nat × Nat × Bool × Bool) := #[]
 
 abbrev W := StateM WState
 
@@ -405,6 +409,8 @@ def runWalk : W Unit := do
   let toks := st.toks
   let spans := parseSpans toks
   for s in spans do
+    -- the original length this span contributes (statement + proof, verbatim)
+    let srcLen := (s.source toks).length
     if s.isDecl then
       match findAssign toks s.lo s.hi with
       | some a =>
@@ -418,18 +424,24 @@ def runWalk : W Unit := do
         emitTokens s.lo (a+1)
         handleGoal s.lo (a+1) contentHi s.hi binderCol 1 name hasTy .binder
         let now ← get
-        modify fun z => { z with topSegs := z.topSegs.push (now.outLen, true, now.ablated > ablated0) }
+        let orig := now.origLen + srcLen
+        modify fun z => { z with origLen := orig }
+        modify fun z => { z with topSegs := z.topSegs.push (now.outLen, orig, true, now.ablated > ablated0) }
       | none =>
         emit (s.source toks)
-        modify fun z => { z with topSegs := z.topSegs.push (z.outLen, false, false) }
+        let orig := (← get).origLen + srcLen
+        modify fun z => { z with origLen := orig }
+        modify fun z => { z with topSegs := z.topSegs.push (z.outLen, orig, false, false) }
     else
       emit (s.source toks)
-      modify fun z => { z with topSegs := z.topSegs.push (z.outLen, false, false) }
+      let orig := (← get).origLen + srcLen
+      modify fun z => { z with origLen := orig }
+      modify fun z => { z with topSegs := z.topSegs.push (z.outLen, orig, false, false) }
 
-/- ---------- context shaping (truncate / shrink_context) ---------- -/
+/- ---------- context shaping (truncate / shrink) ---------- -/
 
 /-- Collapse runs of >=2 blank lines into a single blank line (tidies up the
-    gaps left behind by `shrinkContext`). -/
+    gaps left behind by `shrink`). -/
 def collapseBlankLines (s : String) : String := Id.run do
   let cs := s.toList.toArray
   let n := cs.size
@@ -460,10 +472,11 @@ def collapseBlankLines (s : String) : String := Id.run do
       i := i + 1
   return out
 
-/-- Drop top-level goal segments after the last ablated one, to focus the
-    challenge on the body in front of the model. `segs` are
-    `(char-offset-end, isGoal, hadSorry)`. -/
-def shrinkContext (full : String) (segs : Array (Nat × Bool × Bool)) : String := Id.run do
+/-- Drop top-level goal segments after the last ablated one, to focus on the
+    body in front of the model. `segs` are `(char-offset-end, isGoal, hadSorry)`.
+    The same operation shrinks either the challenge or the solution — only the
+    offsets differ. -/
+def shrink (full : String) (segs : Array (Nat × Bool × Bool)) : String := Id.run do
   let mut last : Option Nat := none
   for idx in [0:segs.size] do
     let (_, isGoal, hadSorry) := segs[idx]!
@@ -489,13 +502,18 @@ def walkAll (toks : Array Token) (spec : Spec) (centrality : String → Int)
                          selector := selector, rng := rng }
   let (_, st) := runWalk.run init
   let full := st.out
-  let shaped :=
+  let original := implode toks
+  let chalSegs := st.topSegs.map (fun (c, _, g, a) => (c, g, a))
+  let solSegs := st.topSegs.map (fun (_, o, g, a) => (o, g, a))
+  let text :=
     if spec.truncate && st.lastSorryEnd ≥ 0 then
       String.mk (full.toList.take st.lastSorryEnd.toNat)
-    else if spec.shrinkContext then
-      shrinkContext full st.topSegs
+    else if spec.shrinkChallenge then
+      shrink full chalSegs
     else full
-  ({ text := shaped, total := st.total, ablated := st.ablated, holes := st.holes }, st.matchAcc)
+  let solution := if spec.shrinkSolution then shrink original solSegs else original
+  ({ text := text, solution := solution, total := st.total, ablated := st.ablated, holes := st.holes },
+   st.matchAcc)
 
 /-- Public entry. `centrality` maps a name to its corpus fan-in (0 if unused). -/
 def ablate (toks : Array Token) (spec : Spec) (rng : Rng) (centrality : String → Int) : AblationResult :=

@@ -138,8 +138,10 @@ lemmas"). `centrality` is recorded on every hole regardless.
 
 * `--truncate` drops everything after the last inserted `sorry` — the file ends
   at the body to complete.
-* `--shrink-context` drops top-level decls that come *after* the last ablated
-  one (keeping earlier context and `end`s).
+* `--shrink-challenge` drops top-level decls that come *after* the last ablated
+  one from the **challenge** (keeping earlier context and `end`s);
+  `--shrink-solution` does the same to the **solution**, so the answer file
+  isn't padded with later theorems the model was never asked about.
 * `--repeat N` emits up to N **deduplicated** ablations per file — augmentation
   that's only fruitful with a stochastic selector (`-p`, `--count`).
 * `-d DIR` strips a path prefix from emitted `file_path`s (and the path-derived
@@ -159,7 +161,7 @@ lemmas"). `centrality` is recorded on every hole regardless.
 | `--all` | ablate every selected body (`-p 1.0`) |
 | `--count N` | ablate exactly `min(N, matching)` bodies (excl. `-p`/`--all`) |
 | `--by-centrality` | with `--count`, pick the most-cited |
-| `--truncate` / `--shrink-context` | challenge-text shaping |
+| `--truncate` / `--shrink-challenge` / `--shrink-solution` | challenge/solution shaping |
 | `--repeat N` | up to N deduplicated ablations per file |
 | `-s SESSION` | library label recorded in output (default `lean`) |
 | `-d DIR` | strip prefix from emitted paths (repeatable) |

@@ -56,7 +56,8 @@ fn spec_from(opts: &Value) -> (Spec, Option<String>) {
         min_centrality: as_i64_inf(g("min_centrality"), 0),
         max_centrality: as_i64_inf(g("max_centrality"), INF),
         truncate: as_bool(g("truncate"), false),
-        shrink_context: as_bool(g("shrink_context"), false),
+        shrink_challenge: as_bool(g("shrink_challenge"), false),
+        shrink_solution: as_bool(g("shrink_solution"), false),
     };
     (spec, difficulty)
 }
@@ -93,7 +94,7 @@ pub fn ablate_theory(text: &str, opts_json: &str, seed: f64) -> String {
             })
         })
         .collect();
-    json!({ "text": r.text, "total": r.total, "ablated": r.ablated, "holes": holes }).to_string()
+    json!({ "text": r.text, "solution": r.solution, "total": r.total, "ablated": r.ablated, "holes": holes }).to_string()
 }
 
 /// Number of HOL keywords baked in (sanity check for the JS side).

@@ -39,7 +39,14 @@ fuzz_target!(|data: &[u8]| {
     let mut rng = Rng::new(1);
     let _ = ablate(
         &spans,
-        &Spec { prob: 1.0, max_depth: INF, truncate: true, shrink_context: true, ..Default::default() },
+        &Spec {
+            prob: 1.0,
+            max_depth: INF,
+            truncate: true,
+            shrink_challenge: true,
+            shrink_solution: true,
+            ..Default::default()
+        },
         &mut rng,
         &z,
     );

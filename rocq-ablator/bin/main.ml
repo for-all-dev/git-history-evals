@@ -28,9 +28,10 @@ let usage =
     --by-centrality  with --count, pick the most-cited proofs
     --allow-defined  also ablate Defined-terminated proofs (opacity risk)
 
-  Context shaping (challenge text only; ignored by --check):
-    --truncate       drop everything after the last inserted hole
-    --shrink-context drop top-level goals after the last ablated one
+  Context shaping (ignored by --check):
+    --truncate          drop challenge text after the last inserted hole
+    --shrink-challenge  drop challenge top-level goals after the last ablated one
+    --shrink-solution   drop solution top-level goals after the last ablated one
 
   Other:
     -s SESSION       session/library label recorded in output (default: coq)
@@ -109,7 +110,8 @@ type opts = {
   mutable min_cent : int option;
   mutable max_cent : int option;
   mutable truncate : bool;
-  mutable shrink : bool;
+  mutable shrink_challenge : bool;
+  mutable shrink_solution : bool;
   mutable allow_defined : bool;
   mutable repeat : int;
   mutable strip_dirs : string list;
@@ -122,8 +124,8 @@ let parse_args argv =
       text_mode = false; difficulty = None; prob = None; all = false; count = None;
       by_centrality = false; min_depth = None; max_depth = None; leaves = false;
       min_size = None; max_size = None; min_cent = None; max_cent = None;
-      truncate = false; shrink = false; allow_defined = false; repeat = 1;
-      strip_dirs = []; paths = [] }
+      truncate = false; shrink_challenge = false; shrink_solution = false;
+      allow_defined = false; repeat = 1; strip_dirs = []; paths = [] }
   in
   let n = Array.length argv in
   let i = ref 1 in
@@ -142,7 +144,8 @@ let parse_args argv =
      | "--all" -> o.all <- true
      | "--by-centrality" -> o.by_centrality <- true
      | "--truncate" -> o.truncate <- true
-     | "--shrink-context" -> o.shrink <- true
+     | "--shrink-challenge" -> o.shrink_challenge <- true
+     | "--shrink-solution" -> o.shrink_solution <- true
      | "--leaves-only" -> o.leaves <- true
      | "--allow-defined" -> o.allow_defined <- true
      | "--difficulty" -> o.difficulty <- Some (next a)
@@ -191,7 +194,8 @@ let build_spec o =
       min_centrality = opt o.min_cent 0;
       max_centrality = opt o.max_cent Ablate.inf;
       truncate = o.truncate;
-      shrink_context = o.shrink;
+      shrink_challenge = o.shrink_challenge;
+      shrink_solution = o.shrink_solution;
       allow_defined = o.allow_defined;
     }
 
@@ -200,7 +204,10 @@ let count_goals text =
   Array.fold_left (fun a s -> if Span.is_goal s then a + 1 else a) 0 spans
 
 let run_check docs spec centrality =
-  let base = Ablate.{ spec with count = None; truncate = false; shrink_context = false } in
+  let base =
+    Ablate.
+      { spec with count = None; truncate = false; shrink_challenge = false; shrink_solution = false }
+  in
   let n_files = ref 0 and n_goals = ref 0 and n_ablated = ref 0 in
   let rt = ref [] and dl = ref [] and rp = ref [] in
   List.iter
@@ -278,7 +285,7 @@ let () =
             let obj =
               Record.record ~file_path:display ~session:o.session ~spec
                 ~seed:(Int64.to_int base_seed) ~variant ~difficulty:o.difficulty
-                ~original ~result
+                ~result
             in
             print_endline
               (if o.compact then Yojson.Safe.to_string obj else Yojson.Safe.pretty_to_string obj)

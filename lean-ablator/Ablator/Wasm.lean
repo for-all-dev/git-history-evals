@@ -31,7 +31,7 @@ def ablateTheoryFull
     (minDepth maxDepth : Int) (leavesOnly : Bool)
     (minSize maxSize : Int) (minCent maxCent : Int)
     (count : Option Nat) (byCentrality : Bool)
-    (prob : Float) (truncate shrinkContext : Bool)
+    (prob : Float) (truncate shrinkChallenge shrinkSolution : Bool)
     (seed : UInt64) : String :=
   let toks := tokenize text
   let spans := parseSpans toks
@@ -40,7 +40,7 @@ def ablateTheoryFull
     minDepth := minDepth, maxDepth := maxDepth, leavesOnly := leavesOnly,
     minSize := minSize, maxSize := maxSize,
     minCentrality := minCent, maxCentrality := maxCent,
-    truncate := truncate, shrinkContext := shrinkContext }
+    truncate := truncate, shrinkChallenge := shrinkChallenge, shrinkSolution := shrinkSolution }
   let fan := fanIn #[(toks, spans)]
   let centrality := fun name => fan.getD name 0
   let result := ablate toks spec (Rng.mk seed) centrality
@@ -59,13 +59,13 @@ def leanAblateTheory
     (minDepth maxDepth : UInt32) (leavesOnly : Bool)
     (minSize maxSize : UInt32) (minCent maxCent : UInt32)
     (count : UInt32) (byCentrality : Bool)
-    (probPermille : UInt32) (truncate shrinkContext : Bool)
+    (probPermille : UInt32) (truncate shrinkChallenge shrinkSolution : Bool)
     (seed : UInt64) : String :=
   ablateTheoryFull text
     (Int.ofNat minDepth.toNat) (normU32 maxDepth) leavesOnly
     (Int.ofNat minSize.toNat) (normU32 maxSize)
     (Int.ofNat minCent.toNat) (normU32 maxCent)
     (if count == u32Inf then none else some count.toNat) byCentrality
-    (probPermille.toNat.toFloat / 1000.0) truncate shrinkContext seed
+    (probPermille.toNat.toFloat / 1000.0) truncate shrinkChallenge shrinkSolution seed
 
 end Ablator

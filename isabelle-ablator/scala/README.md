@@ -129,8 +129,10 @@ ignored by `--check`/`--check-build`):
 
 - `--truncate` drops everything after the last inserted `sorry` — the file ends
   at the proof to complete.
-- `--shrink-context` drops top-level lemmas/theorems that come *after* the last
-  ablated one (keeping earlier context, definitions, and `end`).
+- `--shrink-challenge` drops top-level lemmas/theorems that come *after* the last
+  ablated one from the **challenge** (keeping earlier context, definitions, and
+  `end`); `--shrink-solution` does the same to the **solution**, so the answer
+  file isn't padded with later theorems the model was never asked about.
 
 `--repeat N` emits up to N ablations of each theory, **deduplicated** by the
 resulting text — data augmentation that's only fruitful with a stochastic
@@ -163,7 +165,8 @@ theories live under even if it isn't a session root.
 | `--count N` | ablate exactly `min(N, matching)` proofs, a random spread (excl. `-p`/`--all`) |
 | `--by-centrality` | with `--count`, pick the most-cited proofs instead of random |
 | `--truncate` | challenge: drop everything after the last inserted `sorry` |
-| `--shrink-context` | challenge: drop top-level lemmas/theorems after the last ablated one |
+| `--shrink-challenge` | challenge: drop top-level lemmas/theorems after the last ablated one |
+| `--shrink-solution` | solution: drop top-level lemmas/theorems after the last ablated one |
 | `--repeat N` | emit up to N deduplicated ablations per theory (default `1`) |
 | `-s SESSION` | session whose keyword table to parse with (default `HOL`) |
 | `-d DIR` | session root dir; also stripped from emitted `file_path`s (repeatable) |

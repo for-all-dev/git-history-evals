@@ -77,6 +77,7 @@ mod tests {
         let id_spec = ablate::Spec { prob: 0.0, ..Default::default() };
         let id = ablate::ablate(&spans, &id_spec, &mut rng, &z);
         assert_eq!(id.text, SAMPLE, "prob 0 must round-trip");
+        assert_eq!(id.solution, SAMPLE, "solution defaults to the full original");
 
         // --all: every top-level proof -> sorry
         let all_spec = ablate::Spec { prob: 1.0, ..Default::default() };
@@ -86,5 +87,37 @@ mod tests {
         assert!(all.text.contains("lemma add_zero: \"n + 0 = (n::nat)\" sorry"));
         // statements preserved, proofs gone
         assert!(!all.text.contains("by simp\n"));
+    }
+
+    #[test]
+    fn shrink_challenge_and_solution() {
+        let syn = span::Syntax::hol();
+        let src = "theory T\nimports Main\nbegin\n\n\
+            lemma g1: \"a = (a::nat)\" by simp\n\n\
+            lemma g2: \"b = (b::nat)\" by simp\n\nend\n";
+        let spans = syn.parse_spans(src);
+        // pick exactly g1 (most-cited) so a later goal (g2) always survives.
+        let cent = |name: &str| if name == "g1" { 1 } else { 0 };
+        let base = ablate::Spec { count: Some(1), by_centrality: true, ..Default::default() };
+
+        let mut rng = ablate::Rng::new(0);
+        let r0 = ablate::ablate(&spans, &base, &mut rng, &cent);
+        assert!(r0.text.contains("lemma g2"), "g1 ablated, g2 statement kept in challenge");
+        assert_eq!(r0.solution, src, "no shrink: full solution");
+
+        // shrink the SOLUTION: the later top-level goal g2 is dropped, g1 kept.
+        let ss = ablate::Spec { shrink_solution: true, ..base.clone() };
+        let mut rng = ablate::Rng::new(0);
+        let r1 = ablate::ablate(&spans, &ss, &mut rng, &cent);
+        assert!(!r1.solution.contains("lemma g2"), "shrink_solution drops the later goal");
+        assert!(r1.solution.contains("lemma g1"), "shrink_solution keeps the ablated goal");
+        assert!(r1.text.contains("lemma g2"), "challenge untouched by shrink_solution");
+
+        // shrink the CHALLENGE: g2 dropped from the challenge instead.
+        let sc = ablate::Spec { shrink_challenge: true, ..base.clone() };
+        let mut rng = ablate::Rng::new(0);
+        let r2 = ablate::ablate(&spans, &sc, &mut rng, &cent);
+        assert!(!r2.text.contains("lemma g2"), "shrink_challenge drops the later goal from the challenge");
+        assert_eq!(r2.solution, src, "solution untouched by shrink_challenge");
     }
 }

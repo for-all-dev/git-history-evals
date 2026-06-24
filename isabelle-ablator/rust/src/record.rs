@@ -35,7 +35,6 @@ pub fn record(
     seed: i64,
     variant: Option<u64>,
     difficulty: Option<&str>,
-    original: &str,
     result: &AblationResult,
 ) -> Value {
     let holes: Vec<Value> = result
@@ -79,6 +78,6 @@ pub fn record(
         "n_ablated": result.ablated,
         "holes_filled": holes,
         "challenge_file_content": result.text,
-        "solution_file_content": original,
+        "solution_file_content": result.solution,
     })
 }

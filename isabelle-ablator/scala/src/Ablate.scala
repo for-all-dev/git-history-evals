@@ -93,8 +93,9 @@ object Ablate {
     max_size: Int = Int.MaxValue,    // inclusive upper bound
     min_centrality: Int = 0,         // fan-in (distinct theorems citing this lemma)
     max_centrality: Int = Int.MaxValue,
-    truncate: Boolean = false,       // drop everything after the last inserted `sorry`
-    shrink_context: Boolean = false  // drop top-level goals after the last ablated one
+    truncate: Boolean = false,         // drop everything after the last inserted `sorry`
+    shrink_challenge: Boolean = false, // drop challenge top-level goals after the last ablated one
+    shrink_solution: Boolean = false   // drop solution top-level goals after the last ablated one
   ) {
     def uses_centrality: Boolean =
       min_centrality > 0 || max_centrality != Int.MaxValue || by_centrality
@@ -104,17 +105,17 @@ object Ablate {
   sealed case class Hole(theorem_name: String, depth: Int, n_commands: Int, n_lines: Int,
     is_leaf: Boolean, centrality: Int, method: String, proof_text: String)
 
-  sealed case class Result(text: String, total: Int, ablated: Int, holes: List[Hole])
+  sealed case class Result(text: String, solution: String, total: Int, ablated: Int, holes: List[Hole])
 
   // Measured properties of a goal body.
   private sealed case class Body(end: Int, lead: String, text: String,
     n_commands: Int, is_leaf: Boolean, method: String, clean: Boolean)
 
   // Drop top-level goal segments that start after the last ablated top-level
-  // goal (keeping definitions / `end` / comments), to focus the model on the
-  // theorem in front of it rather than later theorems. `segs` is the list of
-  // top-level (end-offset, is-goal, had-sorry) in document order.
-  private def shrink_context(full: String, segs: List[(Int, Boolean, Boolean)]): String = {
+  // goal (keeping definitions / `end` / comments). The same operation shrinks
+  // either the challenge or the solution — only the offsets in `segs` differ.
+  // `segs` is the list of top-level (end-offset, is-goal, had-sorry) in order.
+  private def shrink(full: String, segs: List[(Int, Boolean, Boolean)]): String = {
     val last = segs.lastIndexWhere { case (_, is_goal, had_sorry) => is_goal && had_sorry }
     if (last < 0) full
     else {
@@ -152,8 +153,10 @@ object Ablate {
     val out = new mutable.StringBuilder
     val holes = new mutable.ListBuffer[Hole]
     val matches = new mutable.ListBuffer[(Int, Int)]
-    val top_segs = new mutable.ListBuffer[(Int, Boolean, Boolean)]  // (end offset, is goal, had sorry)
+    // (challenge end offset, original end offset, is goal, had sorry)
+    val top_segs = new mutable.ListBuffer[(Int, Int, Boolean, Boolean)]
     var last_sorry_end = -1                                          // out offset just after the last `sorry`
+    var orig = 0                                                     // chars of the original consumed so far
     var total = 0
     var ablated = 0
     var i = 0
@@ -244,22 +247,32 @@ object Ablate {
       kind_of(spans(i)) match {
         case Some(k) if is_goal(k) =>
           val ablated0 = ablated
+          val start = i
           handle_goal()
-          top_segs += ((out.length, true, ablated > ablated0))
+          for (j <- start until i) orig += src(j).length
+          top_segs += ((out.length, orig, true, ablated > ablated0))
         case _ =>
+          orig += src(i).length
           out ++= src(i); i += 1
-          top_segs += ((out.length, false, false))
+          top_segs += ((out.length, orig, false, false))
       }
     }
 
-    // optional context shaping (challenge-only; --check / --check-build disable these)
+    // optional context shaping (--check / --check-build disable these). Each
+    // segment carries both its challenge- and original-offset, so the challenge
+    // and the solution can be shrunk independently.
     val full = out.toString
-    val shaped =
+    val chal_segs = top_segs.toList.map { case (c, _, g, a) => (c, g, a) }
+    val sol_segs = top_segs.toList.map { case (_, o, g, a) => (o, g, a) }
+    val shaped_text =
       if (spec.truncate && last_sorry_end >= 0) full.substring(0, last_sorry_end)
-      else if (spec.shrink_context) shrink_context(full, top_segs.toList)
+      else if (spec.shrink_challenge) shrink(full, chal_segs)
       else full
+    val solution =
+      if (spec.shrink_solution) shrink(text, sol_segs)
+      else text
 
-    (Result(shaped, total, ablated, holes.toList), matches.toList)
+    (Result(shaped_text, solution, total, ablated, holes.toList), matches.toList)
     }  // walk_all
 
     spec.count match {
@@ -336,7 +349,7 @@ object Ablate {
   private def depth_json(d: Int): JSON.T = if (d == Int.MaxValue) "inf" else d
 
   def record(file_path: String, session: String, spec: Spec, seed: Long, variant: Option[Int],
-    difficulty: Option[String], original: String, result: Result): JSON.Object.T = {
+    difficulty: Option[String], result: Result): JSON.Object.T = {
     val holes: List[JSON.T] =
       result.holes.map(h => ListMap[String, JSON.T](
         "theorem_name" -> h.theorem_name, "depth" -> h.depth, "n_commands" -> h.n_commands,
@@ -366,7 +379,7 @@ object Ablate {
       "n_ablated" -> result.ablated,
       "holes_filled" -> holes,
       "challenge_file_content" -> result.text,
-      "solution_file_content" -> original)
+      "solution_file_content" -> result.solution)
   }
 
 
@@ -403,9 +416,10 @@ object Ablate {
       |                     (mutually exclusive with -p / --all)
       |    --by-centrality  with --count, pick the most-cited proofs (not random)
       |
-      |  Context shaping (challenge text only; ignored by --check / --check-build):
-      |    --truncate       drop everything after the last inserted `sorry`
-      |    --shrink-context drop top-level lemmas/theorems after the last ablated one
+      |  Context shaping (ignored by --check / --check-build):
+      |    --truncate          drop challenge text after the last inserted `sorry`
+      |    --shrink-challenge  drop challenge top-level lemmas/theorems after the last ablated one
+      |    --shrink-solution   drop solution top-level lemmas/theorems after the last ablated one
       |
       |  Other:
       |    -s SESSION       session whose syntax/keywords to parse with (default: HOL)
@@ -440,7 +454,8 @@ object Ablate {
     var maxCentralityOpt: Option[Int] = None
     var byCentrality = false
     var truncate = false
-    var shrinkContext = false
+    var shrinkChallenge = false
+    var shrinkSolution = false
     var repeat = 1
     val paths = new mutable.ListBuffer[String]
     val build_targets = new mutable.ListBuffer[String]
@@ -465,7 +480,8 @@ object Ablate {
         case "--max-centrality" :: v :: tl => maxCentralityOpt = Some(parse_depth(v)); rest = tl
         case "--by-centrality" :: tl => byCentrality = true; rest = tl
         case "--truncate" :: tl => truncate = true; rest = tl
-        case "--shrink-context" :: tl => shrinkContext = true; rest = tl
+        case "--shrink-challenge" :: tl => shrinkChallenge = true; rest = tl
+        case "--shrink-solution" :: tl => shrinkSolution = true; rest = tl
         case "--repeat" :: v :: tl => repeat = v.toInt; rest = tl
         case "-s" :: v :: tl => session = v; rest = tl
         case "-d" :: v :: tl => dirs = dirs ::: List(Path.explode(v)); rest = tl
@@ -506,7 +522,8 @@ object Ablate {
       min_centrality = minCentralityOpt.getOrElse(0),
       max_centrality = maxCentralityOpt.getOrElse(Int.MaxValue),
       truncate = truncate,
-      shrink_context = shrinkContext)
+      shrink_challenge = shrinkChallenge,
+      shrink_solution = shrinkSolution)
 
     if (spec.min_depth < 1) { Console.err.println("--min-depth must be >= 1"); sys.exit(2) }
     if (paths.isEmpty && build_targets.isEmpty) { Console.err.println(usage); sys.exit(2) }
@@ -586,7 +603,7 @@ object Ablate {
           if (text_mode) System.out.print(result.text)   // raw ablated theory, byte-exact
           else {
             val variant = if (n_repeat > 1) Some(produced) else None
-            val obj = record(display, session, spec, base, variant, difficulty, original, result)
+            val obj = record(display, session, spec, base, variant, difficulty, result)
             System.out.println(if (compact) JSON.Format(obj) else JSON.Format.pretty_print(obj))
           }
           produced += 1

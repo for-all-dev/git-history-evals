@@ -65,7 +65,7 @@ dune exec bin/main.exe -- --check ../data/fiat-crypto   # corpus self-test
 Flags mirror the Isabelle/Lean tools: `--difficulty`,
 `--min-depth`/`--max-depth`, `--leaves-only`, `--min-size`/`--max-size`,
 `--min-centrality`/`--max-centrality`, `-p`/`--all`/`--count`/`--by-centrality`,
-`--truncate`/`--shrink-context`, `--allow-defined`, `--repeat`, `-d` (path
+`--truncate`/`--shrink-challenge`/`--shrink-solution`, `--allow-defined`, `--repeat`, `-d` (path
 strip), `-s` (session), `--text`/`--compact`, `--seed`, `-v`. Records use the
 shared schema with `proof_assistant: "coq"`, so a dump lines up field-for-field
 with the existing HuggingFace datasets.

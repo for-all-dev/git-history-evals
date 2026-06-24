@@ -139,6 +139,27 @@ let () =
   check "count mode ablates exactly 1" (r.ablated = 1);
   check "count mode total = #candidates" (r.total = 2)
 
+(* ---- shrink-challenge / shrink-solution ---- *)
+
+let () =
+  (* ablate only the FIRST top-level proof, then check shrinking drops the later
+     theorem from the chosen side. count=1 ablates the first candidate. *)
+  let src =
+    "Lemma first : 1 = 1.\nProof. reflexivity. Qed.\n\n\
+     Lemma second : 2 = 2.\nProof. reflexivity. Qed.\n"
+  in
+  let spec = { Ablate.default_spec with count = Some 1 } in
+  let r0 = ablate_full ~spec src in
+  check "no shrink: challenge keeps later theorem" (contains r0.text "Lemma second");
+  check "no shrink: solution is full original" (r0.solution = src);
+  let rc = ablate_full ~spec:{ spec with shrink_challenge = true } src in
+  check "shrink-challenge: challenge drops later theorem" (not (contains rc.text "Lemma second"));
+  check "shrink-challenge: solution untouched" (rc.solution = src);
+  let rs = ablate_full ~spec:{ spec with shrink_solution = true } src in
+  check "shrink-solution: solution drops later theorem" (not (contains rs.solution "Lemma second"));
+  check "shrink-solution: solution keeps the ablated proof" (contains rs.solution "Lemma first");
+  check "shrink-solution: challenge untouched (keeps later theorem)" (contains rs.text "Lemma second")
+
 (* ---- sha1 known-answer (task_id must be stable across targets) ---- *)
 
 let () =
