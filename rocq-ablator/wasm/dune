@@ -1,0 +1,15 @@
+; The in-browser entry point. Built only under the `wasm` dune profile (used by
+; build-wasm.sh inside `nix develop`, which provides js_of_ocaml/wasm_of_ocaml).
+; Gating keeps the default `dune build` working in a plain opam switch that has
+; yojson but not js_of_ocaml. We emit plain bytecode here and let build-wasm.sh
+; post-process it with the wasm_of_ocaml CLI (so we don't depend on dune's
+; newer `wasm` mode). Warnings are non-fatal here (the JS FFI uses APIs that may
+; be marked deprecated across js_of_ocaml versions).
+(executable
+ (name ablator_wasm)
+ (modes byte)
+ (libraries rocq_ablator js_of_ocaml)
+ (flags
+  (:standard -warn-error -a))
+ (enabled_if
+  (= %{profile} wasm)))
