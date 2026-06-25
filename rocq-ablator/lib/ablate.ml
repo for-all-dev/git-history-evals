@@ -27,6 +27,8 @@ type spec = {
   shrink_challenge : bool; (* drop challenge top-level goals after the last hole *)
   shrink_solution : bool; (* drop solution top-level goals after the last hole *)
   allow_defined : bool; (* ablate Defined-terminated proofs too (opacity risk) *)
+  delete_lemmas : bool; (* delete eligible lemmas + ablate their users *)
+  aggressive : bool; (* delete-lemmas: relax syntactic guards (BE; needs check-build) *)
 }
 
 let default_spec =
@@ -45,6 +47,8 @@ let default_spec =
     shrink_challenge = false;
     shrink_solution = false;
     allow_defined = false;
+    delete_lemmas = false;
+    aggressive = false;
   }
 
 let uses_centrality s =
@@ -67,6 +71,7 @@ type result = {
   total : int;
   ablated : int;
   holes : hole list;
+  deleted : (string * string) list; (* (name, original block) for --delete-lemmas *)
 }
 
 (* ---------- SplitMix64 PRNG (seedable, reproducible) ---------- *)
@@ -526,13 +531,15 @@ let walk_all (spans : Span.t array) (spec : spec) (centrality : string -> int)
       let g = !i in
       i := handle_goal g;
       orig := !orig + src_len g !i;
-      top_segs := (buflen (), !orig, true, !ablated > abl0) :: !top_segs
+      (* a goal is never a structural closer *)
+      top_segs := (buflen (), !orig, false, !ablated > abl0) :: !top_segs
     end
     else begin
+      let closer = Span.is_closer s in
       emit (Span.source s);
       orig := !orig + String.length (Span.source s);
       incr i;
-      top_segs := (buflen (), !orig, false, false) :: !top_segs
+      top_segs := (buflen (), !orig, closer, false) :: !top_segs
     end
   done;
 
@@ -555,12 +562,117 @@ let walk_all (spans : Span.t array) (spec : spec) (centrality : string -> int)
       total = !total;
       ablated = !ablated;
       holes = List.rev !holes;
+      deleted = [];
     },
     Array.of_list (List.rev !matches) )
+
+(* ---------- --delete-lemmas: delete eligible lemmas + ablate their users ----- *)
+
+let ablate_delete (spans : Span.t array) (spec : spec) (rng : Rng.t) : result =
+  let n = Array.length spans in
+  let src_range lo hi =
+    let b = Buffer.create 64 in
+    for k = lo to hi - 1 do
+      Buffer.add_string b (Span.source spans.(k))
+    done;
+    Buffer.contents b
+  in
+  let lemmas = Uses.analyze ~aggressive:spec.aggressive spans in
+  let by_opener = Hashtbl.create 64 in
+  List.iter (fun (l : Uses.lemma) -> Hashtbl.replace by_opener l.opener l) lemmas;
+  let total_eligible = List.length (List.filter (fun (l : Uses.lemma) -> l.eligible) lemmas) in
+  (* candidates: eligible lemmas within the centrality (= user-count) window *)
+  let nusers (l : Uses.lemma) = List.length l.users in
+  let cands =
+    List.filter
+      (fun (l : Uses.lemma) ->
+        l.eligible && nusers l >= spec.min_centrality && nusers l <= spec.max_centrality)
+      lemmas
+  in
+  let selected =
+    match spec.count with
+    | Some k ->
+        let arr = Array.of_list cands in
+        if Array.length arr <= k then Array.to_list arr
+        else if spec.by_centrality then begin
+          Array.sort
+            (fun (a : Uses.lemma) (b : Uses.lemma) ->
+              let ca = nusers a and cb = nusers b in
+              if ca <> cb then compare cb ca else compare a.opener b.opener)
+            arr;
+          Array.to_list (Array.sub arr 0 k)
+        end
+        else begin
+          let idx = Array.init (Array.length arr) (fun i -> i) in
+          Rng.shuffle rng idx;
+          List.init k (fun i -> arr.(idx.(i)))
+        end
+    | None -> List.filter (fun _ -> Rng.next_f64 rng < spec.prob) cands
+  in
+  let del = Hashtbl.create 16 in
+  List.iter (fun (l : Uses.lemma) -> Hashtbl.replace del l.opener l) selected;
+  let users = Hashtbl.create 64 in
+  List.iter
+    (fun (l : Uses.lemma) ->
+      List.iter (fun u -> if not (Hashtbl.mem del u) then Hashtbl.replace users u ()) l.users)
+    selected;
+  let out = Buffer.create 4096 in
+  let holes = ref [] and deleted = ref [] and ablated = ref 0 in
+  let i = ref 0 in
+  while !i < n do
+    let s = spans.(!i) in
+    if Span.is_goal s then begin
+      let e = match Hashtbl.find_opt by_opener !i with Some l -> l.Uses.block_end | None -> !i + 1 in
+      if Hashtbl.mem del !i then begin
+        let l = Hashtbl.find by_opener !i in
+        deleted := (l.Uses.name, src_range !i e) :: !deleted;
+        i := e
+      end
+      else if Hashtbl.mem users !i then begin
+        let l = Hashtbl.find by_opener !i in
+        Buffer.add_string out (Span.source s);
+        if !i + 1 < e then Buffer.add_string out (lead_of spans.(!i + 1));
+        Buffer.add_string out "Proof. Admitted.";
+        let proof_text = src_range (!i + 1) e in
+        holes :=
+          {
+            theorem_name = l.Uses.name;
+            depth = 1;
+            n_commands = 0;
+            n_lines = n_lines proof_text;
+            is_leaf = true;
+            centrality = List.length l.Uses.users;
+            method_ = "deleted-dep";
+            proof_text;
+          }
+          :: !holes;
+        incr ablated;
+        i := e
+      end
+      else begin
+        Buffer.add_string out (src_range !i e);
+        i := e
+      end
+    end
+    else begin
+      Buffer.add_string out (Span.source s);
+      incr i
+    end
+  done;
+  {
+    text = Shape.collapse_blank_lines (Buffer.contents out);
+    solution = src_range 0 n;
+    total = total_eligible;
+    ablated = !ablated;
+    holes = List.rev !holes;
+    deleted = List.rev !deleted;
+  }
 
 (* public entry. [centrality] maps a name to its corpus fan-in (0 if unused). *)
 let ablate (spans : Span.t array) (spec : spec) (rng : Rng.t)
     (centrality : string -> int) : result =
+  if spec.delete_lemmas then ablate_delete spans spec rng
+  else
   match spec.count with
   | Some target ->
       let _, cands = walk_all spans spec centrality (fun _ -> false) in

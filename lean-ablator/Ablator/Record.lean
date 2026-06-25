@@ -8,6 +8,7 @@ post-hoc and lines up field-for-field with the existing data.
 import Ablator.Ablate
 import Ablator.Json
 import Ablator.Hash
+import Ablator.Diff
 
 namespace Ablator
 
@@ -40,10 +41,12 @@ def holeJson (h : Hole) : Json :=
 def resultJson (result : AblationResult) : Json :=
   Json.obj [
     ("text", Json.str result.text),
-    ("solution", Json.str result.solution),
+    ("solution_diff", Json.str (unifiedDiff result.text result.solution)),
     ("total", Json.num result.total),
     ("ablated", Json.num result.ablated),
-    ("holes_filled", Json.arr (result.holes.map holeJson).toList) ]
+    ("holes_filled", Json.arr (result.holes.map holeJson).toList),
+    ("deleted_lemmas", Json.arr (result.deleted.map
+      (fun (nm, txt) => Json.obj [("name", Json.str nm), ("text", Json.str txt)])).toList) ]
 
 def record (filePath session : String) (spec : Spec) (seed : Int) (variant : Option Nat)
     (difficulty : Option String) (result : AblationResult) : Json :=
@@ -56,7 +59,7 @@ def record (filePath session : String) (spec : Spec) (seed : Int) (variant : Opt
     ("file_path", Json.str filePath),
     ("theory", Json.str (theoryName filePath)),
     ("variant", optNat variant),
-    ("challenge_type", Json.str "proof_ablate"),
+    ("challenge_type", Json.str (if result.deleted.isEmpty then "proof_ablate" else "lemma_delete")),
     ("difficulty", optStr difficulty),
     ("count", optNat spec.count),
     ("by_centrality", Json.bool spec.byCentrality),
@@ -72,7 +75,11 @@ def record (filePath session : String) (spec : Spec) (seed : Int) (variant : Opt
     ("n_proofs", Json.num result.total),
     ("n_ablated", Json.num result.ablated),
     ("holes_filled", Json.arr (result.holes.map holeJson).toList),
+    ("deleted_lemmas", Json.arr (result.deleted.map
+      (fun (nm, txt) => Json.obj [("name", Json.str nm), ("text", Json.str txt)])).toList),
     ("challenge_file_content", Json.str result.text),
-    ("solution_file_content", Json.str result.solution) ]
+    -- solution stored as a diff against the challenge (apply to recover) — full
+    -- files are huge for big theories (issue #107)
+    ("solution_diff", Json.str (unifiedDiff result.text result.solution)) ]
 
 end Ablator

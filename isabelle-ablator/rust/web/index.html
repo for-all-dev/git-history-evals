@@ -64,6 +64,9 @@
     <div class="row"><div><label>min centrality</label><input type="text" id="minCent" value="0"></div>
       <div><label>max centrality</label><input type="text" id="maxCent" value="inf"></div></div>
 
+    <hr><h2>Lemma deletion</h2>
+    <div class="chk"><input type="checkbox" id="deleteLemmas"><label style="margin:0">delete used lemmas (+ ablate their users)</label></div>
+
     <hr><h2>Context shaping</h2>
     <div class="chk"><input type="checkbox" id="truncate"><label style="margin:0">truncate after last sorry</label></div>
     <div class="chk"><input type="checkbox" id="shrinkChal"><label style="margin:0">shrink challenge</label></div>
@@ -135,6 +138,7 @@ function opts() {
     min_centrality: depthVal($('minCent').value),
     max_centrality: depthVal($('maxCent').value),
     truncate: $('truncate').checked,
+    delete_lemmas: $('deleteLemmas').checked,
     shrink_challenge: $('shrinkChal').checked,
     shrink_solution: $('shrinkSol').checked,
   };
@@ -153,7 +157,9 @@ function run() {
   try {
     const res = JSON.parse(ablate_theory(text, JSON.stringify(opts()), seed));
     $('output').textContent = res.text;
-    $('stats').innerHTML = `ablated <b>${res.ablated}</b> / ${res.total} matching proofs`;
+    const del = res.deleted_lemmas || [];
+    $('stats').innerHTML = `ablated <b>${res.ablated}</b> / ${res.total}`
+      + (del.length ? ` · deleted <b>${del.length}</b> lemma(s): ${del.map(d=>d.name).join(', ')}` : ' matching proofs');
     $('status').textContent = '';
   } catch (e) {
     $('status').textContent = ' — error: ' + e;
@@ -177,7 +183,7 @@ $('presets').onclick = e => {
   run();
 };
 for (const id of ['minDepth','maxDepth','leaves','minSize','maxSize','minCent','maxCent',
-                  'truncate','shrinkChal','shrinkSol','seed','count','byCent'])
+                  'truncate','shrinkChal','shrinkSol','deleteLemmas','seed','count','byCent'])
   $(id).addEventListener('input', run);
 $('input').addEventListener('input', () => { clearTimeout(window._t); window._t=setTimeout(run, 150); });
 

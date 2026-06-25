@@ -24,6 +24,8 @@ pub struct Spec {
     pub truncate: bool,
     pub shrink_challenge: bool,
     pub shrink_solution: bool,
+    pub delete_lemmas: bool,
+    pub aggressive: bool,
 }
 
 impl Default for Spec {
@@ -42,6 +44,8 @@ impl Default for Spec {
             truncate: false,
             shrink_challenge: false,
             shrink_solution: false,
+            delete_lemmas: false,
+            aggressive: false,
         }
     }
 }
@@ -71,6 +75,7 @@ pub struct AblationResult {
     pub total: i64,
     pub ablated: i64,
     pub holes: Vec<Hole>,
+    pub deleted: Vec<(String, String)>, // (name, original block) for --delete-lemmas
 }
 
 /* ---------- small seedable PRNG (SplitMix64) ---------- */
@@ -354,20 +359,22 @@ impl<'a> Walker<'a> {
                     for j in start..self.i {
                         self.orig += self.spans[j].source().chars().count();
                     }
+                    // a goal is never a structural closer
                     self.top_segs.push((
                         self.out.chars().count(),
                         self.orig,
-                        true,
+                        false,
                         self.ablated > ablated0,
                     ));
                 }
                 _ => {
+                    let closer = self.spans[self.i].name() == "end"; // closes theory/locale/context
                     let s = self.src(self.i);
                     self.orig += s.chars().count();
                     self.out.push_str(&s);
                     self.i += 1;
                     self.top_segs
-                        .push((self.out.chars().count(), self.orig, false, false));
+                        .push((self.out.chars().count(), self.orig, closer, false));
                 }
             }
         }
@@ -420,9 +427,99 @@ fn walk_all(
     };
 
     (
-        AblationResult { text, solution, total: w.total, ablated: w.ablated, holes: w.holes },
+        AblationResult { text, solution, total: w.total, ablated: w.ablated, holes: w.holes, deleted: Vec::new() },
         w.matches,
     )
+}
+
+/// --delete-lemmas: delete eligible used lemmas + whole-proof-ablate their users.
+fn ablate_delete(spans: &[Span], spec: &Spec, rng: &mut Rng) -> AblationResult {
+    use std::collections::{HashMap, HashSet};
+    let lemmas = crate::uses::analyze(spans, spec.aggressive);
+    let total_eligible = lemmas.iter().filter(|l| l.eligible).count() as i64;
+    let nusers = |l: &crate::uses::Lemma| l.users.len() as i64;
+    let mut cands: Vec<&crate::uses::Lemma> = lemmas
+        .iter()
+        .filter(|l| l.eligible && nusers(l) >= spec.min_centrality && nusers(l) <= spec.max_centrality)
+        .collect();
+    let selected: Vec<&crate::uses::Lemma> = match spec.count {
+        Some(k) => {
+            if cands.len() as u64 <= k {
+                cands.clone()
+            } else if spec.by_centrality {
+                cands.sort_by(|a, b| nusers(b).cmp(&nusers(a)).then(a.opener.cmp(&b.opener)));
+                cands.into_iter().take(k as usize).collect()
+            } else {
+                let mut idx: Vec<usize> = (0..cands.len()).collect();
+                rng.shuffle(&mut idx);
+                idx.into_iter().take(k as usize).map(|i| cands[i]).collect()
+            }
+        }
+        None => {
+            let p = spec.prob;
+            cands.into_iter().filter(|_| rng.next_f64() < p).collect()
+        }
+    };
+    let del: HashSet<usize> = selected.iter().map(|l| l.opener).collect();
+    let mut users: HashSet<usize> = HashSet::new();
+    for l in &selected {
+        for u in &l.users {
+            if !del.contains(u) {
+                users.insert(*u);
+            }
+        }
+    }
+    let by_opener: HashMap<usize, (usize, String)> =
+        lemmas.iter().map(|l| (l.opener, (l.block_end, l.name.clone()))).collect();
+    let src_range = |lo: usize, hi: usize| -> String { spans[lo..hi].iter().map(|s| s.source()).collect() };
+
+    let mut out = String::new();
+    let mut holes = Vec::new();
+    let mut deleted = Vec::new();
+    let mut ablated = 0i64;
+    let n = spans.len();
+    let mut i = 0;
+    while i < n {
+        let is_goal = spans[i].keyword_kind().map(kw::is_theory_goal).unwrap_or(false);
+        if is_goal {
+            let (e, name) = by_opener.get(&i).cloned().unwrap_or((i + 1, String::new()));
+            if del.contains(&i) {
+                deleted.push((name, src_range(i, e)));
+                i = e;
+            } else if users.contains(&i) {
+                out.push_str(&spans[i].source()); // statement
+                out.push_str(" sorry");
+                let proof_text = src_range(i + 1, e);
+                holes.push(Hole {
+                    theorem_name: name,
+                    depth: 1,
+                    n_commands: 0,
+                    n_lines: n_lines(&proof_text),
+                    is_leaf: true,
+                    centrality: 0,
+                    method: "deleted-dep".to_string(),
+                    proof_text,
+                });
+                ablated += 1;
+                i = e;
+            } else {
+                out.push_str(&src_range(i, e));
+                i = e;
+            }
+        } else {
+            out.push_str(&spans[i].source());
+            i += 1;
+        }
+    }
+    let original: String = spans.iter().map(|s| s.source()).collect();
+    AblationResult {
+        text: collapse_blank_lines(&out),
+        solution: original,
+        total: total_eligible,
+        ablated,
+        holes,
+        deleted,
+    }
 }
 
 /// Public entry. `centrality` maps a theorem name to its corpus fan-in (0 if unused).
@@ -432,6 +529,9 @@ pub fn ablate(
     rng: &mut Rng,
     centrality: &dyn Fn(&str) -> i64,
 ) -> AblationResult {
+    if spec.delete_lemmas {
+        return ablate_delete(spans, spec, rng);
+    }
     match spec.count {
         Some(target) => {
             let mut none = |_idx: usize| false;
@@ -460,14 +560,13 @@ pub fn ablate(
     }
 }
 
-// Drop top-level goal segments after the last ablated top-level goal, then
-// collapse the blank-line runs left behind (Ablate.scala `shrink`). The same
-// operation shrinks either the challenge or the solution; only the offsets in
+// Drop all top-level segments after the last ablated one, keeping structural
+// closers (`end`) so the theory/locale/context still closes, then collapse the
+// blank-line runs left behind (Ablate.scala `shrink`). The same operation
+// shrinks either the challenge or the solution; only the offsets in
 // `segs` differ.
 fn shrink(full: &str, segs: &[(usize, bool, bool)]) -> String {
-    let last = segs
-        .iter()
-        .rposition(|(_, is_goal, had_sorry)| *is_goal && *had_sorry);
+    let last = segs.iter().rposition(|(_, _closer, had_sorry)| *had_sorry);
     let last = match last {
         Some(l) => l,
         None => return full.to_string(),
@@ -475,9 +574,18 @@ fn shrink(full: &str, segs: &[(usize, bool, bool)]) -> String {
     let cs: Vec<char> = full.chars().collect();
     let mut out = String::new();
     let mut prev = 0usize;
-    for (idx, (end, is_goal, _)) in segs.iter().enumerate() {
-        if idx <= last || !*is_goal {
+    let mut gap = false; // dropped a segment since the last kept one
+    for (idx, (end, is_closer, _)) in segs.iter().enumerate() {
+        if idx <= last || *is_closer {
+            // a kept closer after a gap (e.g. `end`) must not glue onto the
+            // previous token — ensure a newline separates them.
+            if gap && out.chars().last().is_some_and(|c| c != '\n') {
+                out.push('\n');
+            }
             out.extend(&cs[prev..*end]);
+            gap = false;
+        } else {
+            gap = true;
         }
         prev = *end;
     }

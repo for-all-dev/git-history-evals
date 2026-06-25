@@ -22,6 +22,7 @@ import Std.Data.HashSet
 import Ablator.Token
 import Ablator.Keyword
 import Ablator.Span
+import Ablator.Uses
 
 namespace Ablator
 
@@ -44,6 +45,8 @@ structure Spec where
   truncate       : Bool := false
   shrinkChallenge : Bool := false
   shrinkSolution  : Bool := false
+  deleteLemmas    : Bool := false
+  aggressive      : Bool := false
   deriving Inhabited
 
 def Spec.usesCentrality (s : Spec) : Bool :=
@@ -67,6 +70,7 @@ structure AblationResult where
   total    : Int
   ablated  : Int
   holes    : Array Hole
+  deleted  : Array (String × String) := #[] -- (name, original block) for --delete-lemmas
   deriving Inhabited
 
 /-- How a candidate is chosen for ablation. -/
@@ -426,7 +430,8 @@ def runWalk : W Unit := do
         let now ← get
         let orig := now.origLen + srcLen
         modify fun z => { z with origLen := orig }
-        modify fun z => { z with topSegs := z.topSegs.push (now.outLen, orig, true, now.ablated > ablated0) }
+        -- a goal is never a structural closer
+        modify fun z => { z with topSegs := z.topSegs.push (now.outLen, orig, false, now.ablated > ablated0) }
       | none =>
         emit (s.source toks)
         let orig := (← get).origLen + srcLen
@@ -435,8 +440,9 @@ def runWalk : W Unit := do
     else
       emit (s.source toks)
       let orig := (← get).origLen + srcLen
+      let closer := s.cmd == some "end"   -- `end` closes a namespace/section
       modify fun z => { z with origLen := orig }
-      modify fun z => { z with topSegs := z.topSegs.push (z.outLen, orig, false, false) }
+      modify fun z => { z with topSegs := z.topSegs.push (z.outLen, orig, closer, false) }
 
 /- ---------- context shaping (truncate / shrink) ---------- -/
 
@@ -472,25 +478,37 @@ def collapseBlankLines (s : String) : String := Id.run do
       i := i + 1
   return out
 
-/-- Drop top-level goal segments after the last ablated one, to focus on the
-    body in front of the model. `segs` are `(char-offset-end, isGoal, hadSorry)`.
-    The same operation shrinks either the challenge or the solution — only the
-    offsets differ. -/
+/-- Drop all top-level segments after the last ablated one, keeping structural
+    closers (`end`) so namespaces/sections still close. `segs` are
+    `(char-offset-end, isCloser, hadSorry)`. The same operation shrinks either
+    the challenge or the solution — only the offsets differ. -/
 def shrink (full : String) (segs : Array (Nat × Bool × Bool)) : String := Id.run do
   let mut last : Option Nat := none
   for idx in [0:segs.size] do
-    let (_, isGoal, hadSorry) := segs[idx]!
-    if isGoal && hadSorry then last := some idx
+    let (_, _isCloser, hadSorry) := segs[idx]!
+    if hadSorry then last := some idx
   match last with
   | none => return full
   | some lastIdx =>
     let cs := full.toList.toArray
     let mut out := ""
     let mut prev := 0
+    let mut gap := false      -- dropped a segment since the last kept one
+    let mut endsNl := true    -- does `out` currently end in a newline?
     for idx in [0:segs.size] do
-      let (endo, isGoal, _) := segs[idx]!
-      if idx ≤ lastIdx || !isGoal then
-        out := out ++ String.mk (cs.extract prev endo).toList
+      let (endo, isCloser, _) := segs[idx]!
+      if idx ≤ lastIdx || isCloser then
+        -- a kept closer after a gap (e.g. `end`) must not glue onto the
+        -- previous token — ensure a newline separates them.
+        if gap && !endsNl then
+          out := out.push '\n'
+          endsNl := true
+        if endo > prev then
+          out := out ++ String.mk (cs.extract prev endo).toList
+          endsNl := (cs[endo-1]! == '\n')
+        gap := false
+      else
+        gap := true
       prev := endo
     return collapseBlankLines out
 
@@ -515,8 +533,68 @@ def walkAll (toks : Array Token) (spec : Spec) (centrality : String → Int)
   ({ text := text, solution := solution, total := st.total, ablated := st.ablated, holes := st.holes },
    st.matchAcc)
 
+/-- `--delete-lemmas`: delete eligible used lemmas + whole-proof-ablate users. -/
+def ablateDelete (toks : Array Token) (spec : Spec) (rng : Rng) : AblationResult := Id.run do
+  let spans := parseSpans toks
+  let lemmas := analyzeUses toks spans spec.aggressive
+  let totalEligible := (lemmas.filter (·.eligible)).size
+  let cands := lemmas.filter (fun l =>
+    l.eligible && Int.ofNat l.users.size ≥ spec.minCentrality
+    && Int.ofNat l.users.size ≤ spec.maxCentrality)
+  let mut selected : Array DeletableLemma := #[]
+  let mut r := rng
+  match spec.count with
+  | some k =>
+    if cands.size ≤ k then selected := cands
+    else if spec.byCentrality then
+      let sorted := cands.qsort (fun a b =>
+        a.users.size > b.users.size || (a.users.size == b.users.size && a.spanIdx < b.spanIdx))
+      selected := sorted.extract 0 k
+    else
+      let (sh, r') := r.shuffle (Array.range cands.size)
+      r := r'
+      selected := (sh.extract 0 k).map (fun i => cands[i]!)
+  | none =>
+    for l in cands do
+      let (x, r') := r.nextF64
+      r := r'
+      if x < spec.prob then selected := selected.push l
+  let delSet : HashSet Nat := HashSet.ofArray (selected.map (·.spanIdx))
+  let mut userSet : HashSet Nat := {}
+  for l in selected do
+    for u in l.users do
+      if !delSet.contains u then userSet := userSet.insert u
+  let nameOf (si : Nat) : String :=
+    match lemmas.find? (fun l => l.spanIdx == si) with | some l => l.name | none => ""
+  let mut out := ""
+  let mut holes : Array Hole := #[]
+  let mut deleted : Array (String × String) := #[]
+  let mut ablated : Int := 0
+  for si in [0:spans.size] do
+    let s := spans[si]!
+    if delSet.contains si then
+      deleted := deleted.push (nameOf si, s.source toks)
+    else if userSet.contains si then
+      match findAssign toks s.lo s.hi with
+      | some a =>
+        let contentHi := lastProperEnd toks (a + 1) s.hi
+        out := out ++ implode (toks.extract s.lo (a + 1)) ++ " sorry"
+                   ++ implode (toks.extract contentHi s.hi)
+        let proofText := implode (toks.extract (a + 1) contentHi)
+        holes := holes.push {
+          theoremName := nameOf si, depth := 1, nCommands := 0, nLines := nLinesOf proofText,
+          isLeaf := true, centrality := 0, method := "deleted-dep", proofText := proofText }
+        ablated := ablated + 1
+      | none => out := out ++ s.source toks
+    else out := out ++ s.source toks
+  return {
+    text := collapseBlankLines out, solution := implode toks,
+    total := Int.ofNat totalEligible, ablated := ablated, holes := holes, deleted := deleted }
+
 /-- Public entry. `centrality` maps a name to its corpus fan-in (0 if unused). -/
 def ablate (toks : Array Token) (spec : Spec) (rng : Rng) (centrality : String → Int) : AblationResult :=
+  if spec.deleteLemmas then ablateDelete toks spec rng
+  else
   match spec.count with
   | some target =>
     -- enumerate matchAcc (never ablate), select a subset, then ablate exactly those

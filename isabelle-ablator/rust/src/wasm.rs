@@ -58,6 +58,8 @@ fn spec_from(opts: &Value) -> (Spec, Option<String>) {
         truncate: as_bool(g("truncate"), false),
         shrink_challenge: as_bool(g("shrink_challenge"), false),
         shrink_solution: as_bool(g("shrink_solution"), false),
+        delete_lemmas: as_bool(g("delete_lemmas"), false),
+        aggressive: false, // the prover-backed path is never exposed to the browser
     };
     (spec, difficulty)
 }
@@ -94,7 +96,8 @@ pub fn ablate_theory(text: &str, opts_json: &str, seed: f64) -> String {
             })
         })
         .collect();
-    json!({ "text": r.text, "solution": r.solution, "total": r.total, "ablated": r.ablated, "holes": holes }).to_string()
+    let deleted: Vec<Value> = r.deleted.iter().map(|(nm, txt)| json!({ "name": nm, "text": txt })).collect();
+    json!({ "text": r.text, "solution_diff": crate::diff::unified(&r.text, &r.solution), "total": r.total, "ablated": r.ablated, "holes": holes, "deleted_lemmas": deleted }).to_string()
 }
 
 /// Number of HOL keywords baked in (sanity check for the JS side).

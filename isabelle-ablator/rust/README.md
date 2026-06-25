@@ -37,7 +37,16 @@ cargo build --release            # -> target/release/ablate
 ./target/release/ablate --all --text theory.thy    # just the ablated theory
 ./target/release/ablate --difficulty L2 dir/        # preset ladder L0..L4
 ./target/release/ablate --check "$ISABELLE_HOME/src/HOL"   # corpus self-test
+./target/release/ablate --check-build dir/T.thy            # compile-test (isabelle build)
 ```
+
+**`--check-build`** compile-tests each ablation with `isabelle build` (challenge
+and solution). It synthesizes a throwaway session listing only the ablated
+theory, so `isabelle build` resolves that theory's imports automatically and
+never builds its dependents — dropping decls via `--shrink-*` can't break it.
+`quick_and_dirty` lets the challenge's `sorry`s elaborate. Needs `isabelle` (in
+the flake's dev shell). The build-check lives behind the `cli` feature, so it is
+never compiled into the WASM core.
 
 Same flags as the Scala tool — `--difficulty`, `--min-depth`/`--max-depth`,
 `--leaves-only`, `--min-size`/`--max-size`, `--min-centrality`/`--max-centrality`,
@@ -45,6 +54,31 @@ Same flags as the Scala tool — `--difficulty`, `--min-depth`/`--max-depth`,
 `--repeat`, `-d` (path strip), `--text`/`--compact`, `--seed`, `-v`. A custom
 session table can be supplied with `--keywords table.json`. Build validation
 (`--check-build`, needs `isabelle build`) stays in the Scala tool.
+
+## Deleting lemmas
+
+`--delete-lemmas` deletes whole *used* lemmas and ablates every in-file proof
+that cited them, so the agent must re-derive the goal without the lemma it relied
+on. **Correct-by-construction** (no prover): a lemma is deleted only when every
+use of its name is inside an ablatable proof body, its header carries no
+attribute (`lemma foo [simp]:`), and it has ≥1 in-file user — so the theory still
+closes and compiles. Targets come from the usual
+`-p`/`--count`/`--by-centrality`/`--min-centrality` selectors; solution = the
+full original; records use `challenge_type: "lemma_delete"` + `deleted_lemmas`.
+`--aggressively-delete-lemmas` (backend-only, needs `isabelle`) relaxes the
+guards and validates each challenge with `isabelle build`, dropping failures. It
+lives behind the `cli` feature, so neither delete path's prover code reaches the
+WASM core (the browser only gets the conservative, syntactic `delete_lemmas`).
+
+## Solution format (diffs)
+
+Records store the solution as **`solution_diff`** — a self-rolled unified diff
+turning `challenge_file_content` into the solution — not the whole file, which is
+huge for big theories (l4v: 100k–369k chars; issue #107). It's a Myers line diff
+(`src/diff.rs`, no dependency, so it's in the WASM core): lines = `split('\n')`,
+hunks `@@ -a,b +c,d @@` with `-`/`+`/` ` prefixes; empty means challenge =
+solution. Recover the solution by applying the hunks to the challenge (see the
+rocq-ablator README for a ~10-line Python `apply`).
 
 ## Website (in-browser ablation)
 

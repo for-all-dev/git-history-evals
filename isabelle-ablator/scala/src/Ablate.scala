@@ -95,7 +95,9 @@ object Ablate {
     max_centrality: Int = Int.MaxValue,
     truncate: Boolean = false,         // drop everything after the last inserted `sorry`
     shrink_challenge: Boolean = false, // drop challenge top-level goals after the last ablated one
-    shrink_solution: Boolean = false   // drop solution top-level goals after the last ablated one
+    shrink_solution: Boolean = false,  // drop solution top-level goals after the last ablated one
+    delete_lemmas: Boolean = false,    // delete eligible used lemmas + ablate their users
+    aggressive: Boolean = false        // delete-lemmas: relax guards (BE; needs --check-build)
   ) {
     def uses_centrality: Boolean =
       min_centrality > 0 || max_centrality != Int.MaxValue || by_centrality
@@ -105,7 +107,8 @@ object Ablate {
   sealed case class Hole(theorem_name: String, depth: Int, n_commands: Int, n_lines: Int,
     is_leaf: Boolean, centrality: Int, method: String, proof_text: String)
 
-  sealed case class Result(text: String, solution: String, total: Int, ablated: Int, holes: List[Hole])
+  sealed case class Result(text: String, solution: String, total: Int, ablated: Int,
+    holes: List[Hole], deleted: List[(String, String)] = Nil)
 
   // Measured properties of a goal body.
   private sealed case class Body(end: Int, lead: String, text: String,
@@ -114,20 +117,27 @@ object Ablate {
   // Drop top-level goal segments that start after the last ablated top-level
   // goal (keeping definitions / `end` / comments). The same operation shrinks
   // either the challenge or the solution — only the offsets in `segs` differ.
-  // `segs` is the list of top-level (end-offset, is-goal, had-sorry) in order.
+  // `segs` is the list of top-level (end-offset, is-closer, had-sorry) in order.
   private def shrink(full: String, segs: List[(Int, Boolean, Boolean)]): String = {
-    val last = segs.lastIndexWhere { case (_, is_goal, had_sorry) => is_goal && had_sorry }
+    val last = segs.lastIndexWhere { case (_, _closer, had_sorry) => had_sorry }
     if (last < 0) full
     else {
       val sb = new mutable.StringBuilder
       var prev = 0
       var idx = 0
-      for ((end, is_goal, _) <- segs) {
-        if (idx <= last || !is_goal) sb ++= full.substring(prev, end)
+      var gap = false   // dropped a segment since the last kept one
+      for ((end, is_closer, _) <- segs) {
+        if (idx <= last || is_closer) {
+          // a kept closer after a gap (e.g. `end`) must not glue onto the
+          // previous token — ensure a newline separates them.
+          if (gap && sb.nonEmpty && sb.last != '\n') sb += '\n'
+          sb ++= full.substring(prev, end)
+          gap = false
+        } else gap = true
         prev = end
         idx += 1
       }
-      // collapse the blank-line runs left where dropped goals used to be
+      // collapse the blank-line runs left where dropped decls used to be
       sb.toString.replaceAll("\n[ \t]*\n([ \t]*\n)+", "\n\n")
     }
   }
@@ -250,11 +260,13 @@ object Ablate {
           val start = i
           handle_goal()
           for (j <- start until i) orig += src(j).length
-          top_segs += ((out.length, orig, true, ablated > ablated0))
+          // a goal is never a structural closer
+          top_segs += ((out.length, orig, false, ablated > ablated0))
         case _ =>
+          val closer = spans(i).name == "end"   // closes theory/locale/context
           orig += src(i).length
           out ++= src(i); i += 1
-          top_segs += ((out.length, orig, false, false))
+          top_segs += ((out.length, orig, closer, false))
       }
     }
 
@@ -262,6 +274,7 @@ object Ablate {
     // segment carries both its challenge- and original-offset, so the challenge
     // and the solution can be shrunk independently.
     val full = out.toString
+    val original = text.toString
     val chal_segs = top_segs.toList.map { case (c, _, g, a) => (c, g, a) }
     val sol_segs = top_segs.toList.map { case (_, o, g, a) => (o, g, a) }
     val shaped_text =
@@ -269,13 +282,14 @@ object Ablate {
       else if (spec.shrink_challenge) shrink(full, chal_segs)
       else full
     val solution =
-      if (spec.shrink_solution) shrink(text, sol_segs)
-      else text
+      if (spec.shrink_solution) shrink(original, sol_segs)
+      else original
 
     (Result(shaped_text, solution, total, ablated, holes.toList), matches.toList)
     }  // walk_all
 
-    spec.count match {
+    if (spec.delete_lemmas) ablate_delete(syntax, text, spec, rng)
+    else spec.count match {
       case Some(target) =>
         // enumerate matching proofs (decide=false), pick a subset of N, then
         // ablate exactly those. Random spread, or the most-cited if --by-centrality.
@@ -289,6 +303,99 @@ object Ablate {
       case None =>
         walk_all(_ => rng.nextDouble() < spec.prob)._1
     }
+  }
+
+  /** --delete-lemmas: delete eligible used lemmas + whole-proof-ablate users.
+   *  Correct-by-construction (see uses.ml / uses.rs): a lemma is deletable only
+   *  when every occurrence of its name outside its block is in a proof body, it
+   *  closes normally, carries no attribute (`lemma foo [simp]:`), and has ≥1
+   *  in-file user. `aggressive` relaxes the normal-close requirement. */
+  private def ablate_delete(syntax: Outer_Syntax, text: CharSequence, spec: Spec, rng: Random): Result = {
+    val spans = syntax.parse_spans(text).toArray
+    val n = spans.length
+    def src(j: Int): String = Token.implode(spans(j).content)
+    def names_in(content: List[Token]): List[String] =
+      content.filter(t => t.is_ident || t.kind == Token.Kind.LONG_IDENT).flatMap { t =>
+        val s = t.source; val dot = s.lastIndexOf('.')
+        if (dot >= 0 && dot < s.length - 1) List(s, s.substring(dot + 1)) else List(s)
+      }
+    def has_attr(span: Command_Span.Span): Boolean =
+      span.content.filter(_.is_proper).takeWhile(t => !t.is_keyword(":")).exists(_.is_keyword("["))
+
+    final case class Goal(opener: Int, end: Int, name: String, normal: Boolean,
+      attr: Boolean, cited: Set[String])
+    val goalsBuf = new mutable.ListBuffer[Goal]
+    val nonproof = new mutable.ListBuffer[(String, Int)]
+    var i = 0
+    while (i < n) {
+      val k = spans(i).kind.keyword_kind
+      if (k.exists(Keyword.theory_goal.contains)) {
+        val opener = i
+        val name = goal_name(spans(i))
+        val attr = has_attr(spans(i))
+        for (s <- names_in(spans(i).content)) nonproof += ((s, opener))
+        i += 1
+        var depth = 1; var normal = false; val cited = mutable.Set.empty[String]
+        while (i < n && depth > 0) {
+          for (s <- names_in(spans(i).content)) cited += s
+          spans(i).kind.keyword_kind match {
+            case Some(kk) if Keyword.theory.contains(kk) => depth = 0
+            case Some(kk) =>
+              if (Keyword.proof_goal.contains(kk) || kk == Keyword.PRF_OPEN) depth += 1
+              else if (Keyword.proof_close.contains(kk)) { depth -= 1; if (depth == 0) normal = true }
+              else if (Keyword.qed_global.contains(kk)) depth = 0
+            case None =>
+          }
+          i += 1
+        }
+        goalsBuf += Goal(opener, i, name, normal, attr, cited.toSet)
+      } else { for (s <- names_in(spans(i).content)) nonproof += ((s, i)); i += 1 }
+    }
+    val goals = goalsBuf.toList
+    val np = nonproof.toList
+    final case class Lemma(name: String, opener: Int, end: Int, users: List[Int], eligible: Boolean)
+    val lemmas = goals.map { g =>
+      val users = goals.collect { case g2 if g2.opener != g.opener && g2.cited.contains(g.name) => g2.opener }
+      val onlyProofs = np.forall { case (s, j) => s != g.name || (j >= g.opener && j < g.end) }
+      val eligible = (g.normal || spec.aggressive) && !g.attr && g.name.length >= 3 &&
+        users.nonEmpty && onlyProofs
+      Lemma(g.name, g.opener, g.end, users, eligible)
+    }
+    val totalEligible = lemmas.count(_.eligible)
+    val cands = lemmas.filter(l => l.eligible &&
+      l.users.length >= spec.min_centrality && l.users.length <= spec.max_centrality)
+    val selected: List[Lemma] = spec.count match {
+      case Some(target) =>
+        if (cands.length <= target) cands
+        else if (spec.by_centrality) cands.sortBy(l => (-l.users.length, l.opener)).take(target)
+        else rng.shuffle(cands).take(target)
+      case None => cands.filter(_ => rng.nextDouble() < spec.prob)
+    }
+    val delSet = selected.map(_.opener).toSet
+    val userSet = selected.flatMap(_.users).filterNot(delSet.contains).toSet
+    val byOpener = lemmas.map(l => l.opener -> l).toMap
+
+    val out = new mutable.StringBuilder
+    val holes = new mutable.ListBuffer[Hole]
+    val deleted = new mutable.ListBuffer[(String, String)]
+    var ablated = 0
+    var j = 0
+    while (j < n) {
+      val isGoal = spans(j).kind.keyword_kind.exists(Keyword.theory_goal.contains)
+      if (isGoal && byOpener.contains(j)) {
+        val l = byOpener(j); val e = l.end
+        if (delSet.contains(j)) {
+          deleted += ((l.name, (j until e).map(src).mkString)); j = e
+        } else if (userSet.contains(j)) {
+          out ++= src(j); out ++= " sorry"
+          val proofText = (j + 1 until e).map(src).mkString
+          holes += Hole(l.name, 1, 0, n_lines(proofText), true, 0, "deleted-dep", proofText)
+          ablated += 1; j = e
+        } else { out ++= (j until e).map(src).mkString; j = e }
+      } else { out ++= src(j); j += 1 }
+    }
+    val shaped = out.toString.replaceAll("\n[ \t]*\n([ \t]*\n)+", "\n\n")
+    Result(shaped, text.toString, totalEligible, ablated, holes.toList, deleted.toList)
   }
 
 
@@ -355,6 +462,8 @@ object Ablate {
         "theorem_name" -> h.theorem_name, "depth" -> h.depth, "n_commands" -> h.n_commands,
         "n_lines" -> h.n_lines, "is_leaf" -> h.is_leaf, "centrality" -> h.centrality,
         "method" -> h.method, "proof_text" -> h.proof_text))
+    val deleted_lemmas: List[JSON.T] =
+      result.deleted.map { case (nm, txt) => ListMap[String, JSON.T]("name" -> nm, "text" -> txt) }
     ListMap[String, JSON.T](
       "task_id" -> task_id(file_path, variant),
       "proof_assistant" -> "isabelle",
@@ -362,7 +471,7 @@ object Ablate {
       "file_path" -> file_path,
       "theory" -> theory_name(file_path),
       "variant" -> variant.map(v => v: JSON.T).getOrElse(null),
-      "challenge_type" -> "proof_ablate",
+      "challenge_type" -> (if (result.deleted.isEmpty) "proof_ablate" else "lemma_delete"),
       "difficulty" -> difficulty.map(d => d: JSON.T).getOrElse(null),
       "count" -> spec.count.map(c => c: JSON.T).getOrElse(null),
       "by_centrality" -> spec.by_centrality,
@@ -378,8 +487,45 @@ object Ablate {
       "n_proofs" -> result.total,
       "n_ablated" -> result.ablated,
       "holes_filled" -> holes,
+      "deleted_lemmas" -> deleted_lemmas,
       "challenge_file_content" -> result.text,
-      "solution_file_content" -> result.solution)
+      // solution stored as a diff against the challenge (apply to recover) — full
+      // files are huge for big theories (issue #107)
+      "solution_diff" -> Diff.unified(result.text, result.solution))
+  }
+
+  /** Single-theory compile-test used by `--aggressively-delete-lemmas`: write
+   *  `content` at `thy`, build a throwaway session that lists only that theory
+   *  (so `isabelle build` resolves its imports but never builds its dependents —
+   *  the upward closure only), then restore the original. `quick_and_dirty` lets
+   *  a challenge's `sorry`s elaborate. Returns whether the build succeeded.
+   *
+   *  (The heavyweight `--check-build` certifies a whole renamed session; this is
+   *  the cheap per-row check the delete-lemmas pipeline needs.) */
+  def check_compiles(thy: Path, content: String): Boolean = {
+    val toks = content.split("\\s+").iterator.filter(_.nonEmpty).toList
+    val name = toks.indexOf("theory") match {
+      case i if i >= 0 && i + 1 < toks.length => toks(i + 1)
+      case _ => ""
+    }
+    if (name.isEmpty) return false
+    val dir = thy.absolute.file.getParentFile.getAbsolutePath
+    val tmp = Isabelle_System.tmp_dir("ablate-check")
+    val root =
+      "session \"AblateCheck\" = \"HOL\" +\n" +
+      "  directories \"" + dir + "\"\n" +
+      "  theories\n    \"" + name + "\"\n"
+    java.nio.file.Files.write(new java.io.File(tmp, "ROOT").toPath, root.getBytes("UTF-8"))
+    val orig = File.read(thy)
+    val ok =
+      try {
+        File.write(thy, content)
+        Isabelle_System.bash(
+          "\"$ISABELLE_HOME/bin/isabelle\" build -o quick_and_dirty=true -d " +
+          Bash.string(tmp.getAbsolutePath) + " AblateCheck").ok
+      } finally File.write(thy, orig)
+    Isabelle_System.rm_tree(tmp)
+    ok
   }
 
 
@@ -415,6 +561,13 @@ object Ablate {
       |    --count N        ablate exactly min(N, matching) selected proofs per theory
       |                     (mutually exclusive with -p / --all)
       |    --by-centrality  with --count, pick the most-cited proofs (not random)
+      |
+      |  Lemma deletion (instead of per-proof ablation):
+      |    --delete-lemmas     delete eligible used lemmas + ablate their users
+      |                        (correct-by-construction; selectors pick which)
+      |    --aggressively-delete-lemmas
+      |                        as above, relaxed guards, validated with `isabelle build`
+      |                        (drops non-compiling challenges; needs the HOL heap)
       |
       |  Context shaping (ignored by --check / --check-build):
       |    --truncate          drop challenge text after the last inserted `sorry`
@@ -456,6 +609,8 @@ object Ablate {
     var truncate = false
     var shrinkChallenge = false
     var shrinkSolution = false
+    var deleteLemmas = false
+    var aggressive = false
     var repeat = 1
     val paths = new mutable.ListBuffer[String]
     val build_targets = new mutable.ListBuffer[String]
@@ -482,6 +637,8 @@ object Ablate {
         case "--truncate" :: tl => truncate = true; rest = tl
         case "--shrink-challenge" :: tl => shrinkChallenge = true; rest = tl
         case "--shrink-solution" :: tl => shrinkSolution = true; rest = tl
+        case "--delete-lemmas" :: tl => deleteLemmas = true; rest = tl
+        case "--aggressively-delete-lemmas" :: tl => deleteLemmas = true; aggressive = true; rest = tl
         case "--repeat" :: v :: tl => repeat = v.toInt; rest = tl
         case "-s" :: v :: tl => session = v; rest = tl
         case "-d" :: v :: tl => dirs = dirs ::: List(Path.explode(v)); rest = tl
@@ -523,7 +680,9 @@ object Ablate {
       max_centrality = maxCentralityOpt.getOrElse(Int.MaxValue),
       truncate = truncate,
       shrink_challenge = shrinkChallenge,
-      shrink_solution = shrinkSolution)
+      shrink_solution = shrinkSolution,
+      delete_lemmas = deleteLemmas,
+      aggressive = aggressive)
 
     if (spec.min_depth < 1) { Console.err.println("--min-depth must be >= 1"); sys.exit(2) }
     if (paths.isEmpty && build_targets.isEmpty) { Console.err.println(usage); sys.exit(2) }
@@ -599,7 +758,9 @@ object Ablate {
       while (k < n_repeat) {
         val rng = new Random(base ^ thy.implode.hashCode.toLong ^ (k.toLong * 0x9E3779B97F4A7C15L))
         val result = ablate(syntax, original, spec, rng, centrality)
-        if (seen.add(result.text)) {           // best-effort dedup across repeats
+        // aggressive delete-lemmas: only keep challenges that actually compile
+        val valid = !spec.aggressive || check_compiles(thy, result.text)
+        if (valid && seen.add(result.text)) {  // best-effort dedup across repeats
           if (text_mode) System.out.print(result.text)   // raw ablated theory, byte-exact
           else {
             val variant = if (n_repeat > 1) Some(produced) else None

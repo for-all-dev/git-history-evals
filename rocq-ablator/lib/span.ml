@@ -161,6 +161,9 @@ let is_qed s = cmd_kind s = Some Keyword.k_qed
 let is_admitted s = cmd_kind s = Some Keyword.k_admitted
 let is_abort s = cmd_kind s = Some Keyword.k_abort
 let is_terminator s = is_qed s || is_admitted s || is_abort s
+(* a structural block-closer that shrink must keep so the file stays balanced:
+   [End <name>.] closes a Section / Module / Module Type. *)
+let is_closer s = head s = "End"
 let is_open s = s.kind = Open
 let is_close s = s.kind = Close
 let is_bullet s = match s.kind with Bullet _ -> true | _ -> false

@@ -61,7 +61,7 @@ pub fn record(
         "file_path": file_path,
         "theory": theory_name(file_path),
         "variant": variant.map(Value::from).unwrap_or(Value::Null),
-        "challenge_type": "proof_ablate",
+        "challenge_type": if result.deleted.is_empty() { "proof_ablate" } else { "lemma_delete" },
         "difficulty": difficulty.map(Value::from).unwrap_or(Value::Null),
         "count": spec.count.map(Value::from).unwrap_or(Value::Null),
         "by_centrality": spec.by_centrality,
@@ -77,7 +77,12 @@ pub fn record(
         "n_proofs": result.total,
         "n_ablated": result.ablated,
         "holes_filled": holes,
+        "deleted_lemmas": result.deleted.iter()
+            .map(|(nm, txt)| json!({ "name": nm, "text": txt }))
+            .collect::<Vec<_>>(),
         "challenge_file_content": result.text,
-        "solution_file_content": result.solution,
+        // solution stored as a diff against the challenge (apply to recover it) —
+        // full files are huge for big theories (issue #107)
+        "solution_diff": crate::diff::unified(&result.text, &result.solution),
     })
 }

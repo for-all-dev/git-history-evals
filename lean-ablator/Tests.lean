@@ -46,6 +46,42 @@ def run (spec : Spec) : AblationResult :=
 /-- Does `hay` contain `needle` as a substring? -/
 def has (hay needle : String) : Bool := (hay.splitOn needle).length > 1
 
+-- delete-lemmas: `helper` (used by `main`) deletable; `unused` (no user) and
+-- `keydef` (a def, referenced in a later statement) are not. Extracted into its
+-- own function so Lean emits a separate (smaller) C function — a single
+-- monolithic `main` makes gcc -O3 OOM on the generated C.
+def deleteTests : StateT Tally IO Unit := do
+  let dlSrc := "theorem helper : True := trivial\n\n\
+    theorem unused : True := trivial\n\n\
+    def keydef : Nat := 0\n\n\
+    theorem main : True := helper\n\n\
+    theorem about : keydef = keydef := rfl\n"
+  let dl := ablate (tokenize dlSrc) { prob := 1.0, deleteLemmas := true } (Rng.mk 0) (fun _ => (0:Int))
+  let delNames := dl.deleted.toList.map Prod.fst
+  check "delete: helper deleted" (delNames.contains "helper")
+  check "delete: unused (no user) not deleted" (! delNames.contains "unused")
+  check "delete: helper's statement gone" (! has dl.text "theorem helper")
+  check "delete: main's statement kept, proof holed" (has dl.text "theorem main : True :=" && has dl.text "sorry" && ! has dl.text ":= helper")
+  check "delete: solution is full original" (dl.solution == dlSrc)
+
+-- solution_diff: apply(challenge, unifiedDiff challenge solution) = solution.
+-- Also extracted to keep the generated C functions small (see `deleteTests`).
+def diffTests : StateT Tally IO Unit := do
+  let rtCases := [("a\nb\nc\n", "a\nB\nc\n"), ("l1\nl2\nl3\nl4\n", "l1\nX\nl3\nY\n"),
+                  ("a\nb", "a\nc"), ("same\n", "same\n"), ("", "x\ny\n")]
+  for (ca, so) in rtCases do
+    check s!"diff round-trip {ca} -> {so}" (applyDiff ca (unifiedDiff ca so) == so)
+  -- ablation result round-trips through the diff
+  let allr := run { prob := 1.0 }
+  check "diff: ablation round-trip" (applyDiff allr.text (unifiedDiff allr.text allr.solution) == allr.solution)
+  -- large file + localized change -> tiny diff
+  let big := String.join ((List.range 300).map (fun i => s!"def d{i} : Nat := {i}\n"))
+  let solB := big ++ "theorem foo : True := by trivial\n"
+  let chalB := big ++ "theorem foo : True := sorry\n"
+  let dB := unifiedDiff chalB solB
+  check "diff: large localized round-trip" (applyDiff chalB dB == solB)
+  check "diff: large localized is tiny" (dB.length < solB.length / 4)
+
 def main : IO UInt32 := do
   let (_, tally) ← (do
     let toks := tokenize SAMPLE
@@ -122,6 +158,9 @@ def main : IO UInt32 := do
     let anP := ablate (tokenize "def v (n : Nat) : { k : Nat // 0 ≤ k } := ⟨id (by exact n), by omega⟩\n")
                  { prob := 1.0, minDepth := 2, maxDepth := INF } (Rng.mk 0) (fun _ => (0:Int))
     check "anon: paren-nested by kept" (anP.ablated == 1 && has anP.text "id (by exact n)")
+
+    deleteTests
+    diffTests
   ).run {}
   let total := tally.passed + tally.failed
   IO.println s!"ablate-test: {tally.passed}/{total} passed"

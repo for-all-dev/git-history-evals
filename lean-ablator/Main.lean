@@ -17,6 +17,9 @@ def usage : String :=
 
   Modes:
     --check          run the corpus self-test (round-trip + delimitation)
+    --check-build    compile-test each ablation with `lake env lean` (challenge +
+                     solution); only the file itself is built (deps must already
+                     be compiled), so --shrink can't break it
 
   Difficulty (raw knobs override any --difficulty preset):
     --difficulty L   preset ladder L0 (easy) .. L4 (code+spec only)
@@ -29,6 +32,14 @@ def usage : String :=
     --all            ablate every selected body (-p 1.0)
     --count N        ablate exactly min(N, matching) bodies (excl. -p/--all)
     --by-centrality  with --count, pick the most-cited bodies
+
+  Lemma deletion (instead of per-proof ablation):
+    --delete-lemmas     delete eligible used lemmas + ablate their users; selectors
+                        (-p/--count/--by-centrality/--min-centrality) pick which.
+                        Correct-by-construction (no prover).
+    --aggressively-delete-lemmas
+                        as above but relaxes guards and validates each challenge
+                        with `lake env lean` (--check-build), dropping failures.
 
   Context shaping (ignored by --check):
     --truncate          drop challenge text after the last inserted `sorry`
@@ -50,6 +61,9 @@ structure Opts where
   seed         : Option UInt64 := none
   verbose      : Bool := false
   check        : Bool := false
+  checkBuild   : Bool := false
+  deleteLemmas : Bool := false
+  aggressive   : Bool := false
   compact      : Bool := false
   textMode     : Bool := false
   difficulty   : Option String := none
@@ -86,6 +100,9 @@ partial def parseArgs (args : List String) (o : Opts) : Except String Opts := do
       | [] => .error s!"missing arg for {a}"
     match a with
     | "--check"          => parseArgs rest { o with check := true }
+    | "--check-build"    => parseArgs rest { o with checkBuild := true }
+    | "--delete-lemmas"  => parseArgs rest { o with deleteLemmas := true }
+    | "--aggressively-delete-lemmas" => parseArgs rest { o with deleteLemmas := true, aggressive := true }
     | "--compact"        => parseArgs rest { o with compact := true }
     | "--text"           => parseArgs rest { o with textMode := true }
     | "-v"               => parseArgs rest { o with verbose := true }
@@ -191,7 +208,9 @@ def buildSpec (o : Opts) (preset : Option Preset) : Spec :=
     maxCentrality := o.maxCentOpt.getD INF
     truncate := o.truncate
     shrinkChallenge := o.shrinkChallenge
-    shrinkSolution := o.shrinkSolution }
+    shrinkSolution := o.shrinkSolution
+    deleteLemmas := o.deleteLemmas
+    aggressive := o.aggressive }
 
 structure Doc where
   path : System.FilePath
@@ -243,6 +262,34 @@ def runCheck (docs : Array Doc) (spec : Spec) (centrality : String → Int) : IO
 
 def golden : UInt64 := 0x9E3779B97F4A7C15
 
+/-- Walk up from `p` to the enclosing Lake package root (the dir with a
+    lakefile). Returns `none` if there isn't one. -/
+partial def findLakeRoot (p : System.FilePath) : IO (Option System.FilePath) := do
+  if (← (p / "lakefile.toml").pathExists) || (← (p / "lakefile.lean").pathExists) then
+    return some p
+  else match p.parent with
+    | some par => if par.toString == p.toString then return none else findLakeRoot par
+    | none => return none
+
+/-- Native compile-test (used by `--check-build`): put `content` at `path`, run
+    `lake env lean <path>` — which compiles only that file against the package's
+    prebuilt deps, never its dependents — then restore the original. So dropping
+    trailing decls via --shrink can't break the check. Deps must already be
+    built (`lake build`). -/
+def checkCompiles (path : String) (content : String) : IO Bool := do
+  let fp := System.FilePath.mk path
+  let orig ← IO.FS.readFile fp
+  IO.FS.writeFile fp content
+  let result ← try
+      let rootOpt ← findLakeRoot fp
+      let root := rootOpt.getD (fp.parent.getD (System.FilePath.mk "."))
+      let out ← IO.Process.output
+        { cmd := "lake", args := #["env", "lean", fp.toString], cwd := some root.toString }
+      pure (out.exitCode == 0)
+    finally
+      IO.FS.writeFile fp orig
+  return result
+
 def main (args : List String) : IO UInt32 := do
   if args == ["-h"] || args == ["--help"] then
     IO.print usage
@@ -292,6 +339,21 @@ def main (args : List String) : IO UInt32 := do
     let ok ← runCheck docs spec centrality
     return (if ok then 0 else 1)
 
+  if o.checkBuild then do
+    let mut nok := 0
+    let mut nfail := 0
+    for d in docs do
+      let rng := Rng.mk (seedBase ^^^ fnv1a d.display)
+      let result := ablate d.toks spec rng centrality
+      let chal ← checkCompiles d.path.toString result.text
+      let sol ← checkCompiles d.path.toString result.solution
+      if chal && sol then nok := nok + 1 else nfail := nfail + 1
+      let cs := if chal then "ok" else "FAIL"
+      let ss := if sol then "ok" else "FAIL"
+      IO.println s!"{d.display}  challenge:{cs} solution:{ss}"
+    IO.println s!"\nbuild-check: {nok} ok, {nfail} failed (of {docs.size} files)"
+    return (if nfail == 0 then 0 else 1)
+
   let nRepeat := Nat.max 1 o.repeatN
   let mut emitted := 0
   for d in docs do
@@ -301,7 +363,9 @@ def main (args : List String) : IO UInt32 := do
       let pf := fnv1a d.display
       let rng := Rng.mk (seedBase ^^^ pf ^^^ (UInt64.ofNat k * golden))
       let result := ablate d.toks spec rng centrality
-      if !seen.contains result.text then
+      -- aggressive delete-lemmas: only keep challenges that actually compile
+      let valid ← if o.aggressive then checkCompiles d.path.toString result.text else pure true
+      if valid && !seen.contains result.text then
         seen := seen.insert result.text
         if o.textMode then
           IO.print result.text

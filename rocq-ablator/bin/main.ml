@@ -14,6 +14,9 @@ let usage =
 
   Modes:
     --check          run the corpus self-test (round-trip + delimitation)
+    --check-build    compile-test each ablation with coqc (challenge + solution);
+                     only the file itself is built (its deps must already be
+                     compiled), so --shrink can't break it
 
   Difficulty (raw knobs override any --difficulty preset):
     --difficulty L   preset ladder L0 (easy) .. L4 (code+spec only)
@@ -32,6 +35,15 @@ let usage =
     --truncate          drop challenge text after the last inserted hole
     --shrink-challenge  drop challenge top-level goals after the last ablated one
     --shrink-solution   drop solution top-level goals after the last ablated one
+
+  Lemma deletion (instead of per-proof ablation):
+    --delete-lemmas     delete eligible used lemmas + ablate their users; the
+                        selectors (-p/--count/--by-centrality/--min-centrality)
+                        pick which lemmas. Correct-by-construction (no prover).
+    --aggressively-delete-lemmas
+                        as above but relaxes the syntactic guards and validates
+                        each challenge with coqc (--check-build), dropping any
+                        that don't compile. Needs coq.
 
   Other:
     -s SESSION       session/library label recorded in output (default: coq)
@@ -95,6 +107,7 @@ type opts = {
   mutable seed : int option;
   mutable verbose : bool;
   mutable check : bool;
+  mutable check_build : bool;
   mutable compact : bool;
   mutable text_mode : bool;
   mutable difficulty : string option;
@@ -113,6 +126,8 @@ type opts = {
   mutable shrink_challenge : bool;
   mutable shrink_solution : bool;
   mutable allow_defined : bool;
+  mutable delete_lemmas : bool;
+  mutable aggressive : bool;
   mutable repeat : int;
   mutable strip_dirs : string list;
   mutable paths : string list;
@@ -120,12 +135,13 @@ type opts = {
 
 let parse_args argv =
   let o =
-    { session = "coq"; seed = None; verbose = false; check = false; compact = false;
+    { session = "coq"; seed = None; verbose = false; check = false; check_build = false; compact = false;
       text_mode = false; difficulty = None; prob = None; all = false; count = None;
       by_centrality = false; min_depth = None; max_depth = None; leaves = false;
       min_size = None; max_size = None; min_cent = None; max_cent = None;
       truncate = false; shrink_challenge = false; shrink_solution = false;
-      allow_defined = false; repeat = 1; strip_dirs = []; paths = [] }
+      allow_defined = false; delete_lemmas = false; aggressive = false;
+      repeat = 1; strip_dirs = []; paths = [] }
   in
   let n = Array.length argv in
   let i = ref 1 in
@@ -138,6 +154,7 @@ let parse_args argv =
     (match a with
      | "-h" | "--help" -> print_string usage; exit 0
      | "--check" -> o.check <- true
+     | "--check-build" -> o.check_build <- true
      | "--compact" -> o.compact <- true
      | "--text" -> o.text_mode <- true
      | "-v" -> o.verbose <- true
@@ -148,6 +165,8 @@ let parse_args argv =
      | "--shrink-solution" -> o.shrink_solution <- true
      | "--leaves-only" -> o.leaves <- true
      | "--allow-defined" -> o.allow_defined <- true
+     | "--delete-lemmas" -> o.delete_lemmas <- true
+     | "--aggressively-delete-lemmas" -> o.delete_lemmas <- true; o.aggressive <- true
      | "--difficulty" -> o.difficulty <- Some (next a)
      | "--min-depth" -> o.min_depth <- Some (parse_depth (next a))
      | "--max-depth" -> o.max_depth <- Some (parse_depth (next a))
@@ -197,6 +216,8 @@ let build_spec o =
       shrink_challenge = o.shrink_challenge;
       shrink_solution = o.shrink_solution;
       allow_defined = o.allow_defined;
+      delete_lemmas = o.delete_lemmas;
+      aggressive = o.aggressive;
     }
 
 let count_goals text =
@@ -257,11 +278,30 @@ let () =
   let docs = List.filter_map (fun p -> try Some (p, read_file p) with _ -> None) files in
   if o.verbose then Printf.eprintf "[session %s: %d files]\n%!" o.session (List.length docs);
 
-  let need_cent = Ablate.uses_centrality spec || ((not o.check) && not o.text_mode) in
+  let need_cent =
+    Ablate.uses_centrality spec || ((not o.check) && not o.text_mode)
+  in
   let fan = if need_cent then Centrality.fan_in (List.map snd docs) else Hashtbl.create 1 in
   let centrality name = match Hashtbl.find_opt fan name with Some c -> c | None -> 0 in
 
   if o.check then exit (if run_check docs spec centrality then 0 else 1);
+
+  if o.check_build then begin
+    let ok = ref 0 and fail = ref 0 in
+    List.iter
+      (fun (path, original) ->
+        let spans = Span.parse_spans original in
+        let seed = Int64.logxor base_seed (fnv1a (display_path o.strip_dirs path)) in
+        let result = Ablate.ablate spans spec (Ablate.Rng.make seed) centrality in
+        let chal = Build_check.check_compiles path result.text in
+        let sol = Build_check.check_compiles path result.solution in
+        if chal && sol then incr ok else incr fail;
+        Printf.printf "%-50s challenge:%-4s solution:%-4s\n%!" path
+          (if chal then "ok" else "FAIL") (if sol then "ok" else "FAIL"))
+      docs;
+    Printf.printf "\nbuild-check: %d ok, %d failed (of %d files)\n" !ok !fail (List.length docs);
+    exit (if !fail = 0 then 0 else 1)
+  end;
 
   let n_repeat = max 1 o.repeat in
   let emitted = ref 0 in
@@ -277,7 +317,9 @@ let () =
           Int64.logxor base_seed (Int64.logxor pf (Int64.mul (Int64.of_int k) golden))
         in
         let result = Ablate.ablate spans spec (Ablate.Rng.make seed) centrality in
-        if not (Hashtbl.mem seen result.text) then begin
+        (* aggressive delete-lemmas: only keep challenges that actually compile *)
+        let valid = (not o.aggressive) || Build_check.check_compiles path result.text in
+        if valid && not (Hashtbl.mem seen result.text) then begin
           Hashtbl.replace seen result.text ();
           if o.text_mode then print_string result.text
           else begin

@@ -1,7 +1,9 @@
 (* Context shaping, ported from the Isabelle ablator's [ablate.rs]. [segs] are
-   (byte-offset end in the text, is_goal, had_ablation) triples, one per
+   (byte-offset end in the text, is_closer, had_ablation) triples, one per
    top-level segment. The same operation shrinks either the challenge or the
-   solution — only the offsets differ. *)
+   solution — only the offsets differ. Everything after the last ablated segment
+   is dropped EXCEPT structural closers ([End]/[end]), so the enclosing module /
+   section / theory still ends and the result stays well-formed. *)
 
 (* collapse runs of >=2 blank lines into a single blank line *)
 let collapse_blank_lines (s : string) : string =
@@ -40,18 +42,28 @@ let collapse_blank_lines (s : string) : string =
   done;
   Buffer.contents out
 
-(* drop top-level goal segments after the last ablated one, then tidy blanks *)
+(* drop all top-level segments after the last ablated one (keeping structural
+   closers so blocks still close), then tidy blanks *)
 let shrink (full : string) (segs : (int * bool * bool) array) : string =
   let last = ref (-1) in
-  Array.iteri (fun idx (_, is_goal, had) -> if is_goal && had then last := idx) segs;
+  Array.iteri (fun idx (_, _, had) -> if had then last := idx) segs;
   if !last < 0 then full
   else begin
     let out = Buffer.create (String.length full) in
     let prev = ref 0 in
+    let gap = ref false in
+    (* dropped a segment since the last kept one *)
     Array.iteri
-      (fun idx (endo, is_goal, _) ->
-        if idx <= !last || not is_goal then
-          Buffer.add_substring out full !prev (endo - !prev);
+      (fun idx (endo, is_closer, _) ->
+        (if idx <= !last || is_closer then begin
+           (* a kept closer after a gap (e.g. `End M.`) must not glue onto the
+              previous token — ensure a newline separates them. *)
+           if !gap && Buffer.length out > 0 && Buffer.nth out (Buffer.length out - 1) <> '\n'
+           then Buffer.add_char out '\n';
+           Buffer.add_substring out full !prev (endo - !prev);
+           gap := false
+         end
+         else gap := true);
         prev := endo)
       segs;
     collapse_blank_lines (Buffer.contents out)

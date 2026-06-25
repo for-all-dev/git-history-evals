@@ -19,6 +19,7 @@
             pkgs.wasm-pack # drives the browser-demo build (build-wasm.sh)
             pkgs.binaryen # wasm-opt, used by wasm-pack
             pkgs.python3 # serve the demo
+            pkgs.isabelle # isabelle build, for the CLI's --check-build
           ];
           shellHook = ''
             rustup default stable >/dev/null 2>&1 || true

@@ -57,6 +57,8 @@ let spec_from (opts : Yojson.Safe.t) : Ablate.spec =
       shrink_challenge = as_bool (g "shrink_challenge") false;
       shrink_solution = as_bool (g "shrink_solution") false;
       allow_defined = as_bool (g "allow_defined") false;
+      delete_lemmas = as_bool (g "delete_lemmas") false;
+      aggressive = false (* the prover-backed path is never exposed to the browser *);
     }
 
 (* ablate one theory; returns the {text,total,ablated,holes} JSON string. *)

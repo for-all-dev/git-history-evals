@@ -28,6 +28,12 @@ struct Cli {
     #[arg(long)]
     check: bool,
 
+    /// compile-test each ablation with `isabelle build` (challenge + solution);
+    /// builds a throwaway session of just the theory, so only its upward closure
+    /// is built and --shrink can't break it
+    #[arg(long)]
+    check_build: bool,
+
     /// difficulty preset ladder L0 (easy) .. L4 (code+spec only)
     #[arg(long, value_name = "L")]
     difficulty: Option<String>,
@@ -76,6 +82,13 @@ struct Cli {
     /// drop solution top-level lemmas/theorems after the last ablated one
     #[arg(long)]
     shrink_solution: bool,
+
+    /// delete eligible used lemmas + ablate their users (correct-by-construction)
+    #[arg(long)]
+    delete_lemmas: bool,
+    /// delete-lemmas with relaxed guards, validated by `isabelle build` (needs isabelle)
+    #[arg(long)]
+    aggressively_delete_lemmas: bool,
 
     /// session name (for the record's `session` field)
     #[arg(short = 's', long, default_value = "HOL")]
@@ -184,6 +197,8 @@ fn main() {
         truncate: cli.truncate,
         shrink_challenge: cli.shrink_challenge,
         shrink_solution: cli.shrink_solution,
+        delete_lemmas: cli.delete_lemmas || cli.aggressively_delete_lemmas,
+        aggressive: cli.aggressively_delete_lemmas,
     };
     if spec.min_depth < 1 {
         die("--min-depth must be >= 1");
@@ -231,6 +246,34 @@ fn main() {
         return;
     }
 
+    if cli.check_build {
+        let mut ok = 0u64;
+        let mut fail = 0u64;
+        for (path, original) in &docs {
+            let spans = syntax.parse_spans(original);
+            let mut rng = Rng::new((base as u64) ^ fnv1a(&path.to_string_lossy()));
+            let r = ablate(&spans, &spec, &mut rng, &centrality_fn);
+            let chal = isabelle_ablator::build_check::check_compiles(path, &r.text);
+            let sol = isabelle_ablator::build_check::check_compiles(path, &r.solution);
+            if chal && sol {
+                ok += 1;
+            } else {
+                fail += 1;
+            }
+            println!(
+                "{:<50} challenge:{:<4} solution:{:<4}",
+                path.display(),
+                if chal { "ok" } else { "FAIL" },
+                if sol { "ok" } else { "FAIL" }
+            );
+        }
+        println!("\nbuild-check: {ok} ok, {fail} failed (of {} files)", docs.len());
+        if fail > 0 {
+            exit(1);
+        }
+        return;
+    }
+
     // path display: strip longest matching -d prefix
     let mut strip: Vec<String> = cli
         .strip_dir
@@ -264,6 +307,12 @@ fn main() {
             let pf = fnv1a(&display);
             let mut rng = Rng::new((base as u64) ^ pf ^ k.wrapping_mul(0x9E3779B97F4A7C15));
             let result = ablate(&spans, &spec, &mut rng, &centrality_fn);
+            // aggressive delete-lemmas: only keep challenges that actually compile
+            if cli.aggressively_delete_lemmas
+                && !isabelle_ablator::build_check::check_compiles(path, &result.text)
+            {
+                continue;
+            }
             if seen.insert(result.text.clone()) {
                 if cli.text {
                     print!("{}", result.text);

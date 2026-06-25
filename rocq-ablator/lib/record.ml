@@ -38,10 +38,12 @@ let result_json (r : Ablate.result) : Yojson.Safe.t =
   `Assoc
     [
       ("text", `String r.text);
-      ("solution", `String r.solution);
+      ("solution_diff", `String (Diff.unified r.text r.solution));
       ("total", `Int r.total);
       ("ablated", `Int r.ablated);
       ("holes", `List (List.map hole_json r.holes));
+      ( "deleted_lemmas",
+        `List (List.map (fun (nm, txt) -> `Assoc [ ("name", `String nm); ("text", `String txt) ]) r.deleted) );
     ]
 
 let record ~(file_path : string) ~(session : string) ~(spec : Ablate.spec)
@@ -57,7 +59,7 @@ let record ~(file_path : string) ~(session : string) ~(spec : Ablate.spec)
       ("file_path", `String file_path);
       ("theory", `String (theory_name file_path));
       ("variant", opt_int variant);
-      ("challenge_type", `String "proof_ablate");
+      ("challenge_type", `String (if result.deleted <> [] then "lemma_delete" else "proof_ablate"));
       ("difficulty", opt_str difficulty);
       ("count", opt_int spec.count);
       ("by_centrality", `Bool spec.by_centrality);
@@ -74,6 +76,13 @@ let record ~(file_path : string) ~(session : string) ~(spec : Ablate.spec)
       ("n_proofs", `Int result.total);
       ("n_ablated", `Int result.ablated);
       ("holes_filled", `List (List.map hole_json result.holes));
+      ( "deleted_lemmas",
+        `List
+          (List.map
+             (fun (nm, txt) -> `Assoc [ ("name", `String nm); ("text", `String txt) ])
+             result.deleted) );
       ("challenge_file_content", `String result.text);
-      ("solution_file_content", `String result.solution);
+      (* the solution is stored as a diff against the challenge (apply to recover
+         the full solution) — full files are huge for big theories (issue #107) *)
+      ("solution_diff", `String (Diff.unified result.text result.solution));
     ]

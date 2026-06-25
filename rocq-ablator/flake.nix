@@ -21,6 +21,7 @@
             pkgs.binaryen # wasm-opt, used by wasm_of_ocaml
             pkgs.python3 # serve the demo
             pkgs.nodejs # run/test the wasm output
+            pkgs.coq # coqc / coqdep, for the CLI's --check-build
           ];
           shellHook = ''
             echo "rocq-ablator dev shell — $(ocaml -version)"

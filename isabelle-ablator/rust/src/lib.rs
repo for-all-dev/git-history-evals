@@ -9,11 +9,17 @@ pub mod keyword;
 pub mod record;
 pub mod sha1;
 pub mod span;
+pub mod diff;
 pub mod token;
 pub mod tokenize;
+pub mod uses;
 
 #[cfg(feature = "wasm")]
 pub mod wasm;
+
+// Native compile-test (shells out to `isabelle build`); never in the WASM core.
+#[cfg(feature = "cli")]
+pub mod build_check;
 
 /// Count theory-level goal statements in `text` (for the self-test's
 /// "statements preserved" invariant).
@@ -90,13 +96,62 @@ mod tests {
     }
 
     #[test]
+    fn diff_round_trips() {
+        let cases = [
+            ("a\nb\nc\n", "a\nB\nc\n"),
+            ("l1\nl2\nl3\nl4\nl5\n", "l1\nX\nl3\nl4\nY\n"),
+            ("a\nb", "a\nc"),         // no trailing newline
+            ("same\nsame\n", "same\nsame\n"), // identical -> empty diff
+            ("", "x\ny\n"),
+        ];
+        for (a, b) in cases {
+            let d = diff::unified(a, b);
+            assert_eq!(diff::apply(a, &d), b, "round-trip for {a:?} -> {b:?}");
+        }
+        // large file + localized change -> tiny diff
+        let big: String = (0..300).map(|i| format!("definition d{i} = {i}\n")).collect();
+        let sol = format!("{big}lemma foo: \"True\" by simp\n");
+        let chal = format!("{big}lemma foo: \"True\" sorry\n");
+        let d = diff::unified(&chal, &sol);
+        assert_eq!(diff::apply(&chal, &d), sol);
+        assert!(d.len() < sol.len() / 4, "diff should be tiny for a localized change");
+    }
+
+    #[test]
+    fn delete_lemmas() {
+        let syn = span::Syntax::hol();
+        // `helper` is used by `main`; `unused` has no user; `key` is used in a
+        // later *statement* (non-proof use) so it must not be deletable.
+        let src = "theory T\nimports Main\nbegin\n\n\
+            lemma helper: \"(1::nat) = 1\" by simp\n\n\
+            lemma unused: \"(2::nat) = 2\" by simp\n\n\
+            lemma main: \"(1::nat) = 1\" using helper by simp\n\n\
+            lemma key: \"(3::nat) = 3\" by simp\n\n\
+            lemma uses_key_stmt: \"key = key\" by simp\n\nend\n";
+        let spans = syn.parse_spans(src);
+        let z = |_: &str| 0i64;
+        let spec = ablate::Spec { delete_lemmas: true, prob: 1.0, ..Default::default() };
+        let mut rng = ablate::Rng::new(0);
+        let r = ablate::ablate(&spans, &spec, &mut rng, &z);
+        let deleted: Vec<&str> = r.deleted.iter().map(|(n, _)| n.as_str()).collect();
+        assert!(deleted.contains(&"helper"), "helper (used in a proof) deleted");
+        assert!(!deleted.contains(&"unused"), "unused (no user) not deleted");
+        assert!(!deleted.contains(&"key"), "key (used in a statement) not deleted");
+        assert!(!r.text.contains("lemma helper"), "helper's statement gone");
+        assert!(r.text.contains("lemma main"), "user main's statement kept");
+        assert!(!r.text.contains("using helper"), "user main's proof holed");
+        assert_eq!(r.solution, src, "solution is the full original");
+    }
+
+    #[test]
     fn shrink_challenge_and_solution() {
         let syn = span::Syntax::hol();
         let src = "theory T\nimports Main\nbegin\n\n\
             lemma g1: \"a = (a::nat)\" by simp\n\n\
+            definition d :: nat where \"d = 0\"\n\n\
             lemma g2: \"b = (b::nat)\" by simp\n\nend\n";
         let spans = syn.parse_spans(src);
-        // pick exactly g1 (most-cited) so a later goal (g2) always survives.
+        // pick exactly g1 (most-cited) so later decls (d, g2) are all dropped.
         let cent = |name: &str| if name == "g1" { 1 } else { 0 };
         let base = ablate::Spec { count: Some(1), by_centrality: true, ..Default::default() };
 
@@ -110,7 +165,9 @@ mod tests {
         let mut rng = ablate::Rng::new(0);
         let r1 = ablate::ablate(&spans, &ss, &mut rng, &cent);
         assert!(!r1.solution.contains("lemma g2"), "shrink_solution drops the later goal");
+        assert!(!r1.solution.contains("definition d"), "shrink_solution drops the later definition");
         assert!(r1.solution.contains("lemma g1"), "shrink_solution keeps the ablated goal");
+        assert!(r1.solution.contains("\nend"), "shrink_solution keeps the closing `end`");
         assert!(r1.text.contains("lemma g2"), "challenge untouched by shrink_solution");
 
         // shrink the CHALLENGE: g2 dropped from the challenge instead.
