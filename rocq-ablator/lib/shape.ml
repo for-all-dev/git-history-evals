@@ -42,11 +42,21 @@ let collapse_blank_lines (s : string) : string =
   done;
   Buffer.contents out
 
-(* drop all top-level segments after the last ablated one (keeping structural
-   closers so blocks still close), then tidy blanks *)
-let shrink (full : string) (segs : (int * bool * bool) array) : string =
-  let last = ref (-1) in
-  Array.iteri (fun idx (_, _, had) -> if had then last := idx) segs;
+(* drop all top-level segments after the cut point (keeping structural closers so
+   blocks still close), then tidy blanks. The cut is normally the last ablated
+   segment; with [~count:n] it is the n-th ablated segment instead, so the result
+   keeps exactly the first [n] holes (the rest of the file is dropped). *)
+let shrink ?count (full : string) (segs : (int * bool * bool) array) : string =
+  let last = ref (-1) and seen = ref 0 in
+  Array.iteri
+    (fun idx (_, _, had) ->
+      if had then begin
+        incr seen;
+        match count with
+        | Some n when !seen > n -> () (* past the n-th hole: don't extend the cut *)
+        | _ -> last := idx
+      end)
+    segs;
   if !last < 0 then full
   else begin
     let out = Buffer.create (String.length full) in

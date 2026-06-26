@@ -64,6 +64,72 @@ def deleteTests : StateT Tally IO Unit := do
   check "delete: main's statement kept, proof holed" (has dl.text "theorem main : True :=" && has dl.text "sorry" && ! has dl.text ":= helper")
   check "delete: solution is full original" (dl.solution == dlSrc)
 
+-- delete-lemmas + --count / --truncate: aaa has 2 users (ua1, ua2); bbb has 3
+-- (ub1..ub3). In delete mode --count is a target number of *ablations*.
+def deleteCountTests : StateT Tally IO Unit := do
+  let src := "theorem aaa : True := trivial\n\n\
+    theorem bbb : True := trivial\n\n\
+    theorem ua1 : True := aaa\n\n\
+    theorem ua2 : True := aaa\n\n\
+    theorem ub1 : True := bbb\n\n\
+    theorem ub2 : True := bbb\n\n\
+    theorem ub3 : True := bbb\n"
+  let run := fun (k : Nat) (trunc uniform : Bool) (seed : Nat) =>
+    ablate (tokenize src) { deleteLemmas := true, deleteUniform := uniform, count := some k, truncate := trunc }
+      (Rng.mk (UInt64.ofNat seed)) (fun _ => (0:Int))
+  -- count is a target reached by a weighted draw; aaa(2) or bbb(3) alone reaches
+  -- ≥ 2, so a single deletion suffices and ablations are ≥ count, reproducible/seed
+  let r2 := run 2 false false 1
+  check "delete+count=2: ≥ 2 from one deletion" (r2.ablated ≥ 2 && r2.deleted.size == 1)
+  check "delete+count=2: reproducible per seed" ((run 2 false false 1).deleted == r2.deleted)
+  -- count = 4 needs both lemmas (2 + 3): always 5 ablations, both deleted
+  let r4 := run 4 false false 0
+  check "delete+count=4: needs both -> 5" (r4.ablated == 5 && r4.deleted.size == 2)
+  -- --truncate caps ablations at exactly count, dropping the rest of the file
+  check "delete+truncate+count=2: exactly 2" ((run 2 true false 3).ablated == 2)
+  check "delete+truncate+count=1: exactly 1" ((run 1 true false 7).ablated == 1)
+  -- tail reachability + weighting across seeds: the sole deletion at count=2 is
+  -- sometimes the tail (aaa), sometimes the popular one (bbb); weighting favours bbb
+  let firstDel := fun (uniform : Bool) (seed : Nat) =>
+    match (run 2 false uniform seed).deleted.toList with | (n, _) :: _ => n | [] => ""
+  let tally := fun (uniform : Bool) =>
+    (List.range 100).foldl (fun (ab : Nat × Nat) s =>
+      match firstDel uniform s with
+      | "aaa" => (ab.1 + 1, ab.2) | "bbb" => (ab.1, ab.2 + 1) | _ => ab) (0, 0)
+  let w := tally false
+  let u := tally true
+  check "delete: weighted reaches tail (aaa) and popular (bbb)" (w.1 > 0 && w.2 > 0)
+  check "delete: weighting favours the more-used lemma (bbb)" (w.2 > w.1)
+  check "delete-uniform: both reachable" (u.1 > 0 && u.2 > 0)
+
+-- delete-lemmas + --shrink-* (prefix / minimal slice): base used by u1,u2,u3;
+-- un1/un2/un3 unrelated; declare-before-use.
+def deleteShrinkTests : StateT Tally IO Unit := do
+  let src := "theorem base : True := trivial\n\n\
+    theorem un1 : True := trivial\n\n\
+    theorem u1 : True := base\n\n\
+    theorem un2 : True := trivial\n\n\
+    theorem u2 : True := base\n\n\
+    theorem un3 : True := trivial\n\n\
+    theorem u3 : True := base\n"
+  let run := fun (mods : Spec → Spec) =>
+    ablate (tokenize src) (mods { deleteLemmas := true, count := some 2 }) (Rng.mk 0) (fun _ => (0:Int))
+  -- prefix: keep through 2nd hole (u2), drop u3; base deleted; context kept
+  let p := run (fun s => { s with shrinkChallenge := true })
+  check "shrink prefix: keeps u1,u2" (has p.text "theorem u1" && has p.text "theorem u2")
+  check "shrink prefix: drops u3" (! has p.text "theorem u3")
+  check "shrink prefix: base deleted" (! has p.text "theorem base")
+  check "shrink prefix: context kept" (has p.text "theorem un1")
+  -- minimal slice: only the 2 holes survive
+  let m := run (fun s => { s with shrinkChallengeMinimal := true })
+  check "slice: keeps u1,u2" (has m.text "theorem u1" && has m.text "theorem u2")
+  check "slice: drops unrelated" (! has m.text "theorem un1" && ! has m.text "theorem un2")
+  check "slice: drops base,u3" (! has m.text "theorem base" && ! has m.text "theorem u3")
+  -- solution slice: base restored with its real proof
+  let ms := run (fun s => { s with shrinkSolutionMinimal := true })
+  check "solution slice: base restored" (has ms.solution "theorem base")
+  check "solution slice: real proof present" (has ms.solution ":= base")
+
 -- solution_diff: apply(challenge, unifiedDiff challenge solution) = solution.
 -- Also extracted to keep the generated C functions small (see `deleteTests`).
 def diffTests : StateT Tally IO Unit := do
@@ -160,6 +226,8 @@ def main : IO UInt32 := do
     check "anon: paren-nested by kept" (anP.ablated == 1 && has anP.text "id (by exact n)")
 
     deleteTests
+    deleteCountTests
+    deleteShrinkTests
     diffTests
   ).run {}
   let total := tally.passed + tally.failed

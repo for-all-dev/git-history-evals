@@ -33,13 +33,28 @@ let usage =
 
   Context shaping (ignored by --check):
     --truncate          drop challenge text after the last inserted hole
-    --shrink-challenge  drop challenge top-level goals after the last ablated one
-    --shrink-solution   drop solution top-level goals after the last ablated one
+    --shrink-challenge  drop challenge top-level goals after the N-th hole (--count);
+                        keeps the prefix + structural closers (well-formed)
+    --shrink-solution   same, for the solution
+    --shrink-challenge-minimal
+                        keep only the N holes + the dependency closure their
+                        statements need; drop all unrelated decls (syntactic slice)
+    --shrink-solution-minimal
+                        same for the solution (restores the deleted lemma + its deps)
 
   Lemma deletion (instead of per-proof ablation):
-    --delete-lemmas     delete eligible used lemmas + ablate their users; the
-                        selectors (-p/--count/--by-centrality/--min-centrality)
-                        pick which lemmas. Correct-by-construction (no prover).
+    --delete-lemmas     delete eligible used lemmas + ablate their users. With
+                        --count N, deletions are drawn at random weighted by
+                        in-file user count until >= N ablations result (seed-driven;
+                        popular lemmas favoured, the tail still reachable).
+                        Correct-by-construction (no prover).
+    --delete-lemmas-uniform
+                        like --delete-lemmas but draw deletions uniformly
+                        (unweighted by user count).
+    --delete-lemmas-leaves
+                        like --delete-lemmas but hole only the leaf steps citing the
+                        deleted lemma (keeping the proof skeleton); falls back to
+                        whole-proof ablation when a citation isn't leaf-isolated.
     --aggressively-delete-lemmas
                         as above but relaxes the syntactic guards and validates
                         each challenge with coqc (--check-build), dropping any
@@ -125,8 +140,12 @@ type opts = {
   mutable truncate : bool;
   mutable shrink_challenge : bool;
   mutable shrink_solution : bool;
+  mutable shrink_challenge_minimal : bool;
+  mutable shrink_solution_minimal : bool;
   mutable allow_defined : bool;
   mutable delete_lemmas : bool;
+  mutable delete_uniform : bool;
+  mutable delete_leaves : bool;
   mutable aggressive : bool;
   mutable repeat : int;
   mutable strip_dirs : string list;
@@ -140,7 +159,9 @@ let parse_args argv =
       by_centrality = false; min_depth = None; max_depth = None; leaves = false;
       min_size = None; max_size = None; min_cent = None; max_cent = None;
       truncate = false; shrink_challenge = false; shrink_solution = false;
-      allow_defined = false; delete_lemmas = false; aggressive = false;
+      shrink_challenge_minimal = false; shrink_solution_minimal = false;
+      allow_defined = false; delete_lemmas = false; delete_uniform = false;
+      delete_leaves = false; aggressive = false;
       repeat = 1; strip_dirs = []; paths = [] }
   in
   let n = Array.length argv in
@@ -163,9 +184,13 @@ let parse_args argv =
      | "--truncate" -> o.truncate <- true
      | "--shrink-challenge" -> o.shrink_challenge <- true
      | "--shrink-solution" -> o.shrink_solution <- true
+     | "--shrink-challenge-minimal" -> o.shrink_challenge_minimal <- true
+     | "--shrink-solution-minimal" -> o.shrink_solution_minimal <- true
      | "--leaves-only" -> o.leaves <- true
      | "--allow-defined" -> o.allow_defined <- true
      | "--delete-lemmas" -> o.delete_lemmas <- true
+     | "--delete-lemmas-uniform" -> o.delete_lemmas <- true; o.delete_uniform <- true
+     | "--delete-lemmas-leaves" -> o.delete_lemmas <- true; o.delete_leaves <- true
      | "--aggressively-delete-lemmas" -> o.delete_lemmas <- true; o.aggressive <- true
      | "--difficulty" -> o.difficulty <- Some (next a)
      | "--min-depth" -> o.min_depth <- Some (parse_depth (next a))
@@ -215,8 +240,12 @@ let build_spec o =
       truncate = o.truncate;
       shrink_challenge = o.shrink_challenge;
       shrink_solution = o.shrink_solution;
+      shrink_challenge_minimal = o.shrink_challenge_minimal;
+      shrink_solution_minimal = o.shrink_solution_minimal;
       allow_defined = o.allow_defined;
       delete_lemmas = o.delete_lemmas;
+      delete_uniform = o.delete_uniform;
+      delete_leaves = o.delete_leaves;
       aggressive = o.aggressive;
     }
 
@@ -227,7 +256,8 @@ let count_goals text =
 let run_check docs spec centrality =
   let base =
     Ablate.
-      { spec with count = None; truncate = false; shrink_challenge = false; shrink_solution = false }
+      { spec with count = None; truncate = false; shrink_challenge = false; shrink_solution = false;
+                  shrink_challenge_minimal = false; shrink_solution_minimal = false }
   in
   let n_files = ref 0 and n_goals = ref 0 and n_ablated = ref 0 in
   let rt = ref [] and dl = ref [] and rp = ref [] in

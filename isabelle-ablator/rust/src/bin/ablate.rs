@@ -76,16 +76,29 @@ struct Cli {
     /// drop everything after the last inserted `sorry` (challenge only)
     #[arg(long)]
     truncate: bool,
-    /// drop challenge top-level lemmas/theorems after the last ablated one
+    /// drop challenge top-level lemmas/theorems after the N-th hole (--count); keeps prefix + closers
     #[arg(long)]
     shrink_challenge: bool,
-    /// drop solution top-level lemmas/theorems after the last ablated one
+    /// same, for the solution
     #[arg(long)]
     shrink_solution: bool,
+    /// challenge: keep only the N holes + their dependency closure (drop unrelated decls)
+    #[arg(long)]
+    shrink_challenge_minimal: bool,
+    /// same, for the solution (restores the deleted lemma + its deps)
+    #[arg(long)]
+    shrink_solution_minimal: bool,
 
-    /// delete eligible used lemmas + ablate their users (correct-by-construction)
+    /// delete eligible used lemmas + ablate their users (correct-by-construction).
+    /// With --count, deletions are drawn weighted by in-file user count.
     #[arg(long)]
     delete_lemmas: bool,
+    /// like --delete-lemmas but draw deletions uniformly (unweighted by user count)
+    #[arg(long)]
+    delete_lemmas_uniform: bool,
+    /// like --delete-lemmas but hole only leaf steps citing L (Isabelle: falls back to whole-proof)
+    #[arg(long)]
+    delete_lemmas_leaves: bool,
     /// delete-lemmas with relaxed guards, validated by `isabelle build` (needs isabelle)
     #[arg(long)]
     aggressively_delete_lemmas: bool,
@@ -197,7 +210,14 @@ fn main() {
         truncate: cli.truncate,
         shrink_challenge: cli.shrink_challenge,
         shrink_solution: cli.shrink_solution,
-        delete_lemmas: cli.delete_lemmas || cli.aggressively_delete_lemmas,
+        shrink_challenge_minimal: cli.shrink_challenge_minimal,
+        shrink_solution_minimal: cli.shrink_solution_minimal,
+        delete_lemmas: cli.delete_lemmas
+            || cli.delete_lemmas_uniform
+            || cli.delete_lemmas_leaves
+            || cli.aggressively_delete_lemmas,
+        delete_uniform: cli.delete_lemmas_uniform,
+        delete_leaves: cli.delete_lemmas_leaves,
         aggressive: cli.aggressively_delete_lemmas,
     };
     if spec.min_depth < 1 {
@@ -355,6 +375,8 @@ fn run_check(
         truncate: false,
         shrink_challenge: false,
         shrink_solution: false,
+        shrink_challenge_minimal: false,
+        shrink_solution_minimal: false,
         ..spec.clone()
     };
     let mut n_files = 0;

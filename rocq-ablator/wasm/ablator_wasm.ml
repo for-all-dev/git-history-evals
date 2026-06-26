@@ -56,8 +56,12 @@ let spec_from (opts : Yojson.Safe.t) : Ablate.spec =
       truncate = as_bool (g "truncate") false;
       shrink_challenge = as_bool (g "shrink_challenge") false;
       shrink_solution = as_bool (g "shrink_solution") false;
+      shrink_challenge_minimal = as_bool (g "shrink_challenge_minimal") false;
+      shrink_solution_minimal = as_bool (g "shrink_solution_minimal") false;
       allow_defined = as_bool (g "allow_defined") false;
       delete_lemmas = as_bool (g "delete_lemmas") false;
+      delete_uniform = as_bool (g "delete_uniform") false;
+      delete_leaves = as_bool (g "delete_leaves") false;
       aggressive = false (* the prover-backed path is never exposed to the browser *);
     }
 

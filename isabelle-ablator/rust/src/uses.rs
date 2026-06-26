@@ -20,12 +20,14 @@ pub struct Lemma {
     pub opener: usize,    // span index of the goal statement
     pub block_end: usize, // span index just past the terminator
     pub users: Vec<usize>,
+    pub stmt_names: Vec<String>, // names referenced in the statement (slice closure)
+    pub body_names: Vec<String>, // names cited in the proof body (slice closure)
     pub eligible: bool,
 }
 
 const MIN_NAME_LEN: usize = 3;
 
-fn names_in(content: &[crate::token::Token]) -> Vec<String> {
+pub fn names_in(content: &[crate::token::Token]) -> Vec<String> {
     let mut out = Vec::new();
     for t in content {
         if t.is_ident() || t.kind == Kind::LongIdent {
@@ -130,7 +132,15 @@ pub fn analyze(spans: &[Span], aggressive: bool) -> Vec<Lemma> {
                 && g.name.chars().count() >= MIN_NAME_LEN
                 && !users.is_empty()
                 && only_in_proofs;
-            Lemma { name: g.name.clone(), opener: g.opener, block_end: g.end, users, eligible }
+            Lemma {
+                name: g.name.clone(),
+                opener: g.opener,
+                block_end: g.end,
+                users,
+                stmt_names: names_in(&spans[g.opener].content),
+                body_names: g.cited.iter().cloned().collect(),
+                eligible,
+            }
         })
         .collect()
 }

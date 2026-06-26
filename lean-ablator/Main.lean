@@ -34,17 +34,26 @@ def usage : String :=
     --by-centrality  with --count, pick the most-cited bodies
 
   Lemma deletion (instead of per-proof ablation):
-    --delete-lemmas     delete eligible used lemmas + ablate their users; selectors
-                        (-p/--count/--by-centrality/--min-centrality) pick which.
-                        Correct-by-construction (no prover).
+    --delete-lemmas     delete eligible used lemmas + ablate their users. With
+                        --count N, deletions are drawn at random weighted by in-file
+                        user count until >= N ablations result (seed-driven; popular
+                        lemmas favoured, the tail still reachable). No prover needed.
+    --delete-lemmas-uniform
+                        like --delete-lemmas but draw deletions uniformly.
+    --delete-lemmas-leaves
+                        like --delete-lemmas; leaf-level holing is deferred to the
+                        heavyweight semantic ablator, so this falls back to whole-proof.
     --aggressively-delete-lemmas
                         as above but relaxes guards and validates each challenge
                         with `lake env lean` (--check-build), dropping failures.
 
   Context shaping (ignored by --check):
     --truncate          drop challenge text after the last inserted `sorry`
-    --shrink-challenge  drop challenge top-level decls after the last ablated one
-    --shrink-solution   drop solution top-level decls after the last ablated one
+    --shrink-challenge  drop challenge top-level decls after the N-th hole (--count)
+    --shrink-solution   same, for the solution
+    --shrink-challenge-minimal / --shrink-solution-minimal
+                        keep only the N holes + their dependency closure (drop all
+                        unrelated decls); solution restores the deleted lemma + deps
 
   Other:
     -s SESSION       session/library label recorded in output (default: lean)
@@ -63,6 +72,8 @@ structure Opts where
   check        : Bool := false
   checkBuild   : Bool := false
   deleteLemmas : Bool := false
+  deleteUniform : Bool := false
+  deleteLeaves : Bool := false
   aggressive   : Bool := false
   compact      : Bool := false
   textMode     : Bool := false
@@ -80,6 +91,8 @@ structure Opts where
   truncate     : Bool := false
   shrinkChallenge : Bool := false
   shrinkSolution  : Bool := false
+  shrinkChallengeMinimal : Bool := false
+  shrinkSolutionMinimal  : Bool := false
   repeatN      : Nat := 1
   paths        : Array String := #[]
   stripDirs    : Array String := #[]
@@ -102,6 +115,8 @@ partial def parseArgs (args : List String) (o : Opts) : Except String Opts := do
     | "--check"          => parseArgs rest { o with check := true }
     | "--check-build"    => parseArgs rest { o with checkBuild := true }
     | "--delete-lemmas"  => parseArgs rest { o with deleteLemmas := true }
+    | "--delete-lemmas-uniform" => parseArgs rest { o with deleteLemmas := true, deleteUniform := true }
+    | "--delete-lemmas-leaves" => parseArgs rest { o with deleteLemmas := true, deleteLeaves := true }
     | "--aggressively-delete-lemmas" => parseArgs rest { o with deleteLemmas := true, aggressive := true }
     | "--compact"        => parseArgs rest { o with compact := true }
     | "--text"           => parseArgs rest { o with textMode := true }
@@ -111,6 +126,8 @@ partial def parseArgs (args : List String) (o : Opts) : Except String Opts := do
     | "--truncate"         => parseArgs rest { o with truncate := true }
     | "--shrink-challenge" => parseArgs rest { o with shrinkChallenge := true }
     | "--shrink-solution"  => parseArgs rest { o with shrinkSolution := true }
+    | "--shrink-challenge-minimal" => parseArgs rest { o with shrinkChallengeMinimal := true }
+    | "--shrink-solution-minimal"  => parseArgs rest { o with shrinkSolutionMinimal := true }
     | "--leaves-only"    => parseArgs rest { o with leavesOpt := some true }
     | "--difficulty"     => needArg fun v => { o with difficulty := some v }
     | "--min-depth"      => match rest with
@@ -209,7 +226,11 @@ def buildSpec (o : Opts) (preset : Option Preset) : Spec :=
     truncate := o.truncate
     shrinkChallenge := o.shrinkChallenge
     shrinkSolution := o.shrinkSolution
+    shrinkChallengeMinimal := o.shrinkChallengeMinimal
+    shrinkSolutionMinimal := o.shrinkSolutionMinimal
     deleteLemmas := o.deleteLemmas
+    deleteUniform := o.deleteUniform
+    deleteLeaves := o.deleteLeaves
     aggressive := o.aggressive }
 
 structure Doc where
@@ -223,7 +244,8 @@ structure Doc where
     statement preservation. Returns `true` on all-clean. -/
 def runCheck (docs : Array Doc) (spec : Spec) (centrality : String → Int) : IO Bool := do
   -- disable count / context shaping (validate the ablation itself)
-  let baseSpec := { spec with count := none, truncate := false, shrinkChallenge := false, shrinkSolution := false }
+  let baseSpec := { spec with count := none, truncate := false, shrinkChallenge := false, shrinkSolution := false,
+                              shrinkChallengeMinimal := false, shrinkSolutionMinimal := false }
   let mut nFiles := 0
   let mut nGoals : Int := 0
   let mut nAblated : Int := 0

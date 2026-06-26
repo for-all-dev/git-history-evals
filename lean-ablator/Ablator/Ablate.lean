@@ -45,7 +45,11 @@ structure Spec where
   truncate       : Bool := false
   shrinkChallenge : Bool := false
   shrinkSolution  : Bool := false
+  shrinkChallengeMinimal : Bool := false
+  shrinkSolutionMinimal  : Bool := false
   deleteLemmas    : Bool := false
+  deleteUniform   : Bool := false
+  deleteLeaves    : Bool := false
   aggressive      : Bool := false
   deriving Inhabited
 
@@ -482,11 +486,16 @@ def collapseBlankLines (s : String) : String := Id.run do
     closers (`end`) so namespaces/sections still close. `segs` are
     `(char-offset-end, isCloser, hadSorry)`. The same operation shrinks either
     the challenge or the solution — only the offsets differ. -/
-def shrink (full : String) (segs : Array (Nat × Bool × Bool)) : String := Id.run do
+def shrink (full : String) (segs : Array (Nat × Bool × Bool)) (count : Option Nat) : String := Id.run do
   let mut last : Option Nat := none
+  let mut seen := 0
   for idx in [0:segs.size] do
     let (_, _isCloser, hadSorry) := segs[idx]!
-    if hadSorry then last := some idx
+    if hadSorry then
+      seen := seen + 1
+      match count with
+      | some n => if seen ≤ n then last := some idx
+      | none => last := some idx
   match last with
   | none => return full
   | some lastIdx =>
@@ -527,11 +536,68 @@ def walkAll (toks : Array Token) (spec : Spec) (centrality : String → Int)
     if spec.truncate && st.lastSorryEnd ≥ 0 then
       String.mk (full.toList.take st.lastSorryEnd.toNat)
     else if spec.shrinkChallenge then
-      shrink full chalSegs
+      shrink full chalSegs spec.count
     else full
-  let solution := if spec.shrinkSolution then shrink original solSegs else original
+  let solution := if spec.shrinkSolution then shrink original solSegs spec.count else original
   ({ text := text, solution := solution, total := st.total, ablated := st.ablated, holes := st.holes },
    st.matchAcc)
+
+/-- Minimal dependency-closed slice for `--shrink-*-minimal` (mirrors rocq
+    `slice_delete`): keep the (first `count`) holes + the transitive closure of the
+    goal-decls their statements reference; all non-goal items kept as glue. Challenge
+    excludes the deleted lemma(s) and re-holes any kept goal still citing a deleted
+    name; solution keeps everything real (restoring the deleted lemma + deps). -/
+def sliceDelete (toks : Array Token) (spans : Array Span) (spec : Spec)
+    (lemmas : Array DeletableLemma) (delSet userSet : HashSet Nat) (solution : Bool) : String := Id.run do
+  let bySpan := fun (si : Nat) => lemmas.find? (fun l => l.spanIdx == si)
+  let openerOfName := fun (nm : String) => (lemmas.find? (fun l => l.name == nm)).map (·.spanIdx)
+  let mut deletedNames : HashSet String := {}
+  for si in delSet.toList do
+    match bySpan si with | some l => deletedNames := deletedNames.insert l.name | none => pure ()
+  let mustHole := fun (si : Nat) =>
+    match bySpan si with | some l => l.bodyNames.any (fun nm => deletedNames.contains nm) | none => false
+  let seedAll := userSet.toList.toArray.qsort (· < ·)
+  let seed := match spec.count with | some k => seedAll.extract 0 (min k seedAll.size) | none => seedAll
+  -- Keep-set computed BEFORE ablating, shared by challenge & solution: the full
+  -- statement+body closure of the target holes over the original. Keeps every lemma
+  -- the real proofs need (never throws away more than the deleted lemma) and gives
+  -- both sides the same context. The deleted lemma stays in the set (restored in the
+  -- solution, omitted from the challenge).
+  let mut keep : HashSet Nat := {}
+  let mut q : Array Nat := #[]
+  for o in seed do
+    if !keep.contains o && (bySpan o).isSome then
+      keep := keep.insert o; q := q.push o
+  let mut qi := 0
+  while qi < q.size do
+    let o := q[qi]!
+    qi := qi + 1
+    match bySpan o with
+    | none => pure ()
+    | some l =>
+      for nm in l.stmtNames ++ l.bodyNames do
+        match openerOfName nm with
+        | some o2 =>
+          if !keep.contains o2 && (bySpan o2).isSome then
+            keep := keep.insert o2; q := q.push o2
+        | none => pure ()
+  let mut buf := ""
+  for si in [0:spans.size] do
+    let s := spans[si]!
+    match bySpan si with
+    | some _ =>
+      if keep.contains si then
+        if !solution && delSet.contains si then
+          pure () -- deleted lemma: omitted from the challenge
+        else if !solution && (mustHole si || userSet.contains si) then
+          match findAssign toks s.lo s.hi with
+          | some a =>
+            let contentHi := lastProperEnd toks (a + 1) s.hi
+            buf := buf ++ implode (toks.extract s.lo (a + 1)) ++ " sorry" ++ implode (toks.extract contentHi s.hi)
+          | none => buf := buf ++ s.source toks
+        else buf := buf ++ s.source toks
+    | none => buf := buf ++ s.source toks -- structural: always kept
+  return collapseBlankLines buf
 
 /-- `--delete-lemmas`: delete eligible used lemmas + whole-proof-ablate users. -/
 def ablateDelete (toks : Array Token) (spec : Spec) (rng : Rng) : AblationResult := Id.run do
@@ -541,54 +607,121 @@ def ablateDelete (toks : Array Token) (spec : Spec) (rng : Rng) : AblationResult
   let cands := lemmas.filter (fun l =>
     l.eligible && Int.ofNat l.users.size ≥ spec.minCentrality
     && Int.ofNat l.users.size ≤ spec.maxCentrality)
+  -- `--count k` is a target number of *ablations* (holed users), not deletions:
+  -- deleting a lemma forces all its users to be ablated, so ablations arrive in
+  -- chunks. We draw deletions at random *without replacement*, each with
+  -- probability proportional to its weight (user count — or 1 under deleteUniform),
+  -- accumulating their forced ablations until the distinct total reaches ≥ k, then
+  -- stop. Seed-driven (diverse evals), favours popular lemmas, yet keeps a non-zero
+  -- chance on the tail. Without --count the per-lemma `prob` coin decides. (With
+  -- --truncate we later keep only the first k.)
+  let weight := fun (l : DeletableLemma) => if spec.deleteUniform then 1.0 else Float.ofNat l.users.size
   let mut selected : Array DeletableLemma := #[]
   let mut r := rng
   match spec.count with
-  | some k =>
-    if cands.size ≤ k then selected := cands
-    else if spec.byCentrality then
-      let sorted := cands.qsort (fun a b =>
-        a.users.size > b.users.size || (a.users.size == b.users.size && a.spanIdx < b.spanIdx))
-      selected := sorted.extract 0 k
-    else
-      let (sh, r') := r.shuffle (Array.range cands.size)
-      r := r'
-      selected := (sh.extract 0 k).map (fun i => cands[i]!)
   | none =>
     for l in cands do
       let (x, r') := r.nextF64
       r := r'
       if x < spec.prob then selected := selected.push l
+  | some 0 => pure ()
+  | some k =>
+    let mut covered : HashSet Nat := {}
+    let mut remaining := cands
+    while covered.size < k && remaining.size > 0 do
+      let total := remaining.foldl (fun a l => a + weight l) 0.0
+      let (x, r') := r.nextF64
+      r := r'
+      let target := x * total
+      -- pick the lemma whose cumulative weight first exceeds `target`
+      let mut acc := 0.0
+      let mut idx := remaining.size - 1
+      let mut found := false
+      for j in [0:remaining.size] do
+        if !found then
+          acc := acc + weight remaining[j]!
+          if acc > target then idx := j; found := true
+      let l := remaining[idx]!
+      for u in l.users do covered := covered.insert u
+      selected := selected.push l
+      remaining := remaining.filter (fun y => y.spanIdx != l.spanIdx)
   let delSet : HashSet Nat := HashSet.ofArray (selected.map (·.spanIdx))
-  let mut userSet : HashSet Nat := {}
+  -- distinct forced ablations (users not themselves deleted), in file order
+  let mut usersArr : Array Nat := #[]
+  let mut seen : HashSet Nat := {}
   for l in selected do
     for u in l.users do
-      if !delSet.contains u then userSet := userSet.insert u
+      if !delSet.contains u && !seen.contains u then
+        seen := seen.insert u
+        usersArr := usersArr.push u
+  let usersSorted := usersArr.qsort (· < ·)
+  -- with --truncate + --count, ablate EXACTLY the first k and cut the rest;
+  -- otherwise every user must be ablated (a dangling reference would not compile).
+  let ablateArr :=
+    match spec.truncate, spec.count with
+    | true, some k => usersSorted.extract 0 (min k usersSorted.size)
+    | _, _ => usersSorted
+  let userSet : HashSet Nat := HashSet.ofArray ablateArr
   let nameOf (si : Nat) : String :=
     match lemmas.find? (fun l => l.spanIdx == si) with | some l => l.name | none => ""
+  -- Emit the challenge while recording per-item challenge/solution segments (codepoint
+  -- offsets, isCloser, hadHole) so --shrink-* can trim each side to the first N holes.
+  -- (--delete-lemmas-leaves: leaf-level holing is deferred to the heavyweight semantic
+  -- ablator; here it falls back to whole-proof ablation, always correct.)
   let mut out := ""
   let mut holes : Array Hole := #[]
   let mut deleted : Array (String × String) := #[]
   let mut ablated : Int := 0
+  let mut lastSorryEnd : Int := -1
+  let mut chalSegs : Array (Nat × Bool × Bool) := #[]
+  let mut solSegs : Array (Nat × Bool × Bool) := #[]
+  let mut origLen := 0
   for si in [0:spans.size] do
     let s := spans[si]!
+    let closer := s.cmd == some "end"
+    let itemLen := (s.source toks).length
     if delSet.contains si then
       deleted := deleted.push (nameOf si, s.source toks)
+      origLen := origLen + itemLen
+      solSegs := solSegs.push (origLen, false, false)
     else if userSet.contains si then
       match findAssign toks s.lo s.hi with
       | some a =>
         let contentHi := lastProperEnd toks (a + 1) s.hi
         out := out ++ implode (toks.extract s.lo (a + 1)) ++ " sorry"
                    ++ implode (toks.extract contentHi s.hi)
+        lastSorryEnd := Int.ofNat out.length
         let proofText := implode (toks.extract (a + 1) contentHi)
         holes := holes.push {
           theoremName := nameOf si, depth := 1, nCommands := 0, nLines := nLinesOf proofText,
           isLeaf := true, centrality := 0, method := "deleted-dep", proofText := proofText }
         ablated := ablated + 1
-      | none => out := out ++ s.source toks
-    else out := out ++ s.source toks
+        chalSegs := chalSegs.push (out.length, false, true)
+        origLen := origLen + itemLen
+        solSegs := solSegs.push (origLen, false, true)
+      | none =>
+        out := out ++ s.source toks
+        chalSegs := chalSegs.push (out.length, closer, false)
+        origLen := origLen + itemLen
+        solSegs := solSegs.push (origLen, closer, false)
+    else
+      out := out ++ s.source toks
+      chalSegs := chalSegs.push (out.length, closer, false)
+      origLen := origLen + itemLen
+      solSegs := solSegs.push (origLen, closer, false)
+  let original := implode toks
+  let text :=
+    if spec.truncate && lastSorryEnd ≥ 0 then
+      collapseBlankLines (String.mk (out.toList.take lastSorryEnd.toNat))
+    else if spec.shrinkChallengeMinimal then sliceDelete toks spans spec lemmas delSet userSet false
+    else if spec.shrinkChallenge then shrink out chalSegs spec.count
+    else collapseBlankLines out
+  let solution :=
+    if spec.shrinkSolutionMinimal then sliceDelete toks spans spec lemmas delSet userSet true
+    else if spec.shrinkSolution then shrink original solSegs spec.count
+    else original
   return {
-    text := collapseBlankLines out, solution := implode toks,
+    text := text, solution := solution,
     total := Int.ofNat totalEligible, ablated := ablated, holes := holes, deleted := deleted }
 
 /-- Public entry. `centrality` maps a name to its corpus fan-in (0 if unused). -/

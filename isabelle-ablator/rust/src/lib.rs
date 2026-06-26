@@ -144,6 +144,125 @@ mod tests {
     }
 
     #[test]
+    fn delete_count_truncate() {
+        let syn = span::Syntax::hol();
+        // aaa has 2 users (ua1, ua2); bbb has 3 (ub1..ub3); declare-before-use.
+        let src = "theory T\nimports Main\nbegin\n\n\
+            lemma aaa: \"(1::nat) = 1\" by simp\n\n\
+            lemma bbb: \"(2::nat) = 2\" by simp\n\n\
+            lemma ua1: \"(1::nat) = 1\" using aaa by simp\n\n\
+            lemma ua2: \"(1::nat) = 1\" using aaa by simp\n\n\
+            lemma ub1: \"(2::nat) = 2\" using bbb by simp\n\n\
+            lemma ub2: \"(2::nat) = 2\" using bbb by simp\n\n\
+            lemma ub3: \"(2::nat) = 2\" using bbb by simp\n\nend\n";
+        let spans = syn.parse_spans(src);
+        let z = |_: &str| 0i64;
+        let run = |count: u64, truncate: bool, uniform: bool, seed: u64| {
+            let spec = ablate::Spec {
+                delete_lemmas: true, delete_uniform: uniform, count: Some(count), truncate, ..Default::default()
+            };
+            let mut rng = ablate::Rng::new(seed);
+            ablate::ablate(&spans, &spec, &mut rng, &z)
+        };
+        // count is a target reached by a weighted draw; aaa(2) or bbb(3) alone
+        // reaches >= 2, so a single deletion suffices and ablations are >= count
+        let r2 = run(2, false, false, 1);
+        assert!(r2.ablated >= 2 && r2.deleted.len() == 1, "count=2: >= 2 from one deletion");
+        assert_eq!(r2.deleted, run(2, false, false, 1).deleted, "reproducible per seed");
+        // count = 4 needs both lemmas (2 + 3): always 5 ablations, both deleted
+        let r4 = run(4, false, false, 0);
+        assert_eq!(r4.ablated, 5, "count=4 -> needs both, 5 ablations");
+        assert_eq!(r4.deleted.len(), 2, "both deleted");
+        // --truncate caps ablations at exactly count and drops the rest
+        assert_eq!(run(2, true, false, 3).ablated, 2, "truncate+count=2 -> exactly 2");
+        assert_eq!(run(1, true, false, 7).ablated, 1, "truncate+count=1 -> exactly 1");
+        // tail reachability + weighting across seeds: the sole deletion at count=2
+        // is sometimes the tail (aaa), sometimes the popular one (bbb); weighting
+        // favours bbb, uniform balances them.
+        let first = |uniform: bool, seed: u64| -> String {
+            run(2, false, uniform, seed).deleted.first().map(|(n, _)| n.clone()).unwrap_or_default()
+        };
+        let tally = |uniform: bool| -> (i32, i32) {
+            let (mut a, mut b) = (0, 0);
+            for s in 0..100u64 {
+                match first(uniform, s).as_str() {
+                    "aaa" => a += 1,
+                    "bbb" => b += 1,
+                    _ => {}
+                }
+            }
+            (a, b)
+        };
+        let (wa, wb) = tally(false);
+        let (ua, ub) = tally(true);
+        assert!(wa > 0 && wb > 0, "weighted: both tail (aaa) and popular (bbb) reachable");
+        assert!(wb > wa, "weighting favours the more-used lemma (bbb)");
+        assert!(ua > 0 && ub > 0, "uniform: both reachable");
+    }
+
+    #[test]
+    fn delete_shrink_and_slice() {
+        let syn = span::Syntax::hol();
+        // base used by u1,u2,u3; un1/un2/un3 unrelated; declare-before-use.
+        let src = "theory T\nimports Main\nbegin\n\n\
+            lemma base: \"(1::nat) = 1\" by simp\n\n\
+            lemma un1: \"(2::nat) = 2\" by simp\n\n\
+            lemma u1: \"(1::nat) = 1\" using base by simp\n\n\
+            lemma un2: \"(3::nat) = 3\" by simp\n\n\
+            lemma u2: \"(1::nat) = 1\" using base by simp\n\n\
+            lemma un3: \"(4::nat) = 4\" by simp\n\n\
+            lemma u3: \"(1::nat) = 1\" using base by simp\n\nend\n";
+        let spans = syn.parse_spans(src);
+        let z = |_: &str| 0i64;
+        let mk = |f: &dyn Fn(&mut ablate::Spec)| {
+            let mut spec = ablate::Spec { delete_lemmas: true, count: Some(2), ..Default::default() };
+            f(&mut spec);
+            let mut rng = ablate::Rng::new(0);
+            ablate::ablate(&spans, &spec, &mut rng, &z)
+        };
+        // prefix: keep through 2nd hole (u2), drop u3; base deleted; context + end kept
+        let p = mk(&|s| s.shrink_challenge = true);
+        assert!(p.text.contains("lemma u1") && p.text.contains("lemma u2"), "prefix keeps u1,u2");
+        assert!(!p.text.contains("lemma u3"), "prefix drops u3");
+        assert!(!p.text.contains("lemma base"), "base deleted");
+        assert!(p.text.contains("lemma un1") && p.text.contains("end"), "context + end kept");
+        // minimal slice: only the 2 holes + structural glue; unrelated/base/u3 dropped
+        let m = mk(&|s| s.shrink_challenge_minimal = true);
+        assert!(m.text.contains("lemma u1") && m.text.contains("lemma u2"), "slice keeps holes");
+        assert!(!m.text.contains("lemma un1") && !m.text.contains("lemma un2"), "slice drops unrelated");
+        assert!(!m.text.contains("lemma base") && !m.text.contains("lemma u3"), "slice drops base,u3");
+        assert!(m.text.contains("theory T") && m.text.contains("end"), "structural glue kept");
+        // solution slice: deleted base restored, with real proof
+        let ms = mk(&|s| s.shrink_solution_minimal = true);
+        assert!(ms.solution.contains("lemma base"), "solution slice restores base");
+        assert!(ms.solution.contains("using base"), "solution slice keeps real proofs");
+    }
+
+    #[test]
+    fn delete_slice_fairness() {
+        // `helper` is cited only in u's PROOF (not its statement) and is [simp]-attributed
+        // so it isn't itself deletable -> base is the sole deletion. The slice must KEEP
+        // helper (the proof needs it), omit base, drop the unrelated lemma.
+        let syn = span::Syntax::hol();
+        let src = "theory T\nimports Main\nbegin\n\n\
+            lemma helper [simp]: \"(1::nat) = 1\" by simp\n\n\
+            lemma base: \"(1::nat) = 1\" by simp\n\n\
+            lemma unrel: \"(9::nat) = 9\" by simp\n\n\
+            lemma u: \"(1::nat) = 1\" using base helper by simp\n\nend\n";
+        let spans = syn.parse_spans(src);
+        let z = |_: &str| 0i64;
+        let spec = ablate::Spec {
+            delete_lemmas: true, count: Some(1), shrink_challenge_minimal: true, ..Default::default()
+        };
+        let mut rng = ablate::Rng::new(0);
+        let r = ablate::ablate(&spans, &spec, &mut rng, &z);
+        assert!(r.text.contains("lemma helper"), "helper (needed by the hole's proof) kept");
+        assert!(!r.text.contains("lemma base"), "deleted base omitted");
+        assert!(!r.text.contains("lemma unrel"), "unrelated lemma dropped");
+        assert!(r.text.contains("lemma u:") && r.text.contains("sorry"), "user holed");
+    }
+
+    #[test]
     fn shrink_challenge_and_solution() {
         let syn = span::Syntax::hol();
         let src = "theory T\nimports Main\nbegin\n\n\

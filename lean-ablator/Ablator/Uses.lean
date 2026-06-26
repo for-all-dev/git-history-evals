@@ -25,6 +25,8 @@ structure DeletableLemma where
   name    : String
   spanIdx : Nat
   users   : Array Nat -- span indices of theorem/lemma decls whose body cites this
+  stmtNames : Array String -- names referenced in the statement (slice closure)
+  bodyNames : Array String -- names cited in the proof body (slice closure)
   eligible : Bool
   deriving Inhabited
 
@@ -53,8 +55,8 @@ end Uses
 def analyzeUses (toks : Array Token) (spans : Array Span) (aggressive : Bool) :
     Array DeletableLemma := Id.run do
   let n := spans.size
-  -- per lemma: (spanIdx, name, cited-set in its body)
-  let mut goals : Array (Nat × String × HashSet String) := #[]
+  -- per lemma: (spanIdx, name, cited-set in its body, statement names)
+  let mut goals : Array (Nat × String × HashSet String × Array String) := #[]
   -- non-proof occurrences: (name, spanIdx) from statements / non-lemma bodies / other spans
   let mut nonproof : Array (String × Nat) := #[]
   let pushNon (arr : Array (String × Nat)) (names : Array String) (si : Nat) : Array (String × Nat) :=
@@ -70,22 +72,24 @@ def analyzeUses (toks : Array Token) (spans : Array Span) (aggressive : Bool) :
         nonproof := pushNon nonproof (Uses.namesIn toks s.lo (a + 1)) si
         if isLemma then
           let cited := Centrality.citedNames toks (a + 1) s.hi {}
-          goals := goals.push (si, nm, cited)
+          let stmtNames := Uses.namesIn toks s.lo (a + 1)
+          goals := goals.push (si, nm, cited, stmtNames)
         else
           -- a def/abbrev body is term-level, also non-proof
           nonproof := pushNon nonproof (Uses.namesIn toks (a + 1) s.hi) si
       | none => nonproof := pushNon nonproof (Uses.namesIn toks s.lo s.hi) si
     else nonproof := pushNon nonproof (Uses.namesIn toks s.lo s.hi) si
   let mut out := #[]
-  for (si, nm, _cited) in goals do
+  for (si, nm, cited, stmtNames) in goals do
     let mut users := #[]
-    for (si2, _, cited2) in goals do
+    for (si2, _, cited2, _) in goals do
       if si2 != si && cited2.contains nm then users := users.push si2
     let onlyProofs := nonproof.all (fun p => p.1 != nm || p.2 == si)
     let hasAttr := (spans[si]!.lo < toks.size) && (toks[spans[si]!.lo]!).isSymNamed "@"
     let eligible :=
       (aggressive || !hasAttr) && nm.length ≥ Centrality.minNameLen && users.size > 0 && onlyProofs
-    out := out.push { name := nm, spanIdx := si, users := users, eligible := eligible }
+    out := out.push { name := nm, spanIdx := si, users := users,
+                      stmtNames := stmtNames, bodyNames := cited.toArray, eligible := eligible }
   return out
 
 end Ablator

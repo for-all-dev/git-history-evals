@@ -24,7 +24,11 @@ pub struct Spec {
     pub truncate: bool,
     pub shrink_challenge: bool,
     pub shrink_solution: bool,
+    pub shrink_challenge_minimal: bool,
+    pub shrink_solution_minimal: bool,
     pub delete_lemmas: bool,
+    pub delete_uniform: bool,
+    pub delete_leaves: bool,
     pub aggressive: bool,
 }
 
@@ -44,7 +48,11 @@ impl Default for Spec {
             truncate: false,
             shrink_challenge: false,
             shrink_solution: false,
+            shrink_challenge_minimal: false,
+            shrink_solution_minimal: false,
             delete_lemmas: false,
+            delete_uniform: false,
+            delete_leaves: false,
             aggressive: false,
         }
     }
@@ -416,12 +424,12 @@ fn walk_all(
     let text = if spec.truncate && w.last_sorry_end >= 0 {
         full.chars().take(w.last_sorry_end as usize).collect()
     } else if spec.shrink_challenge {
-        shrink(&full, &chal_segs)
+        shrink(&full, &chal_segs, spec.count.map(|c| c as usize))
     } else {
         full
     };
     let solution = if spec.shrink_solution {
-        shrink(&original, &sol_segs)
+        shrink(&original, &sol_segs, spec.count.map(|c| c as usize))
     } else {
         original
     };
@@ -432,63 +440,189 @@ fn walk_all(
     )
 }
 
+/// Minimal dependency-closed slice for `--shrink-*-minimal`. Mirrors the rocq
+/// `slice_delete`: keep the (first `count`) holes plus the transitive closure of the
+/// goal-decls their statements reference; all non-goal items are kept as glue. The
+/// challenge excludes the deleted lemma(s) and re-holes any kept goal still citing a
+/// deleted name; the solution keeps everything real (pulling the deleted lemma + deps
+/// back in). Purely syntactic.
+fn slice_delete(
+    spans: &[Span],
+    spec: &Spec,
+    by_lemma: &std::collections::HashMap<usize, &crate::uses::Lemma>,
+    del: &std::collections::HashSet<usize>,
+    users: &std::collections::HashSet<usize>,
+    solution: bool,
+) -> String {
+    use std::collections::{HashSet, VecDeque};
+    let n = spans.len();
+    let src_range = |lo: usize, hi: usize| -> String { spans[lo..hi].iter().map(|s| s.source()).collect() };
+    let mut opener_of_name: std::collections::HashMap<&str, usize> = std::collections::HashMap::new();
+    for l in by_lemma.values() {
+        opener_of_name.entry(l.name.as_str()).or_insert(l.opener);
+    }
+    let deleted_names: HashSet<&str> =
+        del.iter().filter_map(|o| by_lemma.get(o).map(|l| l.name.as_str())).collect();
+    let must_hole = |o: usize| -> bool {
+        by_lemma.get(&o).is_some_and(|l| l.body_names.iter().any(|nm| deleted_names.contains(nm.as_str())))
+    };
+    let mut seed: Vec<usize> = users.iter().copied().collect();
+    seed.sort_unstable();
+    if let Some(k) = spec.count {
+        seed.truncate(k as usize);
+    }
+    let mut keep: HashSet<usize> = HashSet::new();
+    let mut q: VecDeque<usize> = VecDeque::new();
+    // Keep-set computed BEFORE ablating, shared by challenge & solution: the full
+    // statement+body closure of the target holes over the original. Keeps every
+    // lemma the real proofs need (so we never throw away more than the deleted
+    // lemma) and gives both sides the same context window. The deleted lemma stays
+    // in the set (restored in the solution, omitted from the challenge).
+    for o in seed {
+        if !keep.contains(&o) && by_lemma.contains_key(&o) {
+            keep.insert(o);
+            q.push_back(o);
+        }
+    }
+    while let Some(o) = q.pop_front() {
+        let l = by_lemma[&o];
+        for nm in l.stmt_names.iter().chain(l.body_names.iter()) {
+            if let Some(&o2) = opener_of_name.get(nm.as_str()) {
+                if !keep.contains(&o2) && by_lemma.contains_key(&o2) {
+                    keep.insert(o2);
+                    q.push_back(o2);
+                }
+            }
+        }
+    }
+    let mut buf = String::new();
+    let mut i = 0;
+    while i < n {
+        let is_goal = spans[i].keyword_kind().map(kw::is_theory_goal).unwrap_or(false);
+        if is_goal {
+            let e = by_lemma.get(&i).map(|l| l.block_end).unwrap_or(i + 1);
+            if keep.contains(&i) {
+                if !solution && del.contains(&i) {
+                    // deleted lemma: omitted from the challenge
+                } else if !solution && (must_hole(i) || users.contains(&i)) {
+                    buf.push_str(&spans[i].source());
+                    buf.push_str(" sorry");
+                } else {
+                    buf.push_str(&src_range(i, e));
+                }
+            }
+            i = e;
+        } else {
+            buf.push_str(&spans[i].source());
+            i += 1;
+        }
+    }
+    collapse_blank_lines(&buf)
+}
+
 /// --delete-lemmas: delete eligible used lemmas + whole-proof-ablate their users.
 fn ablate_delete(spans: &[Span], spec: &Spec, rng: &mut Rng) -> AblationResult {
     use std::collections::{HashMap, HashSet};
     let lemmas = crate::uses::analyze(spans, spec.aggressive);
     let total_eligible = lemmas.iter().filter(|l| l.eligible).count() as i64;
     let nusers = |l: &crate::uses::Lemma| l.users.len() as i64;
-    let mut cands: Vec<&crate::uses::Lemma> = lemmas
+    let cands: Vec<&crate::uses::Lemma> = lemmas
         .iter()
         .filter(|l| l.eligible && nusers(l) >= spec.min_centrality && nusers(l) <= spec.max_centrality)
         .collect();
+    // `--count k` is a target number of *ablations* (holed users), not deletions:
+    // deleting a lemma forces every one of its users to be ablated, so ablations
+    // arrive in chunks. We draw deletions at random *without replacement*, each with
+    // probability proportional to its weight (its user count — or 1 under
+    // `delete_uniform`), accumulating their forced ablations until the distinct total
+    // reaches >= k, then stop. Seed-driven (diverse evals), favours popular lemmas,
+    // yet keeps a non-zero chance on the tail. Without --count the per-lemma `prob`
+    // coin decides. (With --truncate we later keep only the first k.)
+    let weight = |l: &crate::uses::Lemma| -> f64 {
+        if spec.delete_uniform { 1.0 } else { l.users.len() as f64 }
+    };
     let selected: Vec<&crate::uses::Lemma> = match spec.count {
-        Some(k) => {
-            if cands.len() as u64 <= k {
-                cands.clone()
-            } else if spec.by_centrality {
-                cands.sort_by(|a, b| nusers(b).cmp(&nusers(a)).then(a.opener.cmp(&b.opener)));
-                cands.into_iter().take(k as usize).collect()
-            } else {
-                let mut idx: Vec<usize> = (0..cands.len()).collect();
-                rng.shuffle(&mut idx);
-                idx.into_iter().take(k as usize).map(|i| cands[i]).collect()
-            }
-        }
         None => {
             let p = spec.prob;
             cands.into_iter().filter(|_| rng.next_f64() < p).collect()
         }
+        Some(0) => Vec::new(),
+        Some(k) => {
+            let k = k as usize;
+            let mut covered: HashSet<usize> = HashSet::new();
+            let mut chosen: Vec<&crate::uses::Lemma> = Vec::new();
+            let mut remaining: Vec<&crate::uses::Lemma> = cands.clone();
+            while covered.len() < k && !remaining.is_empty() {
+                let total: f64 = remaining.iter().map(|l| weight(l)).sum();
+                let r = rng.next_f64() * total;
+                // pick the lemma whose cumulative weight first exceeds r
+                let mut acc = 0.0;
+                let mut idx = remaining.len() - 1;
+                for (j, l) in remaining.iter().enumerate() {
+                    acc += weight(l);
+                    if acc > r {
+                        idx = j;
+                        break;
+                    }
+                }
+                let l = remaining.remove(idx);
+                covered.extend(l.users.iter().copied());
+                chosen.push(l);
+            }
+            chosen
+        }
     };
     let del: HashSet<usize> = selected.iter().map(|l| l.opener).collect();
-    let mut users: HashSet<usize> = HashSet::new();
-    for l in &selected {
-        for u in &l.users {
-            if !del.contains(u) {
-                users.insert(*u);
-            }
+    // distinct forced ablations (users not themselves deleted), in file order.
+    let mut users_sorted: Vec<usize> = {
+        let mut s: Vec<usize> =
+            selected.iter().flat_map(|l| l.users.iter().copied()).filter(|u| !del.contains(u)).collect();
+        s.sort_unstable();
+        s.dedup();
+        s
+    };
+    // with --truncate + --count, ablate EXACTLY the first k and cut the rest;
+    // otherwise every user must be ablated (a dangling reference would not compile).
+    if spec.truncate {
+        if let Some(k) = spec.count {
+            users_sorted.truncate(k as usize);
         }
     }
-    let by_opener: HashMap<usize, (usize, String)> =
-        lemmas.iter().map(|l| (l.opener, (l.block_end, l.name.clone()))).collect();
+    let users: HashSet<usize> = users_sorted.into_iter().collect();
+    let by_lemma: HashMap<usize, &crate::uses::Lemma> = lemmas.iter().map(|l| (l.opener, l)).collect();
     let src_range = |lo: usize, hi: usize| -> String { spans[lo..hi].iter().map(|s| s.source()).collect() };
+    let n = spans.len();
 
+    // Emit the challenge while recording per-item challenge/solution segments (char
+    // offsets, is_closer, had_hole) so --shrink-* can trim each side to the first N
+    // holes. (--delete-lemmas-leaves: leaf-level holing for Isabelle's structured
+    // proofs is deferred to the heavyweight semantic ablator; here it falls back to
+    // whole-proof ablation, which is always correct.)
     let mut out = String::new();
     let mut holes = Vec::new();
     let mut deleted = Vec::new();
     let mut ablated = 0i64;
-    let n = spans.len();
+    let mut last_sorry_end: i64 = -1;
+    let mut chal_segs: Vec<(usize, bool, bool)> = Vec::new();
+    let mut sol_segs: Vec<(usize, bool, bool)> = Vec::new();
+    let mut orig_chars = 0usize;
     let mut i = 0;
     while i < n {
         let is_goal = spans[i].keyword_kind().map(kw::is_theory_goal).unwrap_or(false);
         if is_goal {
-            let (e, name) = by_opener.get(&i).cloned().unwrap_or((i + 1, String::new()));
+            let l = by_lemma.get(&i).copied();
+            let e = l.map(|l| l.block_end).unwrap_or(i + 1);
+            let name = l.map(|l| l.name.clone()).unwrap_or_default();
+            let item_src = src_range(i, e);
+            let item_chars = item_src.chars().count();
             if del.contains(&i) {
-                deleted.push((name, src_range(i, e)));
-                i = e;
+                deleted.push((name, item_src));
+                orig_chars += item_chars;
+                sol_segs.push((orig_chars, false, false)); // solution only
             } else if users.contains(&i) {
                 out.push_str(&spans[i].source()); // statement
                 out.push_str(" sorry");
+                last_sorry_end = out.chars().count() as i64;
                 let proof_text = src_range(i + 1, e);
                 holes.push(Hole {
                     theorem_name: name,
@@ -501,25 +635,45 @@ fn ablate_delete(spans: &[Span], spec: &Spec, rng: &mut Rng) -> AblationResult {
                     proof_text,
                 });
                 ablated += 1;
-                i = e;
+                chal_segs.push((out.chars().count(), false, true));
+                orig_chars += item_chars;
+                sol_segs.push((orig_chars, false, true));
             } else {
-                out.push_str(&src_range(i, e));
-                i = e;
+                out.push_str(&item_src);
+                chal_segs.push((out.chars().count(), false, false));
+                orig_chars += item_chars;
+                sol_segs.push((orig_chars, false, false));
             }
+            i = e;
         } else {
-            out.push_str(&spans[i].source());
+            let src = spans[i].source();
+            let closer = spans[i].name() == "end";
+            out.push_str(&src);
+            chal_segs.push((out.chars().count(), closer, false));
+            orig_chars += src.chars().count();
+            sol_segs.push((orig_chars, closer, false));
             i += 1;
         }
     }
     let original: String = spans.iter().map(|s| s.source()).collect();
-    AblationResult {
-        text: collapse_blank_lines(&out),
-        solution: original,
-        total: total_eligible,
-        ablated,
-        holes,
-        deleted,
-    }
+    let cnt = spec.count.map(|c| c as usize);
+    let text = if spec.truncate && last_sorry_end >= 0 {
+        collapse_blank_lines(&out.chars().take(last_sorry_end as usize).collect::<String>())
+    } else if spec.shrink_challenge_minimal {
+        slice_delete(spans, spec, &by_lemma, &del, &users, false)
+    } else if spec.shrink_challenge {
+        shrink(&out, &chal_segs, cnt)
+    } else {
+        collapse_blank_lines(&out)
+    };
+    let solution = if spec.shrink_solution_minimal {
+        slice_delete(spans, spec, &by_lemma, &del, &users, true)
+    } else if spec.shrink_solution {
+        shrink(&original, &sol_segs, cnt)
+    } else {
+        original
+    };
+    AblationResult { text, solution, total: total_eligible, ablated, holes, deleted }
 }
 
 /// Public entry. `centrality` maps a theorem name to its corpus fan-in (0 if unused).
@@ -565,8 +719,23 @@ pub fn ablate(
 // blank-line runs left behind (Ablate.scala `shrink`). The same operation
 // shrinks either the challenge or the solution; only the offsets in
 // `segs` differ.
-fn shrink(full: &str, segs: &[(usize, bool, bool)]) -> String {
-    let last = segs.iter().rposition(|(_, _closer, had_sorry)| *had_sorry);
+// Drop segments after the cut: the last hole, or with `count=Some(n)` the n-th hole
+// (so the result keeps exactly the first n holes). Structural closers are kept.
+fn shrink(full: &str, segs: &[(usize, bool, bool)], count: Option<usize>) -> String {
+    let last = {
+        let mut seen = 0usize;
+        let mut last: Option<usize> = None;
+        for (idx, (_, _closer, had)) in segs.iter().enumerate() {
+            if *had {
+                seen += 1;
+                match count {
+                    Some(n) if seen > n => {}
+                    _ => last = Some(idx),
+                }
+            }
+        }
+        last
+    };
     let last = match last {
         Some(l) => l,
         None => return full.to_string(),

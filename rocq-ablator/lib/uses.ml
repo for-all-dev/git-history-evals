@@ -17,6 +17,8 @@ type lemma = {
   block_end : int; (* span index just past the terminator *)
   qed : bool; (* terminator is `Qed` (opaque) *)
   users : int list; (* opener indices of in-file proofs citing this lemma *)
+  stmt_names : string list; (* names referenced in the statement (for slice closure) *)
+  body_names : string list; (* names cited in the proof body (for slice closure) *)
   eligible : bool;
 }
 
@@ -105,5 +107,8 @@ let analyze ?(aggressive = false) (spans : Span.t array) : lemma list =
         (gl.g_qed || aggressive) && String.length name >= min_name_len && users <> []
         && only_in_proofs
       in
-      { name; opener = gl.g_opener; block_end = gl.g_end; qed = gl.g_qed; users; eligible })
+      let stmt_names = names_in spans.(gl.g_opener).content in
+      let body_names = Hashtbl.fold (fun k () acc -> k :: acc) gl.g_cited [] in
+      { name; opener = gl.g_opener; block_end = gl.g_end; qed = gl.g_qed; users;
+        stmt_names; body_names; eligible })
     goals

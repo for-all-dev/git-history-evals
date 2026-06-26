@@ -204,6 +204,108 @@ let () =
   check "delete: lemma used in a Definition is NOT deleted"
     (not (List.mem "key" (List.map fst r.deleted)) && contains r.text "Lemma key")
 
+(* ---- --delete-lemmas + --count / --truncate ----
+   `aaa` has 2 users (ua1, ua2); `bbb` has 3 (ub1..ub3); declare-before-use. In
+   delete mode --count is a target number of *ablations* (holed users), reached by
+   weighted-random draw of deletions (weight = user count). *)
+let () =
+  let src =
+    "Lemma aaa : 1 = 1.\nProof. reflexivity. Qed.\n\n\
+     Lemma bbb : 2 = 2.\nProof. reflexivity. Qed.\n\n\
+     Lemma ua1 : 1 = 1.\nProof. exact aaa. Qed.\n\n\
+     Lemma ua2 : 1 = 1.\nProof. exact aaa. Qed.\n\n\
+     Lemma ub1 : 2 = 2.\nProof. exact bbb. Qed.\n\n\
+     Lemma ub2 : 2 = 2.\nProof. exact bbb. Qed.\n\n\
+     Lemma ub3 : 2 = 2.\nProof. exact bbb. Qed.\n"
+  in
+  let mk ?(truncate = false) ?(uniform = false) ?(seed = 0) k =
+    ablate_full ~seed
+      ~spec:{ Ablate.default_spec with delete_lemmas = true; delete_uniform = uniform; count = Some k; truncate }
+      src
+  in
+  (* count is a target: either aaa (2 users) or bbb (3) alone reaches >= 2, so a
+     single deletion suffices; ablations are >= count and reproducible per seed *)
+  let r2 = mk ~seed:1 2 in
+  check "delete+count=2: >= 2 ablations from a single deletion" (r2.ablated >= 2 && List.length r2.deleted = 1);
+  check "delete+count=2: reproducible per seed" ((mk ~seed:1 2).deleted = r2.deleted && (mk ~seed:1 2).ablated = r2.ablated);
+  (* count=4 needs both lemmas (2 + 3): always 5 ablations, both deleted *)
+  let r4 = mk ~seed:0 4 in
+  check "delete+count=4: needs both -> 5 ablations" (r4.ablated = 5 && List.length r4.deleted = 2);
+  (* --truncate caps ablations at exactly count and drops the rest of the file *)
+  check "delete+truncate+count=2: exactly 2 ablations" ((mk ~truncate:true ~seed:3 2).ablated = 2);
+  check "delete+truncate+count=1: exactly 1 ablation" ((mk ~truncate:true ~seed:7 1).ablated = 1);
+  (* tail reachability + weighting: across seeds, the sole deletion at count=2 is
+     sometimes the tail (aaa) and sometimes the popular one (bbb); weighting (by
+     user count) favours bbb, while --delete-lemmas-uniform balances them. *)
+  let first_del uniform seed =
+    match (mk ~uniform ~seed 2).deleted with (n, _) :: _ -> n | [] -> "" in
+  let tally uniform =
+    List.fold_left
+      (fun (a, b) s -> match first_del uniform s with "aaa" -> (a + 1, b) | "bbb" -> (a, b + 1) | _ -> (a, b))
+      (0, 0) (List.init 100 Fun.id) in
+  let wa, wb = tally false and ua, ub = tally true in
+  check "delete: weighted reaches both the tail (aaa) and the popular (bbb)" (wa > 0 && wb > 0);
+  check "delete: weighting favours the more-used lemma (bbb)" (wb > wa);
+  check "delete-uniform: both lemmas reachable" (ua > 0 && ub > 0)
+
+(* ---- --delete-lemmas + --shrink-* (prefix / minimal slice) ----
+   `base` is used by u1, u2, u3; un1/un2/un3 are unrelated; declare-before-use. *)
+let () =
+  let src =
+    "Lemma base : 1 = 1.\nProof. reflexivity. Qed.\n\n\
+     Lemma un1 : 2 = 2.\nProof. reflexivity. Qed.\n\n\
+     Lemma u1 : 1 = 1.\nProof. exact base. Qed.\n\n\
+     Lemma un2 : 3 = 3.\nProof. reflexivity. Qed.\n\n\
+     Lemma u2 : 1 = 1.\nProof. exact base. Qed.\n\n\
+     Lemma un3 : 4 = 4.\nProof. reflexivity. Qed.\n\n\
+     Lemma u3 : 1 = 1.\nProof. exact base. Qed.\n"
+  in
+  let base = { Ablate.default_spec with delete_lemmas = true; count = Some 2 } in
+  (* prefix: keep through the 2nd hole (u2), drop u3 + later unrelated; base deleted *)
+  let p = ablate_full ~seed:0 ~spec:{ base with shrink_challenge = true } src in
+  check "shrink prefix: keeps u1,u2" (contains p.text "Lemma u1" && contains p.text "Lemma u2");
+  check "shrink prefix: drops u3 (past N-th hole)" (not (contains p.text "Lemma u3"));
+  check "shrink prefix: base deleted" (not (contains p.text "Lemma base"));
+  check "shrink prefix: intervening context kept" (contains p.text "Lemma un1" && contains p.text "Lemma un2");
+  (* minimal slice: only the 2 holes survive; unrelated AND base dropped *)
+  let m = ablate_full ~seed:0 ~spec:{ base with shrink_challenge_minimal = true } src in
+  check "slice: keeps the 2 holes" (contains m.text "Lemma u1" && contains m.text "Lemma u2");
+  check "slice: drops unrelated decls" (not (contains m.text "Lemma un1") && not (contains m.text "Lemma un2"));
+  check "slice: drops base and u3" (not (contains m.text "Lemma base") && not (contains m.text "Lemma u3"));
+  (* solution slice: brings base (the answer) back, with real proofs *)
+  let ms = ablate_full ~seed:0 ~spec:{ base with shrink_solution_minimal = true } src in
+  check "solution slice: base restored" (contains ms.solution "Lemma base");
+  check "solution slice: real proof present" (contains ms.solution "exact base")
+
+(* ---- fairness: the slice must keep lemmas a hole's PROOF needs (not just its
+   statement), so the challenge never throws away more than the deleted lemma.
+   `helper` is cited only in `u`'s proof body (not its statement). *)
+let () =
+  let src =
+    "Lemma helper : 1 = 1.\nProof. reflexivity. Qed.\n\n\
+     Lemma base : 1 = 1.\nProof. reflexivity. Qed.\n\n\
+     Lemma unrelated : 9 = 9.\nProof. reflexivity. Qed.\n\n\
+     Lemma u : 1 = 1.\nProof. exact base. exact helper. Qed.\n"
+  in
+  let spec = { Ablate.default_spec with delete_lemmas = true; count = Some 1; shrink_challenge_minimal = true } in
+  let r = ablate_full ~seed:0 ~spec src in
+  check "fairness: helper (needed by the hole's proof) is KEPT in the challenge" (contains r.text "Lemma helper");
+  check "fairness: base (the deleted lemma) is omitted" (not (contains r.text "Lemma base"));
+  check "fairness: unrelated lemma still dropped" (not (contains r.text "Lemma unrelated"));
+  check "fairness: the user is holed" (contains r.text "Lemma u : 1 = 1." && contains r.text "Admitted.")
+
+(* ---- --delete-lemmas-leaves: hole only leaf steps citing L, keep skeleton ---- *)
+let () =
+  let src =
+    "Lemma base : 1 = 1.\nProof. reflexivity. Qed.\n\n\
+     Lemma uu : (1 = 1) /\\ (2 = 2).\nProof. split. exact base. reflexivity. Qed.\n"
+  in
+  let r = ablate_full ~spec:{ Ablate.default_spec with delete_lemmas = true; delete_leaves = true; prob = 1.0 } src in
+  check "leaves: skeleton kept (split, reflexivity)" (contains r.text "split." && contains r.text "reflexivity.");
+  check "leaves: L-citing leaf holed" (contains r.text "admit." && not (contains r.text "exact base"));
+  check "leaves: terminator becomes Admitted" (contains r.text "Admitted.");
+  check "leaves: base deleted" (not (contains r.text "Lemma base"))
+
 (* ---- sha1 known-answer (task_id must be stable across targets) ---- *)
 
 let () =
