@@ -339,6 +339,13 @@ fn main() {
             {
                 continue;
             }
+            // only emit *real* challenges: at least one hole was inserted AND the
+            // challenge differs from the solution. A theory with no eligible lemmas (or
+            // a no-op ablation) otherwise yields a trivial, already-complete challenge
+            // that would inflate any downstream baseline
+            if result.ablated == 0 || result.text == result.solution {
+                continue;
+            }
             if seen.insert(result.text.clone()) {
                 if cli.text {
                     print!("{}", result.text);

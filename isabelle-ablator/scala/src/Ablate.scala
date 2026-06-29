@@ -997,7 +997,12 @@ object Ablate {
         val result = ablate(syntax, original, spec, rng, centrality)
         // aggressive delete-lemmas: only keep challenges that actually compile
         val valid = !spec.aggressive || check_compiles(thy, result.text)
-        if (valid && seen.add(result.text)) {  // best-effort dedup across repeats
+        // only emit *real* challenges: at least one hole was inserted AND the challenge
+        // differs from the solution. A theory with no eligible lemmas (or a no-op
+        // ablation) otherwise yields a trivial, already-complete challenge that would
+        // inflate any downstream baseline
+        val nontrivial = result.ablated > 0 && result.text != result.solution
+        if (valid && nontrivial && seen.add(result.text)) {  // best-effort dedup across repeats
           if (text_mode) System.out.print(result.text)   // raw ablated theory, byte-exact
           else {
             val variant = if (n_repeat > 1) Some(produced) else None

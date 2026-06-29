@@ -362,7 +362,12 @@ let () =
         let result = Ablate.ablate spans spec (Ablate.Rng.make seed) centrality in
         (* aggressive delete-lemmas: only keep challenges that actually compile *)
         let valid = (not o.aggressive) || Build_check.check_compiles path result.text in
-        if valid && not (Hashtbl.mem seen result.text) then begin
+        (* only emit *real* challenges: at least one hole was inserted AND the challenge
+           differs from the solution. A file with no eligible lemmas (or a no-op
+           ablation) otherwise yields a trivial, already-complete challenge that would
+           inflate any downstream baseline *)
+        let nontrivial = result.ablated > 0 && result.text <> result.solution in
+        if valid && nontrivial && not (Hashtbl.mem seen result.text) then begin
           Hashtbl.replace seen result.text ();
           if o.text_mode then print_string result.text
           else begin

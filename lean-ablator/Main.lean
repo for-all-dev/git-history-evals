@@ -396,7 +396,12 @@ def main (args : List String) : IO UInt32 := do
       let result := ablate d.toks spec rng centrality
       -- aggressive delete-lemmas: only keep challenges that actually compile
       let valid ← if o.aggressive then checkCompiles d.path.toString result.text else pure true
-      if valid && !seen.contains result.text then
+      -- Only emit *real* challenges: at least one hole was inserted AND the challenge
+      -- differs from the solution. A file with no eligible lemmas (or a no-op ablation)
+      -- otherwise yields a trivial challenge — already-complete, no holes to fill —
+      -- which any model "passes" by doing nothing, inflating baselines. (#trivial-skip)
+      let nontrivial := result.ablated > 0 && result.text != result.solution
+      if valid && nontrivial && !seen.contains result.text then
         seen := seen.insert result.text
         if o.textMode then
           IO.print result.text
