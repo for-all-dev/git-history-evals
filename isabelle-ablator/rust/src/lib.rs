@@ -263,6 +263,65 @@ mod tests {
     }
 
     #[test]
+    fn apply_script_cut() {
+        // An apply-script with >=2 steps is ablated by keeping a prefix of `apply` steps
+        // and admitting the rest with `sorry`; a single-step script -> whole-proof.
+        let syn = span::Syntax::hol();
+        let src = "theory T\nimports Main\nbegin\n\n\
+            lemma multi: \"rev (rev xs) = xs\"\n  apply (induct xs)\n  apply simp\n  apply auto\n  done\n\n\
+            lemma one: \"(1::nat) = 1\"\n  apply simp\n  done\n\nend\n";
+        let spans = syn.parse_spans(src);
+        let z = |_: &str| 0i64;
+        let spec = ablate::Spec { prob: 1.0, ..Default::default() };
+        let mut rng = ablate::Rng::new(0);
+        let r = ablate::ablate(&spans, &spec, &mut rng, &z);
+        assert!(r.text.contains("apply (induct xs)"), "leading apply step kept as a hint");
+        assert!(r.text.contains("sorry"), "the rest is admitted with sorry");
+        assert!(!r.text.contains("apply auto"), "the final apply step is dropped");
+        assert!(!r.text.contains("done"), "the terminator is dropped");
+        assert!(
+            r.text.contains("lemma one: \"(1::nat) = 1\" sorry"),
+            "a single-apply script falls back to whole-proof"
+        );
+        assert!(r.solution.contains("apply auto") && r.solution.contains("done"));
+        // reproducible per seed, and challenge != solution (a real challenge)
+        let mut rng2 = ablate::Rng::new(0);
+        let r2 = ablate::ablate(&spans, &spec, &mut rng2, &z);
+        assert_eq!(r.text, r2.text, "same seed -> same cut");
+        assert_ne!(r.text, r.solution);
+
+        // --ablate-scripts: drop the whole script instead of prefix-cutting
+        let ws_spec = ablate::Spec { prob: 1.0, ablate_scripts: true, ..Default::default() };
+        let mut rng3 = ablate::Rng::new(0);
+        let ws = ablate::ablate(&spans, &ws_spec, &mut rng3, &z);
+        assert!(
+            ws.text.contains("lemma multi: \"rev (rev xs) = xs\" sorry"),
+            "--ablate-scripts drops the whole script"
+        );
+        assert!(!ws.text.contains("apply (induct xs)"), "no prefix kept under --ablate-scripts");
+    }
+
+    #[test]
+    fn delete_leaves_apply_cut() {
+        // A deleted lemma used mid apply-script -> cut at that step, keeping the prefix.
+        let syn = span::Syntax::hol();
+        let src = "theory T\nimports Main\nbegin\n\n\
+            lemma base: \"(1::nat) = 1\" by simp\n\n\
+            lemma u: \"(1::nat) = 1\"\n  apply (rule refl)\n  apply (simp add: base)\n  done\n\nend\n";
+        let spans = syn.parse_spans(src);
+        let z = |_: &str| 0i64;
+        let spec = ablate::Spec {
+            delete_lemmas: true, delete_leaves: true, count: Some(1), ..Default::default()
+        };
+        let mut rng = ablate::Rng::new(0);
+        let r = ablate::ablate(&spans, &spec, &mut rng, &z);
+        assert!(!r.text.contains("lemma base"), "deleted lemma omitted");
+        assert!(r.text.contains("apply (rule refl)"), "prefix before the citing step kept");
+        assert!(!r.text.contains("simp add: base"), "citing step cut (no dangling ref)");
+        assert!(r.text.contains("sorry"), "the cut is admitted with sorry");
+    }
+
+    #[test]
     fn delete_lemmas_count_arg() {
         // --delete-lemmas N deletes exactly N lemmas regardless of ablation count
         let syn = span::Syntax::hol();

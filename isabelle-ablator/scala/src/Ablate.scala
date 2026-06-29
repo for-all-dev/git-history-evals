@@ -55,6 +55,14 @@ object Ablate {
 
   private def n_lines(s: String): Int = if (s.isEmpty) 0 else s.count(_ == '\n') + 1
 
+  // Seeded FNV-1a hash of a statement (XOR the per-run cutSalt) -> a reproducible
+  // pseudo-random value used to pick an apply-script cut point (per (seed, lemma)).
+  private def cutHash(s: String, salt: Long): Long = {
+    var h = 0xcbf29ce484222325L ^ salt
+    for (b <- s.getBytes("UTF-8")) { h ^= (b & 0xff).toLong; h *= 0x100000001b3L }
+    h
+  }
+
   /** A short label for a proof's main method, for difficulty stratification. */
   private def classify_method(span: Command_Span.Span): String =
     span.name match {
@@ -102,7 +110,8 @@ object Ablate {
     delete_count: Option[Int] = None,  // delete-lemmas: delete exactly this many lemmas (None = count/prob)
     delete_uniform: Boolean = false,   // delete-lemmas: draw deletions uniformly, not by user count
     delete_leaves: Boolean = false,    // delete-lemmas: hole only leaf steps (falls back to whole proof)
-    aggressive: Boolean = false        // delete-lemmas: relax guards (BE; needs --check-build)
+    aggressive: Boolean = false,       // delete-lemmas: relax guards (BE; needs --check-build)
+    ablate_scripts: Boolean = false    // ablate apply-scripts whole, not the default prefix-cut
   ) {
     def uses_centrality: Boolean =
       min_centrality > 0 || max_centrality != Int.MaxValue || by_centrality
@@ -170,6 +179,28 @@ object Ablate {
     val n = spans.length
 
     def src(j: Int): String = Token.implode(spans(j).content)
+
+    val cutSalt: Long = rng.nextLong() // seeds the apply-script cut point (reproducible)
+
+    // Top-level (depth `base`) apply/apply_end step indices of a proof body [start,end).
+    // Steps inside a nested have/show/{ are excluded (depth tracked as in `measure`).
+    def applySteps(start: Int, end: Int, base: Int): List[Int] = {
+      val steps = mutable.ListBuffer[Int]()
+      var j = start; var dep = base
+      while (j < end) {
+        kind_of(spans(j)) match {
+          case Some(k) =>
+            if (dep == base && (spans(j).name == "apply" || spans(j).name == "apply_end"))
+              steps += j
+            if (Keyword.proof_goal.contains(k) || k == Keyword.PRF_OPEN) dep += 1
+            else if (closes(k)) dep -= 1
+            else if (closes_global(k)) dep = base - 1
+          case None =>
+        }
+        j += 1
+      }
+      steps.toList
+    }
 
     // One pass; `decide(stmt_index)` says whether to ablate each matching proof.
     // Returns the result plus, for every matching proof, (stmt index, centrality).
@@ -252,8 +283,15 @@ object Ablate {
         total += 1
         matches += ((stmt_idx, cent))
         if (decide(stmt_idx)) {
-          // sit `sorry` right after the statement (swallow the gap to the old
-          // proof) so it never dangles flush-left on its own line.
+          // Apply-script: keep a seeded-random prefix of `apply` steps and admit the
+          // rest with `sorry` (default). Otherwise (or --ablate-scripts, or a single
+          // step) sit `sorry` right after the statement, dropping the whole proof.
+          val steps = applySteps(i, m.end, goal_depth)
+          val keepK =
+            if (!spec.ablate_scripts && steps.length >= 2)
+              1 + Math.floorMod(cutHash(src(stmt_idx), cutSalt), (steps.length - 1).toLong).toInt
+            else 0
+          if (keepK > 0) out ++= (i until steps(keepK - 1) + 1).map(src).mkString
           out ++= " sorry"
           last_sorry_end = out.length
           ablated += 1
@@ -469,6 +507,18 @@ object Ablate {
       found
     }
     def subtreeCites(lo: Int, hi: Int): Boolean = (lo until hi).exists(spanCites)
+    // First OWN-level (depth d) span citing a deleted name (skips nested goal-units);
+    // -1 if none. Used to cut an apply-script at the step using a deleted lemma.
+    def firstCitingToplevel(lo: Int, hi: Int, d: Int): Int = {
+      var jj = lo; var res = -1
+      while (jj < hi && res < 0) {
+        kind_of(spans(jj)) match {
+          case Some(k) if Keyword.proof_goal.contains(k) => jj = measureEnd(jj + 1, d + 1)
+          case _ => if (spanCites(jj)) res = jj else jj += 1
+        }
+      }
+      res
+    }
     def leafRender(lo: Int, hi: Int, d: Int): (String, Boolean) = {
       val sb = new mutable.StringBuilder; var ok = true; var jj = lo
       while (jj < hi) {
@@ -490,7 +540,15 @@ object Ablate {
     def renderUser(opener: Int, end: Int): String =
       if (spec.delete_leaves) {
         val (body, ok) = leafRender(opener + 1, end, 0)
-        if (ok) src(opener) + body else src(opener) + " sorry"
+        if (ok) src(opener) + body
+        else if (!spec.ablate_scripts) {
+          // apply-script: cut at the first top-level step citing the deleted name,
+          // keeping the citation-free prefix + sorry.
+          val cut = firstCitingToplevel(opener + 1, end, 0)
+          if (cut >= 0 && !subtreeCites(opener + 1, cut))
+            src(opener) + (opener + 1 until cut).map(src).mkString + " sorry"
+          else src(opener) + " sorry"
+        } else src(opener) + " sorry"
       } else src(opener) + " sorry"
 
     // Emit the challenge + record per-item challenge/solution segments (offset, closer,
@@ -769,6 +827,9 @@ object Ablate {
       |    --aggressively-delete-lemmas
       |                        as above, relaxed guards, validated with `isabelle build`
       |                        (drops non-compiling challenges; needs the HOL heap)
+      |    --ablate-scripts    ablate apply-scripts whole (drop the entire script)
+      |                        instead of the default prefix-cut (keep some `apply`
+      |                        steps, `sorry` the rest)
       |
       |  Context shaping (ignored by --check / --check-build):
       |    --truncate          drop challenge text after the last inserted `sorry`
@@ -820,6 +881,7 @@ object Ablate {
     var deleteUniform = false
     var deleteLeaves = false
     var aggressive = false
+    var ablateScripts = false
     var repeat = 1
     val paths = new mutable.ListBuffer[String]
     val build_targets = new mutable.ListBuffer[String]
@@ -861,6 +923,7 @@ object Ablate {
         case "--aggressively-delete-lemmas" :: n :: tl if n.toIntOption.exists(_ >= 0) =>
           deleteLemmas = true; aggressive = true; deleteCount = n.toIntOption; rest = tl
         case "--aggressively-delete-lemmas" :: tl => deleteLemmas = true; aggressive = true; rest = tl
+        case "--ablate-scripts" :: tl => ablateScripts = true; rest = tl
         case "--repeat" :: v :: tl => repeat = v.toInt; rest = tl
         case "-s" :: v :: tl => session = v; rest = tl
         case "-d" :: v :: tl => dirs = dirs ::: List(Path.explode(v)); rest = tl
@@ -911,7 +974,8 @@ object Ablate {
       delete_count = deleteCount,
       delete_uniform = deleteUniform,
       delete_leaves = deleteLeaves,
-      aggressive = aggressive)
+      aggressive = aggressive,
+      ablate_scripts = ablateScripts)
 
     if (spec.min_depth < 1) { Console.err.println("--min-depth must be >= 1"); sys.exit(2) }
     if (paths.isEmpty && build_targets.isEmpty) { Console.err.println(usage); sys.exit(2) }

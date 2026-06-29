@@ -68,6 +68,7 @@ fn spec_from(opts: &Value) -> (Spec, Option<String>) {
         delete_uniform: as_bool(g("delete_uniform"), false),
         delete_leaves: as_bool(g("delete_leaves"), false),
         aggressive: false, // the prover-backed path is never exposed to the browser
+        ablate_scripts: as_bool(g("ablate_scripts"), false),
     };
     (spec, difficulty)
 }

@@ -102,6 +102,10 @@ struct Cli {
     /// delete-lemmas[=N] with relaxed guards, validated by `isabelle build` (needs isabelle)
     #[arg(long, num_args = 0..=1, require_equals = true, value_name = "N")]
     aggressively_delete_lemmas: Option<Option<u64>>,
+    /// ablate apply-scripts whole (drop the entire script) instead of the default
+    /// prefix-cut (keep a prefix of `apply` steps, `sorry` the rest)
+    #[arg(long)]
+    ablate_scripts: bool,
 
     /// session name (for the record's `session` field)
     #[arg(short = 's', long, default_value = "HOL")]
@@ -227,6 +231,7 @@ fn main() {
         delete_uniform: cli.delete_lemmas_uniform.is_some(),
         delete_leaves: cli.delete_lemmas_leaves.is_some(),
         aggressive: cli.aggressively_delete_lemmas.is_some(),
+        ablate_scripts: cli.ablate_scripts,
     };
     if spec.min_depth < 1 {
         die("--min-depth must be >= 1");

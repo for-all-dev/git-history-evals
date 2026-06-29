@@ -31,6 +31,9 @@ pub struct Spec {
     pub delete_uniform: bool,
     pub delete_leaves: bool,
     pub aggressive: bool,
+    /// Ablate apply-scripts whole (drop the entire script) instead of the default
+    /// prefix-cut (keep some `apply` steps, `sorry` the rest).
+    pub ablate_scripts: bool,
 }
 
 impl Default for Spec {
@@ -56,6 +59,7 @@ impl Default for Spec {
             delete_uniform: false,
             delete_leaves: false,
             aggressive: false,
+            ablate_scripts: false,
         }
     }
 }
@@ -185,6 +189,44 @@ fn classify_method(span: &Span) -> String {
     }
 }
 
+/// Indices of the top-level (depth `base`) `apply`/`apply_end` steps in a proof body
+/// `[start, end)`. `base` is the proof body's own depth (the goal's depth). Steps inside
+/// a nested `have`/`show`/`{` are excluded (depth tracked exactly as in `measure`). An
+/// apply-script proof is one whose step list is non-empty; keeping a prefix of these
+/// steps and admitting the rest with `sorry` is always well-formed.
+fn apply_steps(spans: &[Span], start: usize, end: usize, base: i64) -> Vec<usize> {
+    let mut steps = Vec::new();
+    let mut dep = base;
+    let mut j = start;
+    while j < end {
+        if let Some(k) = kind_of(&spans[j]) {
+            if dep == base && k == kw::PRF_SCRIPT {
+                steps.push(j);
+            }
+            if kw::is_proof_goal(k) || k == kw::PRF_OPEN {
+                dep += 1;
+            } else if kw::is_proof_close(k) {
+                dep -= 1;
+            } else if kw::is_qed_global(k) {
+                dep = base - 1;
+            }
+        }
+        j += 1;
+    }
+    steps
+}
+
+/// Seeded hash of a statement (XOR the per-run `cut_salt`) → a reproducible pseudo-random
+/// value used to pick an apply-script cut point. Deterministic per `(seed, lemma)`.
+fn cut_hash(s: &str, salt: u64) -> u64 {
+    let mut h = 0xcbf29ce484222325u64 ^ salt;
+    for b in s.bytes() {
+        h ^= b as u64;
+        h = h.wrapping_mul(0x100000001b3);
+    }
+    h
+}
+
 /* ---------- the walk ---------- */
 
 struct Body {
@@ -213,6 +255,7 @@ struct Walker<'a> {
     ablated: i64,
     i: usize,
     depth: i64,
+    cut_salt: u64, // seeds the apply-script cut point (reproducible per run)
 }
 
 impl<'a> Walker<'a> {
@@ -330,6 +373,21 @@ impl<'a> Walker<'a> {
             self.total += 1;
             self.matches.push((stmt_idx, cent));
             if (self.decide)(stmt_idx) {
+                // Apply-script proofs: keep a seeded-random prefix of `apply` steps and
+                // admit the rest with `sorry` (a head start for the agent) instead of
+                // dropping the whole proof. Other proofs (structured, `by`, single
+                // `apply`) keep the whole-proof ` sorry`.
+                let steps = apply_steps(self.spans, self.i, m.end, goal_depth);
+                let keep_k = if !self.spec.ablate_scripts && steps.len() >= 2 {
+                    1 + (cut_hash(&stmt_src, self.cut_salt) % (steps.len() as u64 - 1)) as usize
+                } else {
+                    0 // --ablate-scripts (or a single step): drop the whole script
+                };
+                if keep_k > 0 {
+                    let prefix: String =
+                        (self.i..steps[keep_k - 1] + 1).map(|j| self.src(j)).collect();
+                    self.out.push_str(&prefix);
+                }
                 self.out.push_str(" sorry");
                 self.last_sorry_end = self.out.chars().count() as i64;
                 self.ablated += 1;
@@ -396,6 +454,7 @@ fn walk_all(
     spec: &Spec,
     centrality: &dyn Fn(&str) -> i64,
     decide: &mut dyn FnMut(usize) -> bool,
+    cut_salt: u64,
 ) -> (AblationResult, Vec<(usize, i64)>) {
     let mut w = Walker {
         spans,
@@ -412,6 +471,7 @@ fn walk_all(
         ablated: 0,
         i: 0,
         depth: 0,
+        cut_salt,
     };
     w.run();
 
@@ -507,7 +567,7 @@ fn slice_delete(
                 if !solution && del.contains(&i) {
                     // deleted lemma: omitted from the challenge
                 } else if !solution && (must_hole(i) || users.contains(&i)) {
-                    buf.push_str(&render_user(spans, i, e, &deleted_names, spec.delete_leaves));
+                    buf.push_str(&render_user(spans, i, e, &deleted_names, spec.delete_leaves, spec.ablate_scripts));
                 } else {
                     buf.push_str(&src_range(i, e));
                 }
@@ -579,6 +639,31 @@ fn subtree_cites(spans: &[Span], lo: usize, hi: usize, deleted: &std::collection
     (lo..hi).any(|j| span_cites(&spans[j], deleted))
 }
 
+/// Index of the first OWN-level (depth `d`) span in `[lo,hi)` that cites a deleted name,
+/// skipping over nested goal-units (mirrors `own_cites`). Used to cut an apply-script at
+/// the step that uses a deleted lemma.
+fn first_citing_toplevel(
+    spans: &[Span],
+    lo: usize,
+    hi: usize,
+    d: i64,
+    deleted: &std::collections::HashSet<String>,
+) -> Option<usize> {
+    let mut j = lo;
+    while j < hi {
+        match kind_of(&spans[j]) {
+            Some(k) if kw::is_proof_goal(k) => j = measure_end(spans, j + 1, d + 1),
+            _ => {
+                if span_cites(&spans[j], deleted) {
+                    return Some(j);
+                }
+                j += 1;
+            }
+        }
+    }
+    None
+}
+
 /// Render proof body `[lo,hi)` (whose enclosing unit measured at depth `d`), holing
 /// the innermost units that own-level-cite a deleted name. Returns (text, all_covered):
 /// `all_covered=false` means a deleted name survives at this level (caller whole-proofs).
@@ -619,11 +704,23 @@ fn leaf_render(spans: &[Span], lo: usize, hi: usize, d: i64, deleted: &std::coll
 
 /// Render one holed user. `--delete-lemmas-leaves` holes the smallest enclosing steps
 /// citing a deleted name (whole-proof fallback); otherwise whole-proof (`stmt + sorry`).
-fn render_user(spans: &[Span], opener: usize, end: usize, deleted: &std::collections::HashSet<String>, leaves: bool) -> String {
+fn render_user(spans: &[Span], opener: usize, end: usize, deleted: &std::collections::HashSet<String>, leaves: bool, ablate_scripts: bool) -> String {
     if leaves {
         let (body, ok) = leaf_render(spans, opener + 1, end, 0, deleted);
         if ok {
             return format!("{}{}", spans[opener].source(), body);
+        }
+        // Apply-script: a top-level step (not a nested have/show) cites the deleted name.
+        // Cut at the first such step, keeping the citation-free prefix + `sorry`
+        // (unless --ablate-scripts, which drops the whole script below).
+        if !ablate_scripts {
+            if let Some(cut) = first_citing_toplevel(spans, opener + 1, end, 0, deleted) {
+                if !subtree_cites(spans, opener + 1, cut, deleted) {
+                    let prefix: String =
+                        spans[opener + 1..cut].iter().map(|s| s.source()).collect();
+                    return format!("{}{} sorry", spans[opener].source(), prefix);
+                }
+            }
         }
     }
     format!("{} sorry", spans[opener].source())
@@ -747,7 +844,7 @@ fn ablate_delete(spans: &[Span], spec: &Spec, rng: &mut Rng) -> AblationResult {
                 orig_chars += item_chars;
                 sol_segs.push((orig_chars, false, false)); // solution only
             } else if users.contains(&i) {
-                out.push_str(&render_user(spans, i, e, &deleted_names, spec.delete_leaves));
+                out.push_str(&render_user(spans, i, e, &deleted_names, spec.delete_leaves, spec.ablate_scripts));
                 last_sorry_end = out.chars().count() as i64;
                 let proof_text = src_range(i + 1, e);
                 holes.push(Hole {
@@ -812,10 +909,11 @@ pub fn ablate(
     if spec.delete_lemmas {
         return ablate_delete(spans, spec, rng);
     }
+    let cut_salt = rng.next_u64();
     match spec.count {
         Some(target) => {
             let mut none = |_idx: usize| false;
-            let cands = walk_all(spans, spec, centrality, &mut none).1;
+            let cands = walk_all(spans, spec, centrality, &mut none, cut_salt).1;
             let selected: std::collections::HashSet<usize> = if cands.len() as u64 <= target {
                 cands.iter().map(|(i, _)| *i).collect()
             } else if spec.by_centrality {
@@ -828,14 +926,14 @@ pub fn ablate(
                 idx.into_iter().take(target as usize).collect()
             };
             let mut decide = |idx: usize| selected.contains(&idx);
-            let (mut r, _) = walk_all(spans, spec, centrality, &mut decide);
+            let (mut r, _) = walk_all(spans, spec, centrality, &mut decide, cut_salt);
             r.total = cands.len() as i64;
             r
         }
         None => {
             let p = spec.prob;
             let mut decide = |_idx: usize| rng.next_f64() < p;
-            walk_all(spans, spec, centrality, &mut decide).0
+            walk_all(spans, spec, centrality, &mut decide, cut_salt).0
         }
     }
 }
