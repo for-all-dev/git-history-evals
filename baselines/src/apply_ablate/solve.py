@@ -176,6 +176,12 @@ class SolveResult(BaseModel):
         False  # the challenge itself failed to compile (ablator bug)
     )
     turn_limit: bool = False  # the agent exhausted its request budget
+    trivial: bool = False  # empty solution diff (nothing deleted/holed) — not scorable
+    dry_run: bool = False  # inspected only; the model was never called
+
+
+def _hole_count(content: str) -> int:
+    return len(re.findall(r"\b(sorry|admit|Admitted|oops)\b", content))
 
 
 def solve_one(
@@ -186,8 +192,30 @@ def solve_one(
     model: str,
     max_turns: int = 30,
     timeout: int = 600,
+    dry_run: bool = False,
 ) -> SolveResult:
-    """Apply one challenge into `work`, run the agent loop, return the verdict + diff."""
+    """Apply one challenge into `work`, run the agent loop, return the verdict + diff.
+
+    With `dry_run=True` the model is never called: the challenge is still applied and
+    pre-flight-compiled (so `malformed`/`trivial` are detected and the challenge content
+    + metadata are logged to Logfire), then a `dry_run` result is returned. Lets you
+    inspect the whole challenge set on Logfire without spending tokens.
+    """
+    # A challenge whose solution diff is empty is *trivial*: nothing was deleted/holed,
+    # so the challenge already equals a complete file and any model "passes" by doing
+    # nothing. That inflates PASS rates, so skip it (excluded from scoring upstream).
+    # The real fix is in the ablators (don't emit a record when 0 lemmas are deleted);
+    # this is the harness safety net that keeps numbers honest regardless of ablator.
+    if record.solution_diff.strip() == "":
+        return SolveResult(
+            task_id=record.task_id,
+            assistant=record.assistant,
+            file_path=record.file_path,
+            succeeded=False,
+            gave_up=False,
+            trivial=True,
+            error="trivial-challenge: empty solution diff (nothing deleted/holed)",
+        )
     prover = get_prover(record.assistant)
     target = apply_record(record, src, work, overwrite=True)
     rel = (
@@ -212,6 +240,17 @@ def solve_one(
             gave_up=False,
             error=f"malformed-challenge: {pre.trimmed(1500)}",
             malformed_challenge=True,
+        )
+    if dry_run:
+        # No model call. The challenge body/metadata are attached to the `challenge`
+        # span by the caller (baseline.py), so it's inspectable on Logfire as one event.
+        return SolveResult(
+            task_id=record.task_id,
+            assistant=record.assistant,
+            file_path=record.file_path,
+            succeeded=False,
+            gave_up=False,
+            dry_run=True,
         )
     deps = SolveDeps(
         work_dir=work,

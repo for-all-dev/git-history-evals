@@ -76,9 +76,18 @@ def run(
     out: Annotated[Path, typer.Option("--out", help="Results JSONL.")] = Path(
         "baseline-results.jsonl"
     ),
+    dry_run: Annotated[
+        bool,
+        typer.Option(
+            "--dry-run",
+            help="Apply + pre-flight + log each challenge to Logfire; never call the "
+            "model (no tokens spent). Use to inspect a challenge set.",
+        ),
+    ] = False,
 ) -> None:
     _load_env()
     from apply_ablate.obs import init_logfire, log, set_attrs, span
+    from apply_ablate.solve import _hole_count
 
     init_logfire()
     n = _count_records(challenges)
@@ -97,11 +106,21 @@ def run(
                 model=model,
             ) as sp:
                 res = solve_one(
-                    rec, src, work, model=model, max_turns=max_turns, timeout=timeout
+                    rec,
+                    src,
+                    work,
+                    model=model,
+                    max_turns=max_turns,
+                    timeout=timeout,
+                    dry_run=dry_run,
                 )
                 outcome = (
                     "pass"
                     if res.succeeded
+                    else "dry_run"
+                    if res.dry_run
+                    else "trivial"
+                    if res.trivial
                     else "malformed"
                     if res.malformed_challenge
                     else "gave_up"
@@ -119,9 +138,17 @@ def run(
                     gave_up=res.gave_up,
                     turn_limit=res.turn_limit,
                     malformed=res.malformed_challenge,
+                    trivial=res.trivial,
                     reason=res.reason,
                     error=res.error,
                 )
+                if res.dry_run:
+                    # Attach the challenge itself so the dry run is inspectable from
+                    # this one span (no separate event).
+                    chal = rec.challenge_file_content
+                    set_attrs(
+                        sp, holes=_hole_count(chal), chars=len(chal), challenge=chal
+                    )
                 log(
                     f"challenge {outcome}",
                     file_path=rec.file_path,
@@ -133,27 +160,46 @@ def run(
             fh.write(res.model_dump_json() + "\n")
             fh.flush()
             results.append(res)
-            tag = "PASS" if res.succeeded else ("GAVE_UP" if res.gave_up else "FAIL")
+            tag = (
+                "DRY"
+                if res.dry_run
+                else "PASS"
+                if res.succeeded
+                else ("GAVE_UP" if res.gave_up else "FAIL")
+            )
             typer.echo(
                 f"    -> {tag}{(': ' + res.error) if res.error else ''}", err=True
             )
     # summary
     total = len(results)
     malformed = sum(1 for r in results if r.malformed_challenge)
-    scorable = total - malformed
+    trivial = sum(1 for r in results if r.trivial)
+    typer.echo("")
+    if dry_run:
+        well_formed = sum(1 for r in results if r.dry_run)
+        typer.echo("=== dry run (no model called) ===")
+        typer.echo(f"  challenges : {total}")
+        typer.echo(f"  well-formed: {well_formed} (applied + pre-flight compiled)")
+        typer.echo(f"  trivial    : {trivial} (empty diff; nothing deleted)")
+        typer.echo(f"  malformed  : {malformed} (challenge did not compile)")
+        typer.echo(f"  results    : {out}  (challenges logged to Logfire)")
+        return
+    scorable = total - malformed - trivial
     passed = sum(1 for r in results if r.succeeded)
     gave_up = sum(1 for r in results if r.gave_up)
     turn_limited = sum(1 for r in results if r.turn_limit and not r.succeeded)
     errored = sum(
-        1 for r in results if r.error and not r.malformed_challenge and not r.turn_limit
+        1
+        for r in results
+        if r.error and not r.malformed_challenge and not r.turn_limit and not r.trivial
     )
-    typer.echo("")
     typer.echo(f"=== baseline: {model} ===")
     typer.echo(f"  challenges : {total}")
+    typer.echo(f"  trivial    : {trivial} (empty diff; nothing deleted — excluded)")
     typer.echo(f"  malformed  : {malformed} (ablator bug; excluded from PASS rate)")
     typer.echo(
         f"  PASS       : {passed}/{scorable} "
-        f"({(100.0 * passed / scorable if scorable else 0):.0f}% of well-formed)"
+        f"({(100.0 * passed / scorable if scorable else 0):.0f}% of scorable)"
     )
     typer.echo(f"  gave up    : {gave_up}")
     typer.echo(f"  turn-limit : {turn_limited} (ran out of request budget, no compile)")
