@@ -294,17 +294,31 @@ let () =
   check "fairness: unrelated lemma still dropped" (not (contains r.text "Lemma unrelated"));
   check "fairness: the user is holed" (contains r.text "Lemma u : 1 = 1." && contains r.text "Admitted.")
 
-(* ---- --delete-lemmas-leaves: hole only leaf steps citing L, keep skeleton ---- *)
+(* ---- --delete-lemmas-leaves: hole the smallest enclosing unit citing L ---- *)
+(* bulleted proof: the citation is in a bullet segment, so hole just that bullet and
+   keep the rest of the skeleton (split, the other bullet). *)
 let () =
   let src =
     "Lemma base : 1 = 1.\nProof. reflexivity. Qed.\n\n\
-     Lemma uu : (1 = 1) /\\ (2 = 2).\nProof. split. exact base. reflexivity. Qed.\n"
+     Lemma uu : (1 = 1) /\\ (2 = 2).\nProof. split.\n  - exact base.\n  - reflexivity.\nQed.\n"
   in
   let r = ablate_full ~spec:{ Ablate.default_spec with delete_lemmas = true; delete_leaves = true; prob = 1.0 } src in
-  check "leaves: skeleton kept (split, reflexivity)" (contains r.text "split." && contains r.text "reflexivity.");
-  check "leaves: L-citing leaf holed" (contains r.text "admit." && not (contains r.text "exact base"));
-  check "leaves: terminator becomes Admitted" (contains r.text "Admitted.");
-  check "leaves: base deleted" (not (contains r.text "Lemma base"))
+  check "leaves(bullet): skeleton kept (split, reflexivity)" (contains r.text "split." && contains r.text "reflexivity.");
+  check "leaves(bullet): citing bullet holed to admit" (contains r.text "admit." && not (contains r.text "exact base"));
+  check "leaves(bullet): terminator becomes Admitted" (contains r.text "Admitted.");
+  check "leaves(bullet): base deleted" (not (contains r.text "Lemma base"))
+
+(* flat proof: the citation is a mid-sequence tactic (no enclosing bullet/brace), which
+   cannot be safely turned into [admit.] (it would leave "No such goal"), so the leaf
+   holer falls back to whole-proof ablation. *)
+let () =
+  let src =
+    "Lemma base : 1 = 1.\nProof. reflexivity. Qed.\n\n\
+     Lemma uu : 1 = 1.\nProof. rewrite base. reflexivity. Qed.\n"
+  in
+  let r = ablate_full ~spec:{ Ablate.default_spec with delete_lemmas = true; delete_leaves = true; prob = 1.0 } src in
+  check "leaves(flat): whole-proof fallback (skeleton dropped)" (contains r.text "Proof. Admitted." && not (contains r.text "rewrite base"));
+  check "leaves(flat): base deleted" (not (contains r.text "Lemma base"))
 
 (* ---- --delete-lemmas N: delete exactly N lemmas (regardless of ablation count) ---- *)
 let () =

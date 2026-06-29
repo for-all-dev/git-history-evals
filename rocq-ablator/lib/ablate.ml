@@ -775,42 +775,114 @@ let ablate_delete (spans : Span.t array) (spec : spec) (rng : Rng.t) : result =
     Buffer.add_string b "Proof. Admitted.";
     Buffer.contents b
   in
-  (* [--delete-lemmas-leaves]: hole only the leaf steps (sentences) that cite a
-     deleted name, keeping the rest of the proof skeleton; the terminator becomes
-     [Admitted.] since an [admit.] leaves the proof incomplete. Returns [None] (=>
-     caller falls back to whole-proof) when a deleted name is cited outside an
-     ablatable sentence, or when no leaf actually cites it. *)
+  (* does a span cite one of the deleted lemma names? (used by the leaf holer below) *)
   let deleted_names = Hashtbl.create 16 in
   List.iter (fun (l : Uses.lemma) -> Hashtbl.replace deleted_names l.Uses.name ()) selected;
   let cites (sp : Span.t) =
     List.exists (fun nm -> Hashtbl.mem deleted_names nm) (Uses.names_in sp.Span.content)
   in
+  (* [--delete-lemmas-leaves]: hole the *smallest enclosing ablatable unit* that cites a
+     deleted name. A Coq tactic only safely becomes [admit.] if doing so discharges the
+     goal it focuses — true for a bullet segment ([- …]) or brace block ([{ … }]), each
+     of which focuses one goal, but NOT for a tactic in a flat sequence (replacing it
+     mid-sequence leaves the following tactics with "No such goal"). So we recurse into
+     the proof's focus structure: a unit that cites is replaced wholesale with [admit.]
+     (preferring the innermost citing unit), siblings are kept verbatim; a citation in a
+     flat top-level sequence yields [None] => caller whole-proof-ablates. *)
   let leaf_proof opener e =
     let term = e - 1 in
     if term <= opener || not (Span.is_terminator spans.(term)) then None
     else begin
-      let bad = ref false and any = ref false in
-      for k = opener + 1 to term - 1 do
-        let sp = spans.(k) in
-        if cites sp then
-          match sp.kind with Span.Sentence _ -> any := true | _ -> bad := true
-      done;
-      if !bad || not !any then None
-      else begin
-        let b = Buffer.create 128 in
-        Buffer.add_string b (Span.source spans.(opener));
-        for k = opener + 1 to term - 1 do
-          let sp = spans.(k) in
-          match sp.kind with
-          | Span.Sentence _ when cites sp ->
-              Buffer.add_string b (lead_of sp);
-              Buffer.add_string b "admit."
-          | _ -> Buffer.add_string b (Span.source sp)
+      (* matching [}] for the [{] at [j] (index of the Close), bounded by [term] *)
+      let brace_end j =
+        let d = ref 0 and k = ref (j + 1) and res = ref term in
+        while !res = term && !k < term do
+          (match spans.(!k).kind with
+           | Span.Open -> incr d
+           | Span.Close -> if !d = 0 then res := !k else decr d
+           | _ -> ());
+          if !res = term then incr k
         done;
-        Buffer.add_string b (lead_of spans.(term));
-        Buffer.add_string b "Admitted.";
-        Some (Buffer.contents b)
-      end
+        !res
+      in
+      (* exclusive end of the bullet segment opened at [j] with signature [sg] *)
+      let bullet_end j sg =
+        let d = ref 0 and k = ref (j + 1) and res = ref term in
+        while !res = term && !k < term do
+          let s = spans.(!k) in
+          (match s.kind with
+           | Span.Open -> incr d
+           | Span.Close -> if !d = 0 then res := !k else decr d
+           | Span.Bullet b -> if !d = 0 && b = sg then res := !k
+           | Span.Sentence _ -> if !d = 0 && Span.is_terminator s then res := !k
+           | _ -> ());
+          if !res = term then incr k
+        done;
+        !res
+      in
+      let cites_range lo hi =
+        let r = ref false in
+        for k = lo to hi - 1 do if cites spans.(k) then r := true done;
+        !r
+      in
+      (* render the tactics of one focused goal in [lo, hi): [`Admit] if a citation sits
+         in this level's flat sequence (caller must admit the whole focus), else [`Keep t]
+         with only the citing sub-units holed. *)
+      let rec render_focused lo hi =
+        (* a citation in a depth-0 sentence (outside any sub-unit) can't be isolated *)
+        let direct = ref false and k = ref lo in
+        while !k < hi do
+          let s = spans.(!k) in
+          (match s.kind with
+           | Span.Open -> k := brace_end !k + 1
+           | Span.Bullet sg -> k := bullet_end !k sg
+           | Span.Sentence _ -> if cites s then direct := true; incr k
+           | _ -> incr k)
+        done;
+        if !direct then `Admit
+        else begin
+          let b = Buffer.create 128 in
+          let i = ref lo in
+          while !i < hi do
+            let s = spans.(!i) in
+            match s.kind with
+            | Span.Open ->
+                let be = brace_end !i in
+                if cites_range (!i + 1) be then begin
+                  Buffer.add_string b (Span.source s);
+                  (match render_focused (!i + 1) be with
+                   | `Admit -> Buffer.add_string b " admit. "
+                   | `Keep t -> Buffer.add_string b t);
+                  Buffer.add_string b (Span.source spans.(be));
+                  i := be + 1
+                end
+                else begin Buffer.add_string b (src_range !i (be + 1)); i := be + 1 end
+            | Span.Bullet sg ->
+                let bend = bullet_end !i sg in
+                if cites_range (!i + 1) bend then begin
+                  Buffer.add_string b (Span.source s);
+                  (match render_focused (!i + 1) bend with
+                   | `Admit -> Buffer.add_string b " admit."
+                   | `Keep t -> Buffer.add_string b t);
+                  i := bend
+                end
+                else begin Buffer.add_string b (src_range !i bend); i := bend end
+            | _ -> Buffer.add_string b (Span.source s); incr i
+          done;
+          `Keep (Buffer.contents b)
+        end
+      in
+      if not (cites_range (opener + 1) term) then None
+      else
+        match render_focused (opener + 1) term with
+        | `Admit -> None (* flat top-level citation: fall back to whole-proof *)
+        | `Keep body ->
+            let b = Buffer.create 128 in
+            Buffer.add_string b (Span.source spans.(opener));
+            Buffer.add_string b body;
+            Buffer.add_string b (lead_of spans.(term));
+            Buffer.add_string b "Admitted.";
+            Some (Buffer.contents b)
     end
   in
   let render_user opener e =
