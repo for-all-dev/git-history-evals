@@ -43,8 +43,10 @@ let usage =
                         same for the solution (restores the deleted lemma + its deps)
 
   Lemma deletion (instead of per-proof ablation):
-    --delete-lemmas     delete eligible used lemmas + ablate their users. With
-                        --count N, deletions are drawn at random weighted by
+    --delete-lemmas [N] delete eligible used lemmas + ablate their users. An optional
+                        N deletes exactly N lemmas (weighted random draw); omit N for
+                        the --count/-p behavior below. (N works on every --delete-* flag.)
+                        With --count N, deletions are drawn at random weighted by
                         in-file user count until >= N ablations result (seed-driven;
                         popular lemmas favoured, the tail still reachable).
                         Correct-by-construction (no prover).
@@ -144,6 +146,7 @@ type opts = {
   mutable shrink_solution_minimal : bool;
   mutable allow_defined : bool;
   mutable delete_lemmas : bool;
+  mutable delete_count : int option;
   mutable delete_uniform : bool;
   mutable delete_leaves : bool;
   mutable aggressive : bool;
@@ -160,7 +163,7 @@ let parse_args argv =
       min_size = None; max_size = None; min_cent = None; max_cent = None;
       truncate = false; shrink_challenge = false; shrink_solution = false;
       shrink_challenge_minimal = false; shrink_solution_minimal = false;
-      allow_defined = false; delete_lemmas = false; delete_uniform = false;
+      allow_defined = false; delete_lemmas = false; delete_count = None; delete_uniform = false;
       delete_leaves = false; aggressive = false;
       repeat = 1; strip_dirs = []; paths = [] }
   in
@@ -169,6 +172,15 @@ let parse_args argv =
   let next flag =
     incr i;
     if !i >= n then die ("missing arg for " ^ flag) else argv.(!i)
+  in
+  (* consume the next token as a non-negative int if it looks like one (for the
+     optional count on --delete-lemmas[ N]); otherwise leave it for the next arg. *)
+  let peek_int () =
+    if !i + 1 < n then
+      match int_of_string_opt argv.(!i + 1) with
+      | Some k when k >= 0 -> incr i; Some k
+      | _ -> None
+    else None
   in
   while !i < n do
     let a = argv.(!i) in
@@ -188,10 +200,10 @@ let parse_args argv =
      | "--shrink-solution-minimal" -> o.shrink_solution_minimal <- true
      | "--leaves-only" -> o.leaves <- true
      | "--allow-defined" -> o.allow_defined <- true
-     | "--delete-lemmas" -> o.delete_lemmas <- true
-     | "--delete-lemmas-uniform" -> o.delete_lemmas <- true; o.delete_uniform <- true
-     | "--delete-lemmas-leaves" -> o.delete_lemmas <- true; o.delete_leaves <- true
-     | "--aggressively-delete-lemmas" -> o.delete_lemmas <- true; o.aggressive <- true
+     | "--delete-lemmas" -> o.delete_lemmas <- true; o.delete_count <- peek_int ()
+     | "--delete-lemmas-uniform" -> o.delete_lemmas <- true; o.delete_uniform <- true; o.delete_count <- peek_int ()
+     | "--delete-lemmas-leaves" -> o.delete_lemmas <- true; o.delete_leaves <- true; o.delete_count <- peek_int ()
+     | "--aggressively-delete-lemmas" -> o.delete_lemmas <- true; o.aggressive <- true; o.delete_count <- peek_int ()
      | "--difficulty" -> o.difficulty <- Some (next a)
      | "--min-depth" -> o.min_depth <- Some (parse_depth (next a))
      | "--max-depth" -> o.max_depth <- Some (parse_depth (next a))
@@ -244,6 +256,7 @@ let build_spec o =
       shrink_solution_minimal = o.shrink_solution_minimal;
       allow_defined = o.allow_defined;
       delete_lemmas = o.delete_lemmas;
+      delete_count = o.delete_count;
       delete_uniform = o.delete_uniform;
       delete_leaves = o.delete_leaves;
       aggressive = o.aggressive;

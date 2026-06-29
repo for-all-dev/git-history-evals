@@ -61,6 +61,10 @@ fn spec_from(opts: &Value) -> (Spec, Option<String>) {
         shrink_challenge_minimal: as_bool(g("shrink_challenge_minimal"), false),
         shrink_solution_minimal: as_bool(g("shrink_solution_minimal"), false),
         delete_lemmas: as_bool(g("delete_lemmas"), false),
+        delete_count: {
+            let v = g("delete_count");
+            if v.is_null() { None } else { v.as_u64() }
+        },
         delete_uniform: as_bool(g("delete_uniform"), false),
         delete_leaves: as_bool(g("delete_leaves"), false),
         aggressive: false, // the prover-backed path is never exposed to the browser

@@ -30,6 +30,7 @@ type spec = {
   shrink_solution_minimal : bool; (* solution: keep only the N holes' decls + dep closure *)
   allow_defined : bool; (* ablate Defined-terminated proofs too (opacity risk) *)
   delete_lemmas : bool; (* delete eligible lemmas + ablate their users *)
+  delete_count : int option; (* delete-lemmas: delete exactly this many lemmas (None = count/prob) *)
   delete_uniform : bool; (* delete-lemmas: pick deletions uniformly, not weighted by user count *)
   delete_leaves : bool; (* delete-lemmas: hole only the leaf steps citing L, not whole proofs *)
   aggressive : bool; (* delete-lemmas: relax syntactic guards (BE; needs check-build) *)
@@ -54,6 +55,7 @@ let default_spec =
     shrink_solution_minimal = false;
     allow_defined = false;
     delete_lemmas = false;
+    delete_count = None;
     delete_uniform = false;
     delete_leaves = false;
     aggressive = false;
@@ -626,6 +628,17 @@ let slice_delete (spans : Span.t array) (spec : spec)
     end
   in
   List.iter add seed;
+  (* Structural items (Hint/Ltac/Notation/Arguments/…) are always kept, so any in-file
+     decl they cite must be kept too — both decls a kept item *needs* (e.g.
+     `Hint Resolve foo` needs `Lemma foo`) and decls kept proofs need *via* a kept item
+     (e.g. an `Ltac` helper). Seed the closure with those references so nothing
+     dangles. (Items citing the deleted lemma are handled at emit time below.) *)
+  for k = 0 to n - 1 do
+    if not (Span.is_goal spans.(k)) then
+      List.iter
+        (fun nm -> match Hashtbl.find_opt opener_of_name nm with Some o -> add o | None -> ())
+        (Uses.names_in spans.(k).Span.content)
+  done;
   while not (Queue.is_empty q) do
     let o = Queue.pop q in
     let l = Hashtbl.find by_opener o in
@@ -633,6 +646,13 @@ let slice_delete (spans : Span.t array) (spec : spec)
       (fun nm -> match Hashtbl.find_opt opener_of_name nm with Some o' -> add o' | None -> ())
       (l.Uses.stmt_names @ l.Uses.body_names)
   done;
+  (* In the challenge the deleted lemma is omitted, so a kept structural item that cites
+     it (e.g. `Hint Resolve <deleted>`) would dangle — drop such items from the
+     challenge only (the solution restores the lemma, so they stay there). *)
+  let struct_ok (s : Span.t) =
+    solution
+    || not (List.exists (fun nm -> Hashtbl.mem deleted_names nm) (Uses.names_in s.Span.content))
+  in
   let buf = Buffer.create 4096 in
   let i = ref 0 in
   while !i < n do
@@ -652,7 +672,7 @@ let slice_delete (spans : Span.t array) (spec : spec)
       i := e
     end
     else begin
-      Buffer.add_string buf (Span.source s);
+      if struct_ok s then Buffer.add_string buf (Span.source s);
       incr i
     end
   done;
@@ -689,27 +709,45 @@ let ablate_delete (spans : Span.t array) (spec : spec) (rng : Rng.t) : result =
      non-zero chance on the long tail. Without --count the per-lemma [prob] coin
      decides, as before. (With --truncate we later keep only the first k.) *)
   let weight (l : Uses.lemma) = if spec.delete_uniform then 1.0 else float_of_int (nusers l) in
+  (* one weighted pick (proportional to [weight]) from a non-empty candidate list *)
+  let pick_weighted remaining =
+    let total = List.fold_left (fun a l -> a +. weight l) 0.0 remaining in
+    let r = Rng.next_f64 rng *. total in
+    let rec go acc = function
+      | [ l ] -> l
+      | l :: tl -> let acc' = acc +. weight l in if acc' > r then l else go acc' tl
+      | [] -> assert false
+    in
+    go 0.0 remaining
+  in
+  let without l rem = List.filter (fun (c : Uses.lemma) -> c.opener <> l.Uses.opener) rem in
   let selected =
-    match spec.count with
-    | None -> List.filter (fun _ -> Rng.next_f64 rng < spec.prob) cands
-    | Some k when k <= 0 -> []
-    | Some k ->
-        let covered : (int, unit) Hashtbl.t = Hashtbl.create 64 in
+    match spec.delete_count with
+    | Some kd ->
+        (* [--delete-lemmas K]: delete exactly K lemmas (weighted random draw), no
+           matter how many ablations that forces. *)
         let chosen = ref [] and remaining = ref cands in
-        while Hashtbl.length covered < k && !remaining <> [] do
-          let total = List.fold_left (fun a l -> a +. weight l) 0.0 !remaining in
-          let r = Rng.next_f64 rng *. total in
-          let rec pick acc = function
-            | [ l ] -> l
-            | l :: tl -> let acc' = acc +. weight l in if acc' > r then l else pick acc' tl
-            | [] -> assert false
-          in
-          let l = pick 0.0 !remaining in
-          List.iter (fun u -> Hashtbl.replace covered u ()) l.users;
+        let target = min kd (List.length cands) in
+        while List.length !chosen < target && !remaining <> [] do
+          let l = pick_weighted !remaining in
           chosen := l :: !chosen;
-          remaining := List.filter (fun (c : Uses.lemma) -> c.opener <> l.opener) !remaining
+          remaining := without l !remaining
         done;
         List.rev !chosen
+    | None -> (
+        match spec.count with
+        | None -> List.filter (fun _ -> Rng.next_f64 rng < spec.prob) cands
+        | Some k when k <= 0 -> []
+        | Some k ->
+            let covered : (int, unit) Hashtbl.t = Hashtbl.create 64 in
+            let chosen = ref [] and remaining = ref cands in
+            while Hashtbl.length covered < k && !remaining <> [] do
+              let l = pick_weighted !remaining in
+              List.iter (fun u -> Hashtbl.replace covered u ()) l.users;
+              chosen := l :: !chosen;
+              remaining := without l !remaining
+            done;
+            List.rev !chosen)
   in
   let del = Hashtbl.create 16 in
   List.iter (fun (l : Uses.lemma) -> Hashtbl.replace del l.opener l) selected;

@@ -48,6 +48,7 @@ structure Spec where
   shrinkChallengeMinimal : Bool := false
   shrinkSolutionMinimal  : Bool := false
   deleteLemmas    : Bool := false
+  deleteCount     : Option Nat := none
   deleteUniform   : Bool := false
   deleteLeaves    : Bool := false
   aggressive      : Bool := false
@@ -420,7 +421,7 @@ def runWalk : W Unit := do
     -- the original length this span contributes (statement + proof, verbatim)
     let srcLen := (s.source toks).length
     if s.isDecl then
-      match findAssign toks s.lo s.hi with
+      match findDeclBody toks s.lo s.hi with
       | some a =>
         let ablated0 := (← get).ablated
         let binderCol := match firstProperIdx toks s.lo s.hi with
@@ -542,6 +543,66 @@ def walkAll (toks : Array Token) (spec : Spec) (centrality : String → Int)
   ({ text := text, solution := solution, total := st.total, ablated := st.ablated, holes := st.holes },
    st.matchAcc)
 
+/- ---------- leaf-level user ablation (--delete-lemmas-leaves) ----------
+   Hole the smallest enclosing nested unit (have/bullet/arm/anon, via `detectUnit`)
+   that cites a deleted name at its own level, keeping the surrounding proof skeleton;
+   fall back to whole-proof when a deleted name is cited at the user's top level. The
+   Lean analogue of the rust/scala Isar-keyword version (here nesting is layout-based). -/
+
+def citesDeleted (toks : Array Token) (lo hi : Nat) (deleted : HashSet String) : Bool :=
+  (Uses.namesIn toks lo hi).any deleted.contains
+
+/-- Does `[lo,hi)` cite a deleted name at its OWN level (outside nested units deeper
+    than `parentCol`)? -/
+partial def ownCitesLean (toks : Array Token) (lo hi parentCol : Nat) (deleted : HashSet String) : Bool := Id.run do
+  let mut i := lo
+  while i < hi do
+    match detectUnit toks i hi parentCol with
+    | some u => i := u.blockEnd
+    | none =>
+      if citesDeleted toks i (i + 1) deleted then return true
+      i := i + 1
+  return false
+
+/-- Render body `[lo,hi)` (opened at `parentCol`), holing the innermost units that
+    own-level-cite a deleted name. `(text, all_covered)`: `all_covered=false` ⇒ a
+    deleted name survives at this level (caller whole-proofs). -/
+partial def leafRenderLean (toks : Array Token) (lo hi parentCol : Nat) (deleted : HashSet String) : String × Bool := Id.run do
+  let mut out := ""
+  let mut ok := true
+  let mut i := lo
+  while i < hi do
+    match detectUnit toks i hi parentCol with
+    | some u =>
+      let contentHi := lastProperEnd toks u.contentLo u.blockEnd
+      if citesDeleted toks i u.blockEnd deleted then
+        if u.hasType && ownCitesLean toks u.contentLo contentHi u.unitCol deleted then
+          out := out ++ implode (toks.extract i u.contentLo) ++ " sorry"
+                     ++ implode (toks.extract contentHi u.blockEnd)
+        else
+          let (sub, sok) := leafRenderLean toks u.contentLo contentHi u.unitCol deleted
+          out := out ++ implode (toks.extract i u.contentLo) ++ sub ++ implode (toks.extract contentHi u.blockEnd)
+          ok := ok && sok
+      else
+        out := out ++ implode (toks.extract i u.blockEnd)
+      i := u.blockEnd
+    | none =>
+      if citesDeleted toks i (i + 1) deleted then ok := false
+      out := out ++ toks[i]!.src
+      i := i + 1
+  return (out, ok)
+
+/-- Render one holed user. `[lo,a]` is the statement through `:=` (at `a`); the body
+    is `[a+1, contentHi)`, trailing `[contentHi, hi)`. With `leaves`, hole the smallest
+    citing steps (whole-proof fallback); otherwise whole-proof. -/
+def renderUserLean (toks : Array Token) (lo a contentHi hi parentCol : Nat) (deleted : HashSet String) (leaves : Bool) : String :=
+  let stmt := implode (toks.extract lo (a + 1))
+  let trailing := implode (toks.extract contentHi hi)
+  if leaves then
+    let (body, ok) := leafRenderLean toks (a + 1) contentHi parentCol deleted
+    if ok then stmt ++ body ++ trailing else stmt ++ " sorry" ++ trailing
+  else stmt ++ " sorry" ++ trailing
+
 /-- Minimal dependency-closed slice for `--shrink-*-minimal` (mirrors rocq
     `slice_delete`): keep the (first `count`) holes + the transitive closure of the
     goal-decls their statements reference; all non-goal items kept as glue. Challenge
@@ -590,10 +651,11 @@ def sliceDelete (toks : Array Token) (spans : Array Span) (spec : Spec)
         if !solution && delSet.contains si then
           pure () -- deleted lemma: omitted from the challenge
         else if !solution && (mustHole si || userSet.contains si) then
-          match findAssign toks s.lo s.hi with
+          match findDeclBody toks s.lo s.hi with
           | some a =>
             let contentHi := lastProperEnd toks (a + 1) s.hi
-            buf := buf ++ implode (toks.extract s.lo (a + 1)) ++ " sorry" ++ implode (toks.extract contentHi s.hi)
+            let binderCol := (firstProperIdx toks s.lo s.hi).map (fun fp => toks[fp]!.col) |>.getD 0
+            buf := buf ++ renderUserLean toks s.lo a contentHi s.hi binderCol deletedNames spec.deleteLeaves
           | none => buf := buf ++ s.source toks
         else buf := buf ++ s.source toks
     | none => buf := buf ++ s.source toks -- structural: always kept
@@ -616,36 +678,51 @@ def ablateDelete (toks : Array Token) (spec : Spec) (rng : Rng) : AblationResult
   -- chance on the tail. Without --count the per-lemma `prob` coin decides. (With
   -- --truncate we later keep only the first k.)
   let weight := fun (l : DeletableLemma) => if spec.deleteUniform then 1.0 else Float.ofNat l.users.size
+  -- index of one weighted pick (proportional to `weight`) given a random draw `x`
+  let pickIdx := fun (remaining : Array DeletableLemma) (x : Float) => Id.run do
+    let total := remaining.foldl (fun a l => a + weight l) 0.0
+    let target := x * total
+    let mut acc := 0.0
+    let mut idx := remaining.size - 1
+    let mut found := false
+    for j in [0:remaining.size] do
+      if !found then
+        acc := acc + weight remaining[j]!
+        if acc > target then idx := j; found := true
+    return idx
   let mut selected : Array DeletableLemma := #[]
   let mut r := rng
-  match spec.count with
-  | none =>
-    for l in cands do
-      let (x, r') := r.nextF64
-      r := r'
-      if x < spec.prob then selected := selected.push l
-  | some 0 => pure ()
-  | some k =>
-    let mut covered : HashSet Nat := {}
+  match spec.deleteCount with
+  | some kd =>
+    -- --delete-lemmas N: delete exactly N lemmas (weighted draw), any ablation count
     let mut remaining := cands
-    while covered.size < k && remaining.size > 0 do
-      let total := remaining.foldl (fun a l => a + weight l) 0.0
+    let target := min kd cands.size
+    while selected.size < target && remaining.size > 0 do
       let (x, r') := r.nextF64
       r := r'
-      let target := x * total
-      -- pick the lemma whose cumulative weight first exceeds `target`
-      let mut acc := 0.0
-      let mut idx := remaining.size - 1
-      let mut found := false
-      for j in [0:remaining.size] do
-        if !found then
-          acc := acc + weight remaining[j]!
-          if acc > target then idx := j; found := true
-      let l := remaining[idx]!
-      for u in l.users do covered := covered.insert u
+      let l := remaining[pickIdx remaining x]!
       selected := selected.push l
       remaining := remaining.filter (fun y => y.spanIdx != l.spanIdx)
+  | none =>
+    match spec.count with
+    | none =>
+      for l in cands do
+        let (x, r') := r.nextF64
+        r := r'
+        if x < spec.prob then selected := selected.push l
+    | some 0 => pure ()
+    | some k =>
+      let mut covered : HashSet Nat := {}
+      let mut remaining := cands
+      while covered.size < k && remaining.size > 0 do
+        let (x, r') := r.nextF64
+        r := r'
+        let l := remaining[pickIdx remaining x]!
+        for u in l.users do covered := covered.insert u
+        selected := selected.push l
+        remaining := remaining.filter (fun y => y.spanIdx != l.spanIdx)
   let delSet : HashSet Nat := HashSet.ofArray (selected.map (·.spanIdx))
+  let deletedNamesSet : HashSet String := selected.foldl (fun s l => s.insert l.name) {}
   -- distinct forced ablations (users not themselves deleted), in file order
   let mut usersArr : Array Nat := #[]
   let mut seen : HashSet Nat := {}
@@ -685,11 +762,11 @@ def ablateDelete (toks : Array Token) (spec : Spec) (rng : Rng) : AblationResult
       origLen := origLen + itemLen
       solSegs := solSegs.push (origLen, false, false)
     else if userSet.contains si then
-      match findAssign toks s.lo s.hi with
+      match findDeclBody toks s.lo s.hi with
       | some a =>
         let contentHi := lastProperEnd toks (a + 1) s.hi
-        out := out ++ implode (toks.extract s.lo (a + 1)) ++ " sorry"
-                   ++ implode (toks.extract contentHi s.hi)
+        let binderCol := (firstProperIdx toks s.lo s.hi).map (fun fp => toks[fp]!.col) |>.getD 0
+        out := out ++ renderUserLean toks s.lo a contentHi s.hi binderCol deletedNamesSet spec.deleteLeaves
         lastSorryEnd := Int.ofNat out.length
         let proofText := implode (toks.extract (a + 1) contentHi)
         holes := holes.push {

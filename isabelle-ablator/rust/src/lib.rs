@@ -263,6 +263,29 @@ mod tests {
     }
 
     #[test]
+    fn delete_lemmas_count_arg() {
+        // --delete-lemmas N deletes exactly N lemmas regardless of ablation count
+        let syn = span::Syntax::hol();
+        let src = "theory T\nimports Main\nbegin\n\n\
+            lemma aaa: \"(1::nat) = 1\" by simp\n\n\
+            lemma bbb: \"(1::nat) = 1\" by simp\n\n\
+            lemma ccc: \"(1::nat) = 1\" by simp\n\n\
+            lemma ua: \"(1::nat) = 1\" using aaa by simp\n\n\
+            lemma ub: \"(1::nat) = 1\" using bbb by simp\n\n\
+            lemma uc: \"(1::nat) = 1\" using ccc by simp\n\nend\n";
+        let spans = syn.parse_spans(src);
+        let z = |_: &str| 0i64;
+        let del = |n: u64| {
+            let spec = ablate::Spec { delete_lemmas: true, delete_count: Some(n), ..Default::default() };
+            let mut rng = ablate::Rng::new(0);
+            ablate::ablate(&spans, &spec, &mut rng, &z).deleted.len()
+        };
+        assert_eq!(del(2), 2, "delete exactly 2");
+        assert_eq!(del(1), 1, "delete exactly 1");
+        assert_eq!(del(9), 3, "capped at the 3 candidates");
+    }
+
+    #[test]
     fn shrink_challenge_and_solution() {
         let syn = span::Syntax::hol();
         let src = "theory T\nimports Main\nbegin\n\n\

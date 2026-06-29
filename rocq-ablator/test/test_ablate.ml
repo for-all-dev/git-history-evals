@@ -306,6 +306,24 @@ let () =
   check "leaves: terminator becomes Admitted" (contains r.text "Admitted.");
   check "leaves: base deleted" (not (contains r.text "Lemma base"))
 
+(* ---- --delete-lemmas N: delete exactly N lemmas (regardless of ablation count) ---- *)
+let () =
+  let src =
+    "Lemma aaa : 1 = 1.\nProof. reflexivity. Qed.\n\n\
+     Lemma bbb : 1 = 1.\nProof. reflexivity. Qed.\n\n\
+     Lemma ccc : 1 = 1.\nProof. reflexivity. Qed.\n\n\
+     Lemma ua : 1 = 1.\nProof. exact aaa. Qed.\n\n\
+     Lemma ub : 1 = 1.\nProof. exact bbb. Qed.\n\n\
+     Lemma uc : 1 = 1.\nProof. exact ccc. Qed.\n"
+  in
+  let del n = ablate_full ~seed:0 ~spec:{ Ablate.default_spec with delete_lemmas = true; delete_count = Some n } src in
+  check "delete-lemmas 2: exactly 2 lemmas deleted" (List.length (del 2).deleted = 2);
+  check "delete-lemmas 1: exactly 1 lemma deleted" (List.length (del 1).deleted = 1);
+  check "delete-lemmas 9: capped at the 3 candidates" (List.length (del 9).deleted = 3);
+  (* omitted count keeps current behavior (prob default 0.5, here count=None) *)
+  let none_spec = { Ablate.default_spec with delete_lemmas = true } in
+  ignore (ablate_full ~seed:0 ~spec:none_spec src)
+
 (* ---- sha1 known-answer (task_id must be stable across targets) ---- *)
 
 let () =

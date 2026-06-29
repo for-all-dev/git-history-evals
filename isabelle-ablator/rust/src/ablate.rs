@@ -27,6 +27,7 @@ pub struct Spec {
     pub shrink_challenge_minimal: bool,
     pub shrink_solution_minimal: bool,
     pub delete_lemmas: bool,
+    pub delete_count: Option<u64>,
     pub delete_uniform: bool,
     pub delete_leaves: bool,
     pub aggressive: bool,
@@ -51,6 +52,7 @@ impl Default for Spec {
             shrink_challenge_minimal: false,
             shrink_solution_minimal: false,
             delete_lemmas: false,
+            delete_count: None,
             delete_uniform: false,
             delete_leaves: false,
             aggressive: false,
@@ -461,8 +463,8 @@ fn slice_delete(
     for l in by_lemma.values() {
         opener_of_name.entry(l.name.as_str()).or_insert(l.opener);
     }
-    let deleted_names: HashSet<&str> =
-        del.iter().filter_map(|o| by_lemma.get(o).map(|l| l.name.as_str())).collect();
+    let deleted_names: HashSet<String> =
+        del.iter().filter_map(|o| by_lemma.get(o).map(|l| l.name.clone())).collect();
     let must_hole = |o: usize| -> bool {
         by_lemma.get(&o).is_some_and(|l| l.body_names.iter().any(|nm| deleted_names.contains(nm.as_str())))
     };
@@ -505,8 +507,7 @@ fn slice_delete(
                 if !solution && del.contains(&i) {
                     // deleted lemma: omitted from the challenge
                 } else if !solution && (must_hole(i) || users.contains(&i)) {
-                    buf.push_str(&spans[i].source());
-                    buf.push_str(" sorry");
+                    buf.push_str(&render_user(spans, i, e, &deleted_names, spec.delete_leaves));
                 } else {
                     buf.push_str(&src_range(i, e));
                 }
@@ -518,6 +519,114 @@ fn slice_delete(
         }
     }
     collapse_blank_lines(&buf)
+}
+
+// --- leaf-level user ablation (for --delete-lemmas-leaves) ----------------------
+// Hole the *smallest enclosing* structured step (have/show/…) that cites a deleted
+// name at its own level, keeping the surrounding skeleton; fall back to whole-proof
+// when a deleted name is cited at the user's top proof level. Boundaries mirror the
+// tested `measure` depth logic (qed vs nested proof_close), and the result is
+// verified by `--check-build`.
+
+/// End index (exclusive) of the proof region opened at `start`, whose enclosing unit
+/// was measured at depth `d` — same logic as `WalkState::measure`.
+fn measure_end(spans: &[Span], start: usize, d: i64) -> usize {
+    let n = spans.len();
+    let mut j = start;
+    let mut dep = d + 1;
+    while j < n && dep > d {
+        match kind_of(&spans[j]) {
+            Some(k) if kw::is_theory(k) => break,
+            Some(k) => {
+                if kw::is_proof_goal(k) || k == kw::PRF_OPEN {
+                    dep += 1;
+                } else if kw::is_proof_close(k) {
+                    dep -= 1;
+                } else if kw::is_qed_global(k) {
+                    dep = d;
+                }
+                j += 1;
+            }
+            None => j += 1,
+        }
+    }
+    j
+}
+
+fn span_cites(span: &Span, deleted: &std::collections::HashSet<String>) -> bool {
+    crate::uses::names_in(&span.content).iter().any(|nm| deleted.contains(nm))
+}
+
+/// Does `[lo,hi)` cite a deleted name at its OWN level (outside nested goal-units)?
+fn own_cites(spans: &[Span], lo: usize, hi: usize, d: i64, deleted: &std::collections::HashSet<String>) -> bool {
+    let mut j = lo;
+    while j < hi {
+        match kind_of(&spans[j]) {
+            Some(k) if kw::is_proof_goal(k) => j = measure_end(spans, j + 1, d + 1),
+            _ => {
+                if span_cites(&spans[j], deleted) {
+                    return true;
+                }
+                j += 1;
+            }
+        }
+    }
+    false
+}
+
+/// Does `[lo,hi)` cite a deleted name anywhere (including nested units)?
+fn subtree_cites(spans: &[Span], lo: usize, hi: usize, deleted: &std::collections::HashSet<String>) -> bool {
+    (lo..hi).any(|j| span_cites(&spans[j], deleted))
+}
+
+/// Render proof body `[lo,hi)` (whose enclosing unit measured at depth `d`), holing
+/// the innermost units that own-level-cite a deleted name. Returns (text, all_covered):
+/// `all_covered=false` means a deleted name survives at this level (caller whole-proofs).
+fn leaf_render(spans: &[Span], lo: usize, hi: usize, d: i64, deleted: &std::collections::HashSet<String>) -> (String, bool) {
+    let mut out = String::new();
+    let mut ok = true;
+    let mut j = lo;
+    while j < hi {
+        match kind_of(&spans[j]) {
+            Some(k) if kw::is_proof_goal(k) => {
+                let ue = measure_end(spans, j + 1, d + 1);
+                if subtree_cites(spans, j, ue, deleted) {
+                    if own_cites(spans, j + 1, ue, d + 1, deleted) {
+                        out.push_str(&spans[j].source()); // the have/show statement
+                        out.push_str(" sorry");
+                    } else {
+                        out.push_str(&spans[j].source());
+                        let (sub, sub_ok) = leaf_render(spans, j + 1, ue, d + 1, deleted);
+                        out.push_str(&sub);
+                        ok &= sub_ok;
+                    }
+                } else {
+                    out.push_str(&spans[j..ue].iter().map(|s| s.source()).collect::<String>());
+                }
+                j = ue;
+            }
+            _ => {
+                if span_cites(&spans[j], deleted) {
+                    ok = false; // a top-level citation here can't be leaf-isolated
+                }
+                out.push_str(&spans[j].source());
+                j += 1;
+            }
+        }
+    }
+    (out, ok)
+}
+
+/// Render one holed user. `--delete-lemmas-leaves` holes the smallest enclosing steps
+/// citing a deleted name (whole-proof fallback); otherwise whole-proof (`stmt + sorry`).
+fn render_user(spans: &[Span], opener: usize, end: usize, deleted: &std::collections::HashSet<String>, leaves: bool) -> String {
+    if leaves {
+        let (body, ok) = leaf_render(spans, opener + 1, end, 0, deleted);
+        if ok {
+            return format!("{}{}", spans[opener].source(), body);
+        }
+    }
+    format!("{} sorry", spans[opener].source())
 }
 
 /// --delete-lemmas: delete eligible used lemmas + whole-proof-ablate their users.
@@ -541,38 +650,56 @@ fn ablate_delete(spans: &[Span], spec: &Spec, rng: &mut Rng) -> AblationResult {
     let weight = |l: &crate::uses::Lemma| -> f64 {
         if spec.delete_uniform { 1.0 } else { l.users.len() as f64 }
     };
-    let selected: Vec<&crate::uses::Lemma> = match spec.count {
-        None => {
-            let p = spec.prob;
-            cands.into_iter().filter(|_| rng.next_f64() < p).collect()
+    // index of one weighted pick (proportional to `weight`) from a non-empty list
+    let pick_idx = |remaining: &[&crate::uses::Lemma], rng: &mut Rng| -> usize {
+        let total: f64 = remaining.iter().map(|l| weight(l)).sum();
+        let r = rng.next_f64() * total;
+        let mut acc = 0.0;
+        let mut idx = remaining.len() - 1;
+        for (j, l) in remaining.iter().enumerate() {
+            acc += weight(l);
+            if acc > r {
+                idx = j;
+                break;
+            }
         }
-        Some(0) => Vec::new(),
-        Some(k) => {
-            let k = k as usize;
-            let mut covered: HashSet<usize> = HashSet::new();
+        idx
+    };
+    let selected: Vec<&crate::uses::Lemma> = match spec.delete_count {
+        // --delete-lemmas N: delete exactly N lemmas (weighted draw), any ablation count
+        Some(kd) => {
+            let target = (kd as usize).min(cands.len());
             let mut chosen: Vec<&crate::uses::Lemma> = Vec::new();
             let mut remaining: Vec<&crate::uses::Lemma> = cands.clone();
-            while covered.len() < k && !remaining.is_empty() {
-                let total: f64 = remaining.iter().map(|l| weight(l)).sum();
-                let r = rng.next_f64() * total;
-                // pick the lemma whose cumulative weight first exceeds r
-                let mut acc = 0.0;
-                let mut idx = remaining.len() - 1;
-                for (j, l) in remaining.iter().enumerate() {
-                    acc += weight(l);
-                    if acc > r {
-                        idx = j;
-                        break;
-                    }
-                }
-                let l = remaining.remove(idx);
-                covered.extend(l.users.iter().copied());
-                chosen.push(l);
+            while chosen.len() < target && !remaining.is_empty() {
+                let idx = pick_idx(&remaining, rng);
+                chosen.push(remaining.remove(idx));
             }
             chosen
         }
+        None => match spec.count {
+            None => {
+                let p = spec.prob;
+                cands.into_iter().filter(|_| rng.next_f64() < p).collect()
+            }
+            Some(0) => Vec::new(),
+            Some(k) => {
+                let k = k as usize;
+                let mut covered: HashSet<usize> = HashSet::new();
+                let mut chosen: Vec<&crate::uses::Lemma> = Vec::new();
+                let mut remaining: Vec<&crate::uses::Lemma> = cands.clone();
+                while covered.len() < k && !remaining.is_empty() {
+                    let idx = pick_idx(&remaining, rng);
+                    let l = remaining.remove(idx);
+                    covered.extend(l.users.iter().copied());
+                    chosen.push(l);
+                }
+                chosen
+            }
+        },
     };
     let del: HashSet<usize> = selected.iter().map(|l| l.opener).collect();
+    let deleted_names: HashSet<String> = selected.iter().map(|l| l.name.clone()).collect();
     // distinct forced ablations (users not themselves deleted), in file order.
     let mut users_sorted: Vec<usize> = {
         let mut s: Vec<usize> =
@@ -595,9 +722,9 @@ fn ablate_delete(spans: &[Span], spec: &Spec, rng: &mut Rng) -> AblationResult {
 
     // Emit the challenge while recording per-item challenge/solution segments (char
     // offsets, is_closer, had_hole) so --shrink-* can trim each side to the first N
-    // holes. (--delete-lemmas-leaves: leaf-level holing for Isabelle's structured
-    // proofs is deferred to the heavyweight semantic ablator; here it falls back to
-    // whole-proof ablation, which is always correct.)
+    // holes. (--delete-lemmas-leaves: render_user holes the smallest enclosing step
+    // citing a deleted name, with whole-proof fallback when a top-level citation can't
+    // be leaf-isolated.)
     let mut out = String::new();
     let mut holes = Vec::new();
     let mut deleted = Vec::new();
@@ -620,8 +747,7 @@ fn ablate_delete(spans: &[Span], spec: &Spec, rng: &mut Rng) -> AblationResult {
                 orig_chars += item_chars;
                 sol_segs.push((orig_chars, false, false)); // solution only
             } else if users.contains(&i) {
-                out.push_str(&spans[i].source()); // statement
-                out.push_str(" sorry");
+                out.push_str(&render_user(spans, i, e, &deleted_names, spec.delete_leaves));
                 last_sorry_end = out.chars().count() as i64;
                 let proof_text = src_range(i + 1, e);
                 holes.push(Hole {

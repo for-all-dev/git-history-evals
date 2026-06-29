@@ -42,7 +42,7 @@ def goalsOf (toks : Array Token) (spans : Array Span) : Array (String × HashSet
   let mut goals : Array (String × HashSet String) := #[]
   for s in spans do
     if s.isDecl then
-      match findAssign toks s.lo s.hi with
+      match findDeclBody toks s.lo s.hi with
       | some a =>
         let name := declName toks s.lo s.hi
         let cited := citedNames toks (a + 1) s.hi {}

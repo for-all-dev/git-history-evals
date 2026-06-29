@@ -90,18 +90,18 @@ struct Cli {
     shrink_solution_minimal: bool,
 
     /// delete eligible used lemmas + ablate their users (correct-by-construction).
-    /// With --count, deletions are drawn weighted by in-file user count.
-    #[arg(long)]
-    delete_lemmas: bool,
-    /// like --delete-lemmas but draw deletions uniformly (unweighted by user count)
-    #[arg(long)]
-    delete_lemmas_uniform: bool,
-    /// like --delete-lemmas but hole only leaf steps citing L (Isabelle: falls back to whole-proof)
-    #[arg(long)]
-    delete_lemmas_leaves: bool,
-    /// delete-lemmas with relaxed guards, validated by `isabelle build` (needs isabelle)
-    #[arg(long)]
-    aggressively_delete_lemmas: bool,
+    /// Optional `=N` deletes exactly N lemmas (weighted draw); else --count/-p decide.
+    #[arg(long, num_args = 0..=1, require_equals = true, value_name = "N")]
+    delete_lemmas: Option<Option<u64>>,
+    /// like --delete-lemmas[=N] but draw deletions uniformly (unweighted by user count)
+    #[arg(long, num_args = 0..=1, require_equals = true, value_name = "N")]
+    delete_lemmas_uniform: Option<Option<u64>>,
+    /// like --delete-lemmas[=N] but hole only leaf steps citing L
+    #[arg(long, num_args = 0..=1, require_equals = true, value_name = "N")]
+    delete_lemmas_leaves: Option<Option<u64>>,
+    /// delete-lemmas[=N] with relaxed guards, validated by `isabelle build` (needs isabelle)
+    #[arg(long, num_args = 0..=1, require_equals = true, value_name = "N")]
+    aggressively_delete_lemmas: Option<Option<u64>>,
 
     /// session name (for the record's `session` field)
     #[arg(short = 's', long, default_value = "HOL")]
@@ -212,13 +212,19 @@ fn main() {
         shrink_solution: cli.shrink_solution,
         shrink_challenge_minimal: cli.shrink_challenge_minimal,
         shrink_solution_minimal: cli.shrink_solution_minimal,
-        delete_lemmas: cli.delete_lemmas
-            || cli.delete_lemmas_uniform
-            || cli.delete_lemmas_leaves
-            || cli.aggressively_delete_lemmas,
-        delete_uniform: cli.delete_lemmas_uniform,
-        delete_leaves: cli.delete_lemmas_leaves,
-        aggressive: cli.aggressively_delete_lemmas,
+        delete_lemmas: cli.delete_lemmas.is_some()
+            || cli.delete_lemmas_uniform.is_some()
+            || cli.delete_lemmas_leaves.is_some()
+            || cli.aggressively_delete_lemmas.is_some(),
+        delete_count: cli
+            .delete_lemmas
+            .flatten()
+            .or(cli.delete_lemmas_uniform.flatten())
+            .or(cli.delete_lemmas_leaves.flatten())
+            .or(cli.aggressively_delete_lemmas.flatten()),
+        delete_uniform: cli.delete_lemmas_uniform.is_some(),
+        delete_leaves: cli.delete_lemmas_leaves.is_some(),
+        aggressive: cli.aggressively_delete_lemmas.is_some(),
     };
     if spec.min_depth < 1 {
         die("--min-depth must be >= 1");
@@ -328,7 +334,7 @@ fn main() {
             let mut rng = Rng::new((base as u64) ^ pf ^ k.wrapping_mul(0x9E3779B97F4A7C15));
             let result = ablate(&spans, &spec, &mut rng, &centrality_fn);
             // aggressive delete-lemmas: only keep challenges that actually compile
-            if cli.aggressively_delete_lemmas
+            if cli.aggressively_delete_lemmas.is_some()
                 && !isabelle_ablator::build_check::check_compiles(path, &result.text)
             {
                 continue;

@@ -130,6 +130,20 @@ def deleteShrinkTests : StateT Tally IO Unit := do
   check "solution slice: base restored" (has ms.solution "theorem base")
   check "solution slice: real proof present" (has ms.solution ":= base")
 
+-- --delete-lemmas N: delete exactly N lemmas (regardless of ablation count)
+def deleteCountArgTests : StateT Tally IO Unit := do
+  let src := "theorem aaa : True := trivial\n\n\
+    theorem bbb : True := trivial\n\n\
+    theorem ccc : True := trivial\n\n\
+    theorem ua : True := aaa\n\n\
+    theorem ub : True := bbb\n\n\
+    theorem uc : True := ccc\n"
+  let ndel := fun (n : Nat) =>
+    (ablate (tokenize src) { deleteLemmas := true, deleteCount := some n } (Rng.mk 0) (fun _ => (0:Int))).deleted.size
+  check "delete-lemmas 2: exactly 2" (ndel 2 == 2)
+  check "delete-lemmas 1: exactly 1" (ndel 1 == 1)
+  check "delete-lemmas 9: capped at 3 candidates" (ndel 9 == 3)
+
 -- solution_diff: apply(challenge, unifiedDiff challenge solution) = solution.
 -- Also extracted to keep the generated C functions small (see `deleteTests`).
 def diffTests : StateT Tally IO Unit := do
@@ -147,6 +161,30 @@ def diffTests : StateT Tally IO Unit := do
   let dB := unifiedDiff chalB solB
   check "diff: large localized round-trip" (applyDiff chalB dB == solB)
   check "diff: large localized is tiny" (dB.length < solB.length / 4)
+
+-- Regressions from the ryu-lean4 real-data baseline:
+--  (a) a dependent `let … :=` in a theorem's *type* must not be mistaken for the
+--      proof-body `:=` (would truncate the decl); the proof, not the type, is holed.
+--  (b) a deleted lemma's leading `/-- doc -/` must travel with it (else orphaned
+--      above the next command, e.g. `/-- … -/ end`).
+def letDocTests : StateT Tally IO Unit := do
+  -- (a) let-in-type: helper is cited in user's proof; user's type carries a `let`.
+  let letSrc := "theorem helper : True := trivial\n\n\
+    theorem user : let x : Nat := 5\n    x = 5 := by\n  have := helper\n  rfl\n"
+  let lt := ablate (tokenize letSrc) { prob := 1.0, deleteLemmas := true } (Rng.mk 0) (fun _ => (0:Int))
+  check "let-in-type: helper deleted" ((lt.deleted.toList.map Prod.fst).contains "helper")
+  check "let-in-type: type's let value kept (not holed)" (has lt.text "let x : Nat := 5")
+  check "let-in-type: proof holed" (has lt.text "x = 5 := sorry")
+  check "let-in-type: not truncated at let" (! has lt.text "let x : Nat := sorry")
+  check "let-in-type: solution restores original" (lt.solution == letSrc)
+  -- (b) doc comment attaches to the documented decl, so deletion removes it too.
+  let docSrc := "/-- helper doc -/\ntheorem helper : True := trivial\n\n\
+    theorem user : True := helper\n"
+  let dc := ablate (tokenize docSrc) { prob := 1.0, deleteLemmas := true } (Rng.mk 0) (fun _ => (0:Int))
+  check "doc: helper deleted" ((dc.deleted.toList.map Prod.fst).contains "helper")
+  check "doc: orphaned doc comment removed" (! has dc.text "helper doc")
+  check "doc: helper statement gone" (! has dc.text "theorem helper")
+  check "doc: solution restores doc comment" (has dc.solution "/-- helper doc -/")
 
 def main : IO UInt32 := do
   let (_, tally) ← (do
@@ -228,6 +266,8 @@ def main : IO UInt32 := do
     deleteTests
     deleteCountTests
     deleteShrinkTests
+    deleteCountArgTests
+    letDocTests
     diffTests
   ).run {}
   let total := tally.passed + tally.failed

@@ -72,6 +72,7 @@ structure Opts where
   check        : Bool := false
   checkBuild   : Bool := false
   deleteLemmas : Bool := false
+  deleteCount  : Option Nat := none
   deleteUniform : Bool := false
   deleteLeaves : Bool := false
   aggressive   : Bool := false
@@ -111,13 +112,20 @@ partial def parseArgs (args : List String) (o : Opts) : Except String Opts := do
       match rest with
       | v :: tl => parseArgs tl (k v)
       | [] => .error s!"missing arg for {a}"
+    -- a --delete-lemmas* flag, optionally followed by N (the number of lemmas)
+    let delLemmas (k : Opts → Opts) : Except String Opts :=
+      match rest with
+      | v :: tl => match v.toNat? with
+        | some c => parseArgs tl (k { o with deleteCount := some c })
+        | none => parseArgs rest (k o)
+      | [] => parseArgs rest (k o)
     match a with
     | "--check"          => parseArgs rest { o with check := true }
     | "--check-build"    => parseArgs rest { o with checkBuild := true }
-    | "--delete-lemmas"  => parseArgs rest { o with deleteLemmas := true }
-    | "--delete-lemmas-uniform" => parseArgs rest { o with deleteLemmas := true, deleteUniform := true }
-    | "--delete-lemmas-leaves" => parseArgs rest { o with deleteLemmas := true, deleteLeaves := true }
-    | "--aggressively-delete-lemmas" => parseArgs rest { o with deleteLemmas := true, aggressive := true }
+    | "--delete-lemmas"  => delLemmas (fun o => { o with deleteLemmas := true })
+    | "--delete-lemmas-uniform" => delLemmas (fun o => { o with deleteLemmas := true, deleteUniform := true })
+    | "--delete-lemmas-leaves" => delLemmas (fun o => { o with deleteLemmas := true, deleteLeaves := true })
+    | "--aggressively-delete-lemmas" => delLemmas (fun o => { o with deleteLemmas := true, aggressive := true })
     | "--compact"        => parseArgs rest { o with compact := true }
     | "--text"           => parseArgs rest { o with textMode := true }
     | "-v"               => parseArgs rest { o with verbose := true }
@@ -229,6 +237,7 @@ def buildSpec (o : Opts) (preset : Option Preset) : Spec :=
     shrinkChallengeMinimal := o.shrinkChallengeMinimal
     shrinkSolutionMinimal := o.shrinkSolutionMinimal
     deleteLemmas := o.deleteLemmas
+    deleteCount := o.deleteCount
     deleteUniform := o.deleteUniform
     deleteLeaves := o.deleteLeaves
     aggressive := o.aggressive }

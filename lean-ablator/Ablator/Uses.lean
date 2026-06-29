@@ -64,7 +64,7 @@ def analyzeUses (toks : Array Token) (spans : Array Span) (aggressive : Bool) :
   for si in [0:n] do
     let s := spans[si]!
     if s.isDecl then
-      match findAssign toks s.lo s.hi with
+      match findDeclBody toks s.lo s.hi with
       | some a =>
         let nm := declName toks s.lo s.hi
         let isLemma := match s.cmd with | some k => Uses.deletableKinds.contains k | none => false
