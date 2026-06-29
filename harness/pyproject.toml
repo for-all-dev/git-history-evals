@@ -1,0 +1,32 @@
+[project]
+name = "apply-ablate"
+version = "0.1.0"
+description = "Materialise ablation challenges onto disk and verify they build (prover-agnostic harness substrate)"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "pydantic>=2.10",
+    "typer>=0.12",
+    "pydantic-ai>=1.76",
+    "anthropic",
+    "python-dotenv",
+    "logfire[system-metrics]>=4.37.0",
+]
+
+[project.scripts]
+apply-ablate = "apply_ablate.cli:main"
+ablate-baseline = "apply_ablate.baseline:main"
+
+[build-system]
+requires = ["uv_build>=0.9.22,<0.10.0"]
+build-backend = "uv_build"
+
+[dependency-groups]
+dev = [
+    "pytest>=8.0",
+    "ruff>=0.6",
+    "ty>=0.0.1",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
