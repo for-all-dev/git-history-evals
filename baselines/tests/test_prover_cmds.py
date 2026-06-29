@@ -43,6 +43,25 @@ def test_isabelle_theory_name():
     assert theory_name("no header here") is None
 
 
+def test_isabelle_theory_name_skips_comments():
+    # l4v's Bisim_UL has `(* A theory of … *)` above the real header; the naive
+    # parser used to return "of". Comments must be stripped first.
+    src = (
+        "(* Copyright *)\n\n(* A theory of guarded monadic bisimulation. *)\n\n"
+        "theory Bisim_UL\nimports Main\nbegin\nend\n"
+    )
+    assert theory_name(src) == "Bisim_UL"
+
+
+def test_isabelle_imports_of_skips_comments(tmp_path: Path):
+    (tmp_path / "T.thy").write_text(
+        "(* mentions imports Bogus in a comment *)\n"
+        "theory T\nimports Main Foo\nbegin\nend\n",
+        encoding="utf-8",
+    )
+    assert imports_of(tmp_path / "T.thy") == ["Main", "Foo"]
+
+
 def _write_session(root_dir: Path) -> None:
     """A small AFP-style session: two theories + one needing a cross-session dep."""
     (root_dir / "ROOT").write_text(

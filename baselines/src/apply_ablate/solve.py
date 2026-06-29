@@ -223,6 +223,30 @@ def solve_one(
         if target.is_absolute()
         else target.relative_to(work)
     )
+    # Always log the full challenge up front — the ablated file, the exact prompt the
+    # agent will get, and metadata — so every challenge is inspectable on Logfire
+    # (dry-run or real), *before* and independent of the preflight outcome. Logging
+    # here (not after the preflight gate) means challenges stay inspectable even when
+    # the repo's sessions can't be built in this environment (e.g. l4v needs Word_Lib/
+    # Monads heaps), where preflight is expected to fail — the whole point of a dry run.
+    chal = record.challenge_file_content
+    prompt = (
+        f"The file `{record.file_path}` has holes where a deleted lemma was used. "
+        f"Re-derive it and make the file compile. Here is the current (holed) file:\n\n"
+        f"```\n{chal}\n```"
+    )
+    log(
+        "challenge",
+        file_path=record.file_path,
+        assistant=record.assistant,
+        task_id=record.task_id,
+        holes=_hole_count(chal),
+        chars=len(chal),
+        dry_run=dry_run,
+        system_prompt=SYSTEM_PROMPT.format(assistant=record.assistant),
+        prompt=prompt,
+        challenge=chal,
+    )
     # Pre-flight: a well-formed challenge must compile *with* holes. If it does not,
     # the ablation itself is broken (e.g. a mis-placed hole) — record it as a malformed
     # challenge rather than blaming the model, so ablator bugs stay distinguishable.
@@ -241,28 +265,6 @@ def solve_one(
             error=f"malformed-challenge: {pre.trimmed(1500)}",
             malformed_challenge=True,
         )
-    # Always log the full challenge up front — the ablated file, the exact prompt the
-    # agent will get, and metadata — so every challenge is inspectable on Logfire
-    # (dry-run or real), independent of the final outcome event.
-    chal = record.challenge_file_content
-    prompt = (
-        f"The file `{record.file_path}` has holes where a deleted lemma was used. "
-        f"Re-derive it and make the file compile. Here is the current (holed) file:\n\n"
-        f"```\n{chal}\n```"
-    )
-    log(
-        "challenge",
-        file_path=record.file_path,
-        assistant=record.assistant,
-        task_id=record.task_id,
-        holes=_hole_count(chal),
-        chars=len(chal),
-        preflight_ok=pre.ok,
-        dry_run=dry_run,
-        system_prompt=SYSTEM_PROMPT.format(assistant=record.assistant),
-        prompt=prompt,
-        challenge=chal,
-    )
     if dry_run:
         return SolveResult(  # no model call
             task_id=record.task_id,

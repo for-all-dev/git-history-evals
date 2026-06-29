@@ -67,9 +67,33 @@ _HEADER_END = {"begin", "keywords", "abbrevs"}
 _HOLE_RE = re.compile(r"\b(sorry|oops)\b")
 
 
+def strip_comments(text: str) -> str:
+    """Drop Isabelle `(* … *)` comments (nestable) so header parsing isn't fooled by
+    the word "theory"/"imports" appearing in a comment (e.g. l4v's `(* A theory of … *)`
+    above the real `theory <Name>` header)."""
+    out: list[str] = []
+    depth = 0
+    i = 0
+    n = len(text)
+    while i < n:
+        two = text[i : i + 2]
+        if two == "(*":
+            depth += 1
+            i += 2
+        elif two == "*)" and depth > 0:
+            depth -= 1
+            i += 2
+        elif depth == 0:
+            out.append(text[i])
+            i += 1
+        else:
+            i += 1
+    return "".join(out)
+
+
 def theory_name(content: str) -> str | None:
     """The `<Name>` from a `theory <Name>` header."""
-    toks = content.split()
+    toks = strip_comments(content).split()
     for i, tok in enumerate(toks):
         if tok == "theory" and i + 1 < len(toks):
             return toks[i + 1].strip('"')
@@ -98,7 +122,7 @@ def imports_of(thy: Path) -> list[str]:
     except OSError:
         return []
     # Header is everything up to the first top-level `begin`.
-    toks = _tokenize(text)
+    toks = _tokenize(strip_comments(text))
     out: list[str] = []
     collecting = False
     for tok in toks:
