@@ -241,10 +241,30 @@ def solve_one(
             error=f"malformed-challenge: {pre.trimmed(1500)}",
             malformed_challenge=True,
         )
+    # Always log the full challenge up front — the ablated file, the exact prompt the
+    # agent will get, and metadata — so every challenge is inspectable on Logfire
+    # (dry-run or real), independent of the final outcome event.
+    chal = record.challenge_file_content
+    prompt = (
+        f"The file `{record.file_path}` has holes where a deleted lemma was used. "
+        f"Re-derive it and make the file compile. Here is the current (holed) file:\n\n"
+        f"```\n{chal}\n```"
+    )
+    log(
+        "challenge",
+        file_path=record.file_path,
+        assistant=record.assistant,
+        task_id=record.task_id,
+        holes=_hole_count(chal),
+        chars=len(chal),
+        preflight_ok=pre.ok,
+        dry_run=dry_run,
+        system_prompt=SYSTEM_PROMPT.format(assistant=record.assistant),
+        prompt=prompt,
+        challenge=chal,
+    )
     if dry_run:
-        # No model call. The challenge body/metadata are attached to the `challenge`
-        # span by the caller (baseline.py), so it's inspectable on Logfire as one event.
-        return SolveResult(
+        return SolveResult(  # no model call
             task_id=record.task_id,
             assistant=record.assistant,
             file_path=record.file_path,
@@ -263,11 +283,6 @@ def solve_one(
         current=record.challenge_file_content,
     )
     agent = make_agent(model)
-    prompt = (
-        f"The file `{record.file_path}` has holes where a deleted lemma was used. "
-        f"Re-derive it and make the file compile. Here is the current (holed) file:\n\n"
-        f"```\n{record.challenge_file_content}\n```"
-    )
     try:
         from pydantic_ai.usage import UsageLimits
 

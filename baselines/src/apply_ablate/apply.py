@@ -1,9 +1,11 @@
-"""Materialise an ablation onto disk: copy SRC->DST and overwrite one file.
+"""Materialise an ablation onto disk: symlink-overlay SRC->DST and write one real file.
 
 `challenge_file_content` is the *full* ablated file text, so applying a challenge is
-simply writing it at `DST/<file_path>`. The record's `file_path` is repo-relative
-(after the ablator's `-d` prefix-strip); if it does not resolve directly we fall back
-to a unique basename search, erroring on a miss or ambiguity.
+writing it at `DST/<file_path>`. To keep per-challenge setup cheap, `apply_record` does
+not copy the repo — it builds a symlink overlay (`overlay_repo`): every file/dir is a
+symlink back to SRC except the one edited file (and the dirs along its path), which are
+real. The record's `file_path` is repo-relative (after the ablator's `-d` prefix-strip);
+if it does not resolve directly we fall back to a unique basename search.
 """
 
 from __future__ import annotations
@@ -75,6 +77,55 @@ def resolve_target(root: Path, file_path: str) -> Path:
     )
 
 
+def overlay_repo(
+    src: Path,
+    dst: Path,
+    target_rel: Path,
+    *,
+    overwrite: bool,
+    include_git: bool = False,
+) -> None:
+    """Mirror `src` into `dst` with **symlinks**, materialising only the directories
+    along `target_rel` as real dirs — so the caller can write a real file at
+    `dst/target_rel` without touching `src`, and every other file/dir is a symlink back
+    to `src` (no bulk copy).
+
+    This avoids duplicating large in-place build trees per check: Coq's `.vo` live
+    beside the `.v` under `src/`, so a plain copy duplicates the whole repo every
+    challenge. Single-file checks (`coqc`, `lake env lean`, `isabelle build`) only read
+    the deps, so symlinks resolve the load path while the one edited file stays real.
+    """
+    if not src.is_dir():
+        raise ApplyError(f"source directory does not exist: {src}")
+    if dst.exists():
+        if overwrite:
+            shutil.rmtree(dst)
+        elif any(dst.iterdir()):
+            raise ApplyError(
+                f"destination {dst} is not empty (pass --overwrite to replace it)"
+            )
+    skip = set() if include_git else {".git"}
+    # directories that must be real (every ancestor dir of the target)
+    real_dirs: set[Path] = set()
+    cur = Path()
+    for part in target_rel.parts[:-1]:
+        cur = cur / part
+        real_dirs.add(cur)
+
+    def build(rel: Path) -> None:
+        (dst / rel).mkdir(parents=True, exist_ok=True)
+        for entry in sorted((src / rel).iterdir()):
+            er = rel / entry.name
+            if er == target_rel or entry.name in skip:
+                continue  # target is written real by the caller; skip ignored names
+            if entry.is_dir() and er in real_dirs:
+                build(er)
+            else:
+                (dst / er).symlink_to(entry.resolve())
+
+    build(Path())
+
+
 def write_content(target: Path, content: str) -> None:
     """Overwrite `target` with `content` (UTF-8, no added newline)."""
     target.write_text(content, encoding="utf-8")
@@ -89,12 +140,21 @@ def apply_record(
     solution: bool = False,
     include_git: bool = False,
 ) -> Path:
-    """Copy SRC->DST and write the challenge (or recovered solution) into DST.
+    """Overlay SRC->DST (symlinks) and write the challenge (or recovered solution) at
+    the target path in DST.
 
-    Returns the absolute path of the file that was written.
+    Returns the absolute path of the file that was written. Uses a symlink overlay
+    (see `overlay_repo`) so per-challenge setup is O(files-along-path), not a full copy.
     """
-    copy_repo(src, dst, overwrite=overwrite, include_git=include_git)
-    target = resolve_target(dst, record.file_path)
+    # resolve the target's path relative to the pristine source, then overlay
+    direct = src / record.file_path
+    if direct.is_file():
+        target_rel = Path(record.file_path)
+    else:
+        target_rel = resolve_target(src, record.file_path).relative_to(src)
+    overlay_repo(src, dst, target_rel, overwrite=overwrite, include_git=include_git)
+    target = dst / target_rel
     content = record.solution_text() if solution else record.challenge_file_content
+    target.parent.mkdir(parents=True, exist_ok=True)
     write_content(target, content)
     return target

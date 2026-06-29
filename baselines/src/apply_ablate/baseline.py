@@ -87,7 +87,6 @@ def run(
 ) -> None:
     _load_env()
     from apply_ablate.obs import init_logfire, log, set_attrs, span
-    from apply_ablate.solve import _hole_count
 
     init_logfire()
     n = _count_records(challenges)
@@ -142,15 +141,10 @@ def run(
                     reason=res.reason,
                     error=res.error,
                 )
-                if res.dry_run:
-                    # Attach the challenge itself so the dry run is inspectable from
-                    # this one span (no separate event).
-                    chal = rec.challenge_file_content
-                    set_attrs(
-                        sp, holes=_hole_count(chal), chars=len(chal), challenge=chal
-                    )
+                # The full challenge (prompt + ablated file + metadata) is logged up
+                # front by solve_one as the "challenge" event; this is the *outcome*.
                 log(
-                    f"challenge {outcome}",
+                    f"outcome: {outcome}",
                     file_path=rec.file_path,
                     assistant=rec.assistant,
                     outcome=outcome,
