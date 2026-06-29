@@ -901,9 +901,11 @@ object Ablate {
       min_centrality = minCentralityOpt.getOrElse(0),
       max_centrality = maxCentralityOpt.getOrElse(Int.MaxValue),
       truncate = truncate,
-      shrink_challenge = shrinkChallenge,
+      // shrinking the solution implies shrinking the challenge (a shrunk solution
+      // against a full challenge is meaningless)
+      shrink_challenge = shrinkChallenge || shrinkSolution,
       shrink_solution = shrinkSolution,
-      shrink_challenge_minimal = shrinkChallengeMinimal,
+      shrink_challenge_minimal = shrinkChallengeMinimal || shrinkSolutionMinimal,
       shrink_solution_minimal = shrinkSolutionMinimal,
       delete_lemmas = deleteLemmas,
       delete_count = deleteCount,

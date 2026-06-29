@@ -232,9 +232,11 @@ def buildSpec (o : Opts) (preset : Option Preset) : Spec :=
     minCentrality := o.minCentOpt.getD 0
     maxCentrality := o.maxCentOpt.getD INF
     truncate := o.truncate
-    shrinkChallenge := o.shrinkChallenge
+    -- shrinking the solution implies shrinking the challenge (a shrunk solution against
+    -- a full challenge is meaningless), so the solution flag forces the challenge flag
+    shrinkChallenge := o.shrinkChallenge || o.shrinkSolution
     shrinkSolution := o.shrinkSolution
-    shrinkChallengeMinimal := o.shrinkChallengeMinimal
+    shrinkChallengeMinimal := o.shrinkChallengeMinimal || o.shrinkSolutionMinimal
     shrinkSolutionMinimal := o.shrinkSolutionMinimal
     deleteLemmas := o.deleteLemmas
     deleteCount := o.deleteCount

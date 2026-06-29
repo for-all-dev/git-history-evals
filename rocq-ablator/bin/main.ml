@@ -250,9 +250,11 @@ let build_spec o =
       min_centrality = opt o.min_cent 0;
       max_centrality = opt o.max_cent Ablate.inf;
       truncate = o.truncate;
-      shrink_challenge = o.shrink_challenge;
+      (* shrinking the solution implies shrinking the challenge (a shrunk solution
+         against a full challenge is meaningless) *)
+      shrink_challenge = o.shrink_challenge || o.shrink_solution;
       shrink_solution = o.shrink_solution;
-      shrink_challenge_minimal = o.shrink_challenge_minimal;
+      shrink_challenge_minimal = o.shrink_challenge_minimal || o.shrink_solution_minimal;
       shrink_solution_minimal = o.shrink_solution_minimal;
       allow_defined = o.allow_defined;
       delete_lemmas = o.delete_lemmas;

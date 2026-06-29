@@ -208,9 +208,11 @@ fn main() {
         min_centrality: parse_depth(&cli.min_centrality),
         max_centrality: parse_depth(&cli.max_centrality),
         truncate: cli.truncate,
-        shrink_challenge: cli.shrink_challenge,
+        // shrinking the solution implies shrinking the challenge (a shrunk solution
+        // against a full challenge is meaningless)
+        shrink_challenge: cli.shrink_challenge || cli.shrink_solution,
         shrink_solution: cli.shrink_solution,
-        shrink_challenge_minimal: cli.shrink_challenge_minimal,
+        shrink_challenge_minimal: cli.shrink_challenge_minimal || cli.shrink_solution_minimal,
         shrink_solution_minimal: cli.shrink_solution_minimal,
         delete_lemmas: cli.delete_lemmas.is_some()
             || cli.delete_lemmas_uniform.is_some()
