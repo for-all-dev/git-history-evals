@@ -78,7 +78,7 @@ def run(
     ),
 ) -> None:
     _load_env()
-    from apply_ablate.obs import init_logfire, span
+    from apply_ablate.obs import init_logfire, log, set_attrs, span
 
     init_logfire()
     n = _count_records(challenges)
@@ -95,9 +95,40 @@ def run(
                 assistant=rec.assistant,
                 file_path=rec.file_path,
                 model=model,
-            ):
+            ) as sp:
                 res = solve_one(
                     rec, src, work, model=model, max_turns=max_turns, timeout=timeout
+                )
+                outcome = (
+                    "pass"
+                    if res.succeeded
+                    else "malformed"
+                    if res.malformed_challenge
+                    else "gave_up"
+                    if res.gave_up
+                    else "turn_limit"
+                    if res.turn_limit
+                    else "error"
+                    if res.error
+                    else "fail"
+                )
+                set_attrs(
+                    sp,
+                    outcome=outcome,
+                    succeeded=res.succeeded,
+                    gave_up=res.gave_up,
+                    turn_limit=res.turn_limit,
+                    malformed=res.malformed_challenge,
+                    reason=res.reason,
+                    error=res.error,
+                )
+                log(
+                    f"challenge {outcome}",
+                    file_path=rec.file_path,
+                    assistant=rec.assistant,
+                    outcome=outcome,
+                    reason=res.reason,
+                    error=res.error,
                 )
             fh.write(res.model_dump_json() + "\n")
             fh.flush()

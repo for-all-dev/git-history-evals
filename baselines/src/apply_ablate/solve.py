@@ -19,7 +19,7 @@ from pydantic import BaseModel, Field
 
 from apply_ablate.apply import apply_record
 from apply_ablate.diff import unified_or_empty
-from apply_ablate.obs import span
+from apply_ablate.obs import log, set_attrs, span
 from apply_ablate.provers import Prover, get_prover
 from apply_ablate.record import AblationRecord
 
@@ -121,26 +121,43 @@ def make_agent(model: str):
         """Submit the full corrected file. Compiles it (no holes allowed); returns the result."""
         bad = _forbidden(solution)
         if bad is not None:
+            log(
+                "submit rejected: forbidden token",
+                token=bad,
+                assistant=ctx.deps.assistant,
+            )
             return {
                 "ok": False,
                 "error": f"forbidden token `{bad}` — re-derive it for real, no holes/axioms",
             }
         ctx.deps.current = solution
         ctx.deps.target.write_text(solution, encoding="utf-8")
-        with span("compile", assistant=ctx.deps.assistant, allow_holes=False) as sp:
+        with span(
+            "compile",
+            assistant=ctx.deps.assistant,
+            file=str(ctx.deps.rel),
+            allow_holes=False,
+        ) as sp:
             res = ctx.deps.prover.check(
                 ctx.deps.work_dir,
                 ctx.deps.rel,
                 allow_holes=False,
                 timeout=ctx.deps.timeout,
             )
-            if sp is not None and hasattr(sp, "set_attribute"):
-                sp.set_attribute("ok", res.ok)
+            set_attrs(
+                sp,
+                ok=res.ok,
+                note=res.note,
+                returncode=res.returncode,
+                error=("" if res.ok else res.trimmed(800)),
+            )
+        log("submit compiled" if res.ok else "submit failed", ok=res.ok, note=res.note)
         return {"ok": res.ok, "error": "" if res.ok else res.trimmed(3000)}
 
     @agent.tool
     def give_up(ctx, reason: str) -> dict:  # type: ignore[no-untyped-def]
         """Abandon this challenge with a short reason."""
+        log("agent gave up", reason=reason, assistant=ctx.deps.assistant)
         return {"ok": True, "noted": reason}
 
     return agent
@@ -181,8 +198,11 @@ def solve_one(
     # Pre-flight: a well-formed challenge must compile *with* holes. If it does not,
     # the ablation itself is broken (e.g. a mis-placed hole) — record it as a malformed
     # challenge rather than blaming the model, so ablator bugs stay distinguishable.
-    with span("preflight", assistant=record.assistant, file_path=record.file_path):
+    with span(
+        "preflight", assistant=record.assistant, file_path=record.file_path
+    ) as sp:
         pre = prover.check(work, rel, allow_holes=True, timeout=timeout)
+        set_attrs(sp, ok=pre.ok, note=pre.note)
     if not pre.ok:
         return SolveResult(
             task_id=record.task_id,

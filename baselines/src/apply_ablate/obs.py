@@ -44,3 +44,21 @@ def span(name: str, **attrs: object):
 
         return nullcontext()
     return logfire.span(name, **attrs)  # ty: ignore[invalid-argument-type]
+
+
+def log(message: str, **attrs: object) -> None:
+    """Emit a Logfire info event (a no-op if Logfire is absent/unconfigured)."""
+    try:
+        import logfire
+    except ImportError:  # pragma: no cover
+        return
+    logfire.info(message, **attrs)  # ty: ignore[invalid-argument-type]
+
+
+def set_attrs(span_obj: object, **attrs: object) -> None:
+    """Best-effort `set_attribute` on a Logfire span (ignores no-op/None spans)."""
+    setter = getattr(span_obj, "set_attribute", None)
+    if setter is None:
+        return
+    for k, v in attrs.items():
+        setter(k, v)
