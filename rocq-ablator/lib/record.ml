@@ -85,4 +85,5 @@ let record ~(file_path : string) ~(session : string) ~(spec : Ablate.spec)
       (* the solution is stored as a diff against the challenge (apply to recover
          the full solution) — full files are huge for big theories (issue #107) *)
       ("solution_diff", `String (Diff.unified result.text result.solution));
+      ("solution_file_content", `String result.solution);
     ]

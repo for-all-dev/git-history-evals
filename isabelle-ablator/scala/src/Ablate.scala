@@ -810,7 +810,8 @@ object Ablate {
       "challenge_file_content" -> result.text,
       // solution stored as a diff against the challenge (apply to recover) — full
       // files are huge for big theories (issue #107)
-      "solution_diff" -> Diff.unified(result.text, result.solution))
+      "solution_diff" -> Diff.unified(result.text, result.solution),
+      "solution_file_content" -> result.solution)
   }
 
   /** Single-theory compile-test used by `--aggressively-delete-lemmas`: write
