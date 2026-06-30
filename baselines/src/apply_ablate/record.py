@@ -12,12 +12,20 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 from apply_ablate.diff import apply as apply_diff
 
 # proof_assistant value -> canonical prover key
 PROOF_ASSISTANTS = frozenset({"coq", "isabelle", "lean"})
+
+
+class HoleInfo(BaseModel):
+    """One holed proof in a challenge (the rest of the ablator's hole metadata is
+    ignored). `theorem_name` is the declaration the agent must keep + re-prove."""
+
+    model_config = ConfigDict(extra="ignore")
+    theorem_name: str = ""
 
 
 class AblationRecord(BaseModel):
@@ -28,7 +36,10 @@ class AblationRecord(BaseModel):
     proof_assistant: str
     file_path: str
     challenge_file_content: str
+    # The answer as a whole file (newer ablators) — preferred over the diff if present.
+    solution_file_content: str = ""
     solution_diff: str = ""
+    holes_filled: list[HoleInfo] = Field(default_factory=list)
     # informational
     task_id: str | None = None
     theory: str | None = None
@@ -39,8 +50,16 @@ class AblationRecord(BaseModel):
         """Normalised proof-assistant key (lowercased)."""
         return self.proof_assistant.strip().lower()
 
+    @property
+    def holed_theorems(self) -> list[str]:
+        """Names of the theorems the agent was asked to re-prove (must be preserved)."""
+        return [h.theorem_name for h in self.holes_filled if h.theorem_name]
+
     def solution_text(self) -> str:
-        """The original (un-ablated) file recovered from `solution_diff`."""
+        """The (un-ablated) ground-truth file: the whole-file field if the ablator
+        emitted it, else recovered by applying `solution_diff` to the challenge."""
+        if self.solution_file_content:
+            return self.solution_file_content
         return apply_diff(self.challenge_file_content, self.solution_diff)
 
 

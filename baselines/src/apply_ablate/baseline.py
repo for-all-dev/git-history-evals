@@ -122,6 +122,8 @@ def run(
                     if res.trivial
                     else "malformed"
                     if res.malformed_challenge
+                    else "tampered"
+                    if res.tampered
                     else "gave_up"
                     if res.gave_up
                     else "turn_limit"
@@ -171,21 +173,34 @@ def run(
     typer.echo("")
     if dry_run:
         well_formed = sum(1 for r in results if r.dry_run)
+        sol_ok = sum(1 for r in results if r.solution_compiles is True)
+        sol_bad = sum(1 for r in results if r.solution_compiles is False)
         typer.echo("=== dry run (no model called) ===")
-        typer.echo(f"  challenges : {total}")
-        typer.echo(f"  well-formed: {well_formed} (applied + pre-flight compiled)")
-        typer.echo(f"  trivial    : {trivial} (empty diff; nothing deleted)")
-        typer.echo(f"  malformed  : {malformed} (challenge did not compile)")
-        typer.echo(f"  results    : {out}  (challenges logged to Logfire)")
+        typer.echo(f"  challenges  : {total}")
+        typer.echo(f"  well-formed : {well_formed} (applied + pre-flight compiled)")
+        typer.echo(
+            f"  solution ok : {sol_ok} (ablator's ground-truth compiled hole-free)"
+        )
+        typer.echo(
+            f"  solution BAD: {sol_bad} (ground-truth did NOT compile — ablator bug)"
+        )
+        typer.echo(f"  trivial     : {trivial} (empty diff; nothing deleted)")
+        typer.echo(f"  malformed   : {malformed} (challenge did not compile)")
+        typer.echo(f"  results     : {out}  (challenges logged to Logfire)")
         return
     scorable = total - malformed - trivial
     passed = sum(1 for r in results if r.succeeded)
+    tampered = sum(1 for r in results if r.tampered)
     gave_up = sum(1 for r in results if r.gave_up)
     turn_limited = sum(1 for r in results if r.turn_limit and not r.succeeded)
     errored = sum(
         1
         for r in results
-        if r.error and not r.malformed_challenge and not r.turn_limit and not r.trivial
+        if r.error
+        and not r.malformed_challenge
+        and not r.turn_limit
+        and not r.trivial
+        and not r.tampered
     )
     typer.echo(f"=== baseline: {model} ===")
     typer.echo(f"  challenges : {total}")
@@ -194,6 +209,9 @@ def run(
     typer.echo(
         f"  PASS       : {passed}/{scorable} "
         f"({(100.0 * passed / scorable if scorable else 0):.0f}% of scorable)"
+    )
+    typer.echo(
+        f"  tampered   : {tampered} (compiled but deleted/weakened a holed theorem)"
     )
     typer.echo(f"  gave up    : {gave_up}")
     typer.echo(f"  turn-limit : {turn_limited} (ran out of request budget, no compile)")

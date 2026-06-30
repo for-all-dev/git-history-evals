@@ -22,6 +22,7 @@
             pkgs.python3 # serve the demo
             pkgs.nodejs # run/test the wasm output
             pkgs.coq # coqc / coqdep, for the CLI's --check-build
+            pkgs.ripgrep # the baselines agent's `search` tool shells out to `rg`
           ];
           shellHook = ''
             echo "rocq-ablator dev shell — $(ocaml -version)"

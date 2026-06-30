@@ -83,7 +83,8 @@
         primaryIsabelle = isabelle2025-2;
 
         mkDevShell = isa: pkgs.mkShell {
-          packages = [ isa jdk pkgs.bashInteractive ];
+          # ripgrep: the baselines agent's `search` tool shells out to `rg`.
+          packages = [ isa jdk pkgs.bashInteractive pkgs.ripgrep ];
           shellHook = ''
             echo "Isabelle: $(isabelle version 2>/dev/null || echo '?')"
             echo "Build the ablator:  bash build.sh"
