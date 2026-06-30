@@ -1,12 +1,10 @@
-"""A prover-agnostic pydantic-ai ReAct loop that asks a model to re-derive the
-deleted lemma(s) in an ablation challenge.
+"""A prover-agnostic pydantic-ai ReAct loop that asks a model to solve an ablation
+challenge.
 
-The challenge (from `--delete-lemmas-leaves --count N --shrink-*-minimal`) has the
-deleted lemma removed and its use sites holed; the holed *leaf* steps are hints. The
-agent edits the file to fill the holes (re-deriving whatever it needs), and we record
-the diff challenge→solution. The agent is restricted to reading other proof files in
-the repo — no internet, no git — and its solution must contain no `sorry`/`admit`/
-`Admitted`/`oops`/`axiom`, enforced both textually and by compiling without holes.
+The agent is restricted to reading other proof files in the repo — no internet, no git —
+and its solution must contain no `sorry`/`admit`/ `Admitted`/`oops`/`axiom`, enforced
+both textually and by compiling without holes.
+
 """
 
 from __future__ import annotations
@@ -29,11 +27,9 @@ PROOF_EXTS = {".thy", ".lean", ".v"}
 FORBIDDEN = re.compile(r"\b(sorry|admit|Admitted|oops|axiomatization|axiom|Axiom)\b")
 
 SYSTEM_PROMPT = """\
-You are a proof engineer. A lemma was deleted from a {assistant} proof file and every
-place that used it was replaced with a hole. Your job: edit the file so it compiles
-again, re-deriving whatever the deleted lemma provided (inline, or by reintroducing
-helper lemmas of your own). The holed leaf steps show exactly where the deleted lemma
-was used — use them as hints.
+You are a proof engineer. The following {assistant} proof contains one or more holes
+that are left to be proved. Your job: edit the file so it compiles properly, deriving
+any helper lemmas as you need.
 
 Rules:
 - Your final file MUST compile and MUST NOT contain `sorry`, `admit`, `Admitted`,
@@ -231,8 +227,8 @@ def solve_one(
     # Monads heaps), where preflight is expected to fail — the whole point of a dry run.
     chal = record.challenge_file_content
     prompt = (
-        f"The file `{record.file_path}` has holes where a deleted lemma was used. "
-        f"Re-derive it and make the file compile. Here is the current (holed) file:\n\n"
+        f"The file `{record.file_path}` has one or more holes where proofs need to be completed. "
+        f"Make the file compile. Here is the current (holed) file:\n\n"
         f"```\n{chal}\n```"
     )
     log(
