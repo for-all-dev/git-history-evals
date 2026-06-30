@@ -374,6 +374,44 @@ let () =
   check "diff: large+localized round-trip" (Diff.apply chal dd = sol);
   check "diff: large+localized is tiny" (String.length dd < String.length sol / 4)
 
+(* ---- --corollary-delete-lemmas ----
+   A single dependency chain top -> mid -> base, plus an isolated `lonely`. The only
+   theorems with a non-empty *eligible* dependency closure are `top` ({mid,base}) and
+   `mid` ({base}); whichever corollary the uniform draw lands on, every deletion must
+   come from {mid, base} — never `top` (nothing uses it) or `lonely`. *)
+let () =
+  let src =
+    "Lemma base : forall n:nat, n = n.\nProof. intros. reflexivity. Qed.\n\n\
+     Lemma mid : 3 = 3.\nProof. apply base. Qed.\n\n\
+     Lemma top : 4 = 4.\nProof. apply mid. Qed.\n\n\
+     Lemma lonely : 5 = 5.\nProof. reflexivity. Qed.\n"
+  in
+  let del1 seed =
+    let spec = { Ablate.default_spec with delete_lemmas = true; corollary = true; delete_count = Some 1 } in
+    List.map fst (ablate_full ~spec ~seed src).deleted
+  in
+  let saw_base = ref false and saw_mid = ref false and bad = ref false in
+  for s = 0 to 39 do
+    match del1 s with
+    | [ n ] ->
+        if n = "base" then saw_base := true
+        else if n = "mid" then saw_mid := true
+        else bad := true
+    | _ -> bad := true
+  done;
+  check "corollary: =1 deletes exactly one within a corollary closure" (not !bad);
+  check "corollary: both closure members (base, mid) reachable across seeds" (!saw_base && !saw_mid);
+  check "corollary: reproducible per seed" (del1 7 = del1 7);
+  (* wholesale holes the user; uniform variant draws from the closure too *)
+  let spec_w = { Ablate.default_spec with delete_lemmas = true; corollary = true; delete_count = Some 1 } in
+  let rw = ablate_full ~spec:spec_w ~seed:2 src in
+  check "corollary: user proof holed; full solution preserved"
+    (contains rw.text "Admitted" && rw.solution = src && List.length rw.deleted = 1);
+  let spec_u = { spec_w with delete_uniform = true } in
+  let du = List.map fst (ablate_full ~spec:spec_u ~seed:5 src).deleted in
+  check "corollary-uniform: deletion within the closure"
+    (List.for_all (fun n -> n = "base" || n = "mid") du)
+
 let () =
   if !failures = 0 then print_endline "\nALL TESTS PASSED"
   else begin

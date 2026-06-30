@@ -111,6 +111,7 @@ object Ablate {
     delete_uniform: Boolean = false,   // delete-lemmas: draw deletions uniformly, not by user count
     delete_leaves: Boolean = false,    // delete-lemmas: hole only leaf steps (falls back to whole proof)
     aggressive: Boolean = false,       // delete-lemmas: relax guards (BE; needs --check-build)
+    corollary: Boolean = false,        // delete-lemmas: restrict candidates to one random theorem's dep closure
     ablate_scripts: Boolean = false    // ablate apply-scripts whole, not the default prefix-cut
   ) {
     def uses_centrality: Boolean =
@@ -315,7 +316,10 @@ object Ablate {
           // a goal is never a structural closer
           top_segs += ((out.length, orig, false, ablated > ablated0))
         case _ =>
-          val closer = spans(i).name == "end"   // closes theory/locale/context
+          // keep `end` closers AND block openers (kind thy_decl_block, which absorb
+          // their `begin`) so shrink keeps a balanced theory/locale/context skeleton.
+          val closer = spans(i).name == "end" ||
+            spans(i).kind.keyword_kind.contains(Keyword.THY_DECL_BLOCK)
           orig += src(i).length
           out ++= src(i); i += 1
           top_segs += ((out.length, orig, closer, false))
@@ -438,7 +442,70 @@ object Ablate {
       }
       idx
     }
-    val selected: List[Lemma] = spec.delete_count match {
+    // Corollary mode: pick a random theorem, take its transitive in-file dependency
+    // closure, and draw deletions from the *eligible* members of that closure (fan-in
+    // weighted, or uniform). One corollary is exhausted before a fresh one is drawn, so
+    // deletions stay concentrated in a single proof's subtree unless the target forces
+    // spilling. Mirrors the rust ablator's corollary_select.
+    def corollarySelect(): List[Lemma] = {
+      if (cands.isEmpty) Nil
+      else {
+        val byNameFirst = lemmas.foldLeft(Map.empty[String, Lemma]) {
+          (m, l) => if (m.contains(l.name)) m else m + (l.name -> l)
+        }
+        def depsOf(l: Lemma): List[Lemma] =
+          (l.stmtNames ++ l.bodyNames).flatMap(byNameFirst.get)
+            .filter(_.opener != l.opener).distinct
+        val candOpeners = cands.map(_.opener).toSet
+        def closureCands(start: Lemma): Vector[Lemma] = {
+          val seen = mutable.Set.empty[Int]
+          val acc = new mutable.ListBuffer[Lemma]
+          var stack = depsOf(start)
+          while (stack.nonEmpty) {
+            val l = stack.head; stack = stack.tail
+            if (l.opener != start.opener && seen.add(l.opener)) {
+              acc += l
+              stack = depsOf(l) ::: stack
+            }
+          }
+          acc.toVector.filter(l => candOpeners.contains(l.opener)).sortBy(_.opener)
+        }
+        val order = rng.shuffle(lemmas.toVector)
+        val del = mutable.Set.empty[Int]
+        val chosen = new mutable.ListBuffer[Lemma]
+        val targetDeletions = spec.delete_count
+        val targetAblations = if (spec.delete_count.isEmpty) spec.count else None
+        val useProb = spec.delete_count.isEmpty && spec.count.isEmpty
+        def coveredCount: Int = chosen.flatMap(_.users).filterNot(del.contains).distinct.size
+        def reached: Boolean = (targetDeletions, targetAblations) match {
+          case (Some(nd), _) => chosen.length >= nd
+          case (_, Some(k))  => coveredCount >= k
+          case _ => false
+        }
+        var oi = 0; var stop = false
+        while (oi < order.length && !stop) {
+          val cor = order(oi); oi += 1
+          if (useProb) {
+            val pool = closureCands(cor).filterNot(l => del.contains(l.opener))
+            if (pool.nonEmpty) {
+              for (pp <- pool if rng.nextDouble() < spec.prob) { del += pp.opener; chosen += pp }
+              stop = true
+            }
+          } else if (reached) stop = true
+          else {
+            var pool = closureCands(cor).filterNot(l => del.contains(l.opener))
+            while (pool.nonEmpty && !reached) {
+              val idx = pickIdx(pool); val l = pool(idx)
+              del += l.opener; chosen += l
+              pool = pool.patch(idx, Nil, 1)
+            }
+          }
+        }
+        chosen.toList
+      }
+    }
+    val selected: List[Lemma] = if (spec.corollary) corollarySelect()
+    else spec.delete_count match {
       // --delete-lemmas N: delete exactly N lemmas (weighted draw), any ablation count
       case Some(kd) =>
         val chosen = new mutable.ListBuffer[Lemma]
@@ -586,7 +653,9 @@ object Ablate {
         }
         j = e
       } else {
-        val s = src(j); val closer = spans(j).name == "end"
+        val s = src(j)
+        val closer = spans(j).name == "end" ||
+          spans(j).kind.keyword_kind.contains(Keyword.THY_DECL_BLOCK)
         out ++= s
         chal_segs += ((out.length, closer, false))
         orig_len += s.length; sol_segs += ((orig_len, closer, false))
@@ -827,6 +896,11 @@ object Ablate {
       |    --aggressively-delete-lemmas
       |                        as above, relaxed guards, validated with `isabelle build`
       |                        (drops non-compiling challenges; needs the HOL heap)
+      |    --corollary-delete-lemmas [N]
+      |                        like --delete-lemmas but restrict deletions to one random
+      |                        theorem's (a "corollary") transitive in-file dependency
+      |                        closure (fan-in weighted; re-picks a corollary only when the
+      |                        closure runs dry). Variants: -uniform, -leaves.
       |    --ablate-scripts    ablate apply-scripts whole (drop the entire script)
       |                        instead of the default prefix-cut (keep some `apply`
       |                        steps, `sorry` the rest)
@@ -881,6 +955,7 @@ object Ablate {
     var deleteUniform = false
     var deleteLeaves = false
     var aggressive = false
+    var corollary = false
     var ablateScripts = false
     var repeat = 1
     val paths = new mutable.ListBuffer[String]
@@ -923,6 +998,18 @@ object Ablate {
         case "--aggressively-delete-lemmas" :: n :: tl if n.toIntOption.exists(_ >= 0) =>
           deleteLemmas = true; aggressive = true; deleteCount = n.toIntOption; rest = tl
         case "--aggressively-delete-lemmas" :: tl => deleteLemmas = true; aggressive = true; rest = tl
+        // corollary mode: deletions restricted to one random theorem's dependency closure
+        case "--corollary-delete-lemmas" :: n :: tl if n.toIntOption.exists(_ >= 0) =>
+          deleteLemmas = true; corollary = true; deleteCount = n.toIntOption; rest = tl
+        case "--corollary-delete-lemmas" :: tl => deleteLemmas = true; corollary = true; rest = tl
+        case "--corollary-delete-lemmas-uniform" :: n :: tl if n.toIntOption.exists(_ >= 0) =>
+          deleteLemmas = true; corollary = true; deleteUniform = true; deleteCount = n.toIntOption; rest = tl
+        case "--corollary-delete-lemmas-uniform" :: tl =>
+          deleteLemmas = true; corollary = true; deleteUniform = true; rest = tl
+        case "--corollary-delete-lemmas-leaves" :: n :: tl if n.toIntOption.exists(_ >= 0) =>
+          deleteLemmas = true; corollary = true; deleteLeaves = true; deleteCount = n.toIntOption; rest = tl
+        case "--corollary-delete-lemmas-leaves" :: tl =>
+          deleteLemmas = true; corollary = true; deleteLeaves = true; rest = tl
         case "--ablate-scripts" :: tl => ablateScripts = true; rest = tl
         case "--repeat" :: v :: tl => repeat = v.toInt; rest = tl
         case "-s" :: v :: tl => session = v; rest = tl
@@ -975,6 +1062,7 @@ object Ablate {
       delete_uniform = deleteUniform,
       delete_leaves = deleteLeaves,
       aggressive = aggressive,
+      corollary = corollary,
       ablate_scripts = ablateScripts)
 
     if (spec.min_depth < 1) { Console.err.println("--min-depth must be >= 1"); sys.exit(2) }

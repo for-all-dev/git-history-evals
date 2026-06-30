@@ -46,6 +46,11 @@ def usage : String :=
     --aggressively-delete-lemmas
                         as above but relaxes guards and validates each challenge
                         with `lake env lean` (--check-build), dropping failures.
+    --corollary-delete-lemmas[ N]
+                        like --delete-lemmas but restrict deletions to one random
+                        theorem's (a 'corollary') transitive in-file dependency closure
+                        (fan-in weighted; re-picks a corollary only when the closure
+                        runs dry). Variants: -uniform, -leaves.
 
   Context shaping (ignored by --check):
     --truncate          drop challenge text after the last inserted `sorry`
@@ -76,6 +81,7 @@ structure Opts where
   deleteUniform : Bool := false
   deleteLeaves : Bool := false
   aggressive   : Bool := false
+  corollary    : Bool := false
   compact      : Bool := false
   textMode     : Bool := false
   difficulty   : Option String := none
@@ -126,6 +132,9 @@ partial def parseArgs (args : List String) (o : Opts) : Except String Opts := do
     | "--delete-lemmas-uniform" => delLemmas (fun o => { o with deleteLemmas := true, deleteUniform := true })
     | "--delete-lemmas-leaves" => delLemmas (fun o => { o with deleteLemmas := true, deleteLeaves := true })
     | "--aggressively-delete-lemmas" => delLemmas (fun o => { o with deleteLemmas := true, aggressive := true })
+    | "--corollary-delete-lemmas" => delLemmas (fun o => { o with deleteLemmas := true, corollary := true })
+    | "--corollary-delete-lemmas-uniform" => delLemmas (fun o => { o with deleteLemmas := true, corollary := true, deleteUniform := true })
+    | "--corollary-delete-lemmas-leaves" => delLemmas (fun o => { o with deleteLemmas := true, corollary := true, deleteLeaves := true })
     | "--compact"        => parseArgs rest { o with compact := true }
     | "--text"           => parseArgs rest { o with textMode := true }
     | "-v"               => parseArgs rest { o with verbose := true }
@@ -242,7 +251,8 @@ def buildSpec (o : Opts) (preset : Option Preset) : Spec :=
     deleteCount := o.deleteCount
     deleteUniform := o.deleteUniform
     deleteLeaves := o.deleteLeaves
-    aggressive := o.aggressive }
+    aggressive := o.aggressive
+    corollary := o.corollary }
 
 structure Doc where
   path : System.FilePath

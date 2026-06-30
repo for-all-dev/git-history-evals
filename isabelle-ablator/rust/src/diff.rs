@@ -148,7 +148,10 @@ fn format_hunks(ops: &[Op]) -> String {
             }
             let ol = old_no[stop + 1] - old_no[s];
             let nl = new_no[stop + 1] - new_no[s];
-            out.push_str(&format!("@@ -{},{} +{},{} @@\n", old_no[s], ol, new_no[s], nl));
+            out.push_str(&format!(
+                "@@ -{},{} +{},{} @@\n",
+                old_no[s], ol, new_no[s], nl
+            ));
             for op in &ops[s..=stop] {
                 match op {
                     Op::Eq(l) => {

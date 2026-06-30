@@ -102,7 +102,10 @@ fn is_letdig(s: &str) -> bool {
     is_letter(s) || is_digit(s) || is_quasi(s)
 }
 fn is_blank(s: &str) -> bool {
-    matches!(s, " " | "\t" | "\n" | "\u{000b}" | "\u{000c}" | "\r" | "\r\n")
+    matches!(
+        s,
+        " " | "\t" | "\n" | "\u{000b}" | "\u{000c}" | "\r" | "\r\n"
+    )
 }
 fn is_sym_char(s: &str) -> bool {
     s.chars().count() == 1 && SYM_CHARS.contains(s)
@@ -124,7 +127,10 @@ fn is_symbolic(s: &str) -> bool {
 }
 // formal-comment markers (encoded forms; \<comment> permits trailing blanks)
 fn is_comment_marker(s: &str) -> bool {
-    matches!(s, "\\<comment>" | "\\<^cancel>" | "\\<^latex>" | "\\<^marker>")
+    matches!(
+        s,
+        "\\<comment>" | "\\<^cancel>" | "\\<^latex>" | "\\<^marker>"
+    )
 }
 const SUB: &str = "\\<^sub>";
 

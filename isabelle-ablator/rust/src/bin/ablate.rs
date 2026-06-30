@@ -102,6 +102,16 @@ struct Cli {
     /// delete-lemmas[=N] with relaxed guards, validated by `isabelle build` (needs isabelle)
     #[arg(long, num_args = 0..=1, require_equals = true, value_name = "N")]
     aggressively_delete_lemmas: Option<Option<u64>>,
+    /// like --delete-lemmas[=N] but restrict deletions to one random theorem's
+    /// (a "corollary") transitive in-file dependency closure (fan-in weighted draw)
+    #[arg(long, num_args = 0..=1, require_equals = true, value_name = "N")]
+    corollary_delete_lemmas: Option<Option<u64>>,
+    /// like --corollary-delete-lemmas[=N] but draw from the closure uniformly
+    #[arg(long, num_args = 0..=1, require_equals = true, value_name = "N")]
+    corollary_delete_lemmas_uniform: Option<Option<u64>>,
+    /// like --corollary-delete-lemmas[=N] but hole only leaf steps citing L
+    #[arg(long, num_args = 0..=1, require_equals = true, value_name = "N")]
+    corollary_delete_lemmas_leaves: Option<Option<u64>>,
     /// ablate apply-scripts whole (drop the entire script) instead of the default
     /// prefix-cut (keep a prefix of `apply` steps, `sorry` the rest)
     #[arg(long)]
@@ -142,7 +152,8 @@ fn parse_depth(s: &str) -> i64 {
     if s == "inf" || s == "infinity" {
         INF
     } else {
-        s.parse().unwrap_or_else(|_| die(&format!("bad number: {s}")))
+        s.parse()
+            .unwrap_or_else(|_| die(&format!("bad number: {s}")))
     }
 }
 
@@ -182,7 +193,10 @@ fn main() {
 
     let preset = cli.difficulty.as_deref().map(|d| {
         preset_of(d).unwrap_or_else(|| {
-            die(&format!("unknown --difficulty {d} (expected L0..L{})", LADDER.len() - 1))
+            die(&format!(
+                "unknown --difficulty {d} (expected L0..L{})",
+                LADDER.len() - 1
+            ))
         })
     });
 
@@ -221,16 +235,27 @@ fn main() {
         delete_lemmas: cli.delete_lemmas.is_some()
             || cli.delete_lemmas_uniform.is_some()
             || cli.delete_lemmas_leaves.is_some()
-            || cli.aggressively_delete_lemmas.is_some(),
+            || cli.aggressively_delete_lemmas.is_some()
+            || cli.corollary_delete_lemmas.is_some()
+            || cli.corollary_delete_lemmas_uniform.is_some()
+            || cli.corollary_delete_lemmas_leaves.is_some(),
         delete_count: cli
             .delete_lemmas
             .flatten()
             .or(cli.delete_lemmas_uniform.flatten())
             .or(cli.delete_lemmas_leaves.flatten())
-            .or(cli.aggressively_delete_lemmas.flatten()),
-        delete_uniform: cli.delete_lemmas_uniform.is_some(),
-        delete_leaves: cli.delete_lemmas_leaves.is_some(),
+            .or(cli.aggressively_delete_lemmas.flatten())
+            .or(cli.corollary_delete_lemmas.flatten())
+            .or(cli.corollary_delete_lemmas_uniform.flatten())
+            .or(cli.corollary_delete_lemmas_leaves.flatten()),
+        delete_uniform: cli.delete_lemmas_uniform.is_some()
+            || cli.corollary_delete_lemmas_uniform.is_some(),
+        delete_leaves: cli.delete_lemmas_leaves.is_some()
+            || cli.corollary_delete_lemmas_leaves.is_some(),
         aggressive: cli.aggressively_delete_lemmas.is_some(),
+        corollary: cli.corollary_delete_lemmas.is_some()
+            || cli.corollary_delete_lemmas_uniform.is_some()
+            || cli.corollary_delete_lemmas_leaves.is_some(),
         ablate_scripts: cli.ablate_scripts,
     };
     if spec.min_depth < 1 {
@@ -239,14 +264,18 @@ fn main() {
 
     let syntax = match &cli.keywords {
         Some(f) => {
-            let json = std::fs::read_to_string(f).unwrap_or_else(|e| die(&format!("read {f}: {e}")));
+            let json =
+                std::fs::read_to_string(f).unwrap_or_else(|e| die(&format!("read {f}: {e}")));
             Syntax::new(isabelle_ablator::keyword::Keywords::from_json(&json))
         }
         None => Syntax::hol(),
     };
-    let base: i64 = cli
-        .seed
-        .unwrap_or_else(|| SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_nanos() as i64);
+    let base: i64 = cli.seed.unwrap_or_else(|| {
+        SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos() as i64
+    });
 
     let theories = collect_theories(&cli.paths);
     let docs: Vec<(PathBuf, String)> = theories
@@ -300,7 +329,10 @@ fn main() {
                 if sol { "ok" } else { "FAIL" }
             );
         }
-        println!("\nbuild-check: {ok} ok, {fail} failed (of {} files)", docs.len());
+        println!(
+            "\nbuild-check: {ok} ok, {fail} failed (of {} files)",
+            docs.len()
+        );
         if fail > 0 {
             exit(1);
         }
@@ -311,7 +343,11 @@ fn main() {
     let mut strip: Vec<String> = cli
         .strip_dir
         .iter()
-        .filter_map(|d| std::fs::canonicalize(d).ok().map(|p| p.to_string_lossy().into_owned()))
+        .filter_map(|d| {
+            std::fs::canonicalize(d)
+                .ok()
+                .map(|p| p.to_string_lossy().into_owned())
+        })
         .collect();
     strip.sort_by_key(|s| std::cmp::Reverse(s.len()));
     let display_path = |p: &Path| -> String {
@@ -379,7 +415,10 @@ fn main() {
         }
     }
     if cli.verbose {
-        eprintln!("[emitted {emitted} {}]", if cli.text { "theories" } else { "records" });
+        eprintln!(
+            "[emitted {emitted} {}]",
+            if cli.text { "theories" } else { "records" }
+        );
     }
 }
 
@@ -413,14 +452,30 @@ fn run_check(
         let spans = syntax.parse_spans(text);
 
         let mut rng = Rng::new(0);
-        let id = ablate(&spans, &Spec { prob: 0.0, ..base_spec.clone() }, &mut rng, centrality_fn);
+        let id = ablate(
+            &spans,
+            &Spec {
+                prob: 0.0,
+                ..base_spec.clone()
+            },
+            &mut rng,
+            centrality_fn,
+        );
         if id.text != *text {
             roundtrip_fail.push(name.clone());
         }
 
         let t0 = Instant::now();
         let mut rng = Rng::new(0);
-        let all = ablate(&spans, &Spec { prob: 1.0, ..base_spec.clone() }, &mut rng, centrality_fn);
+        let all = ablate(
+            &spans,
+            &Spec {
+                prob: 1.0,
+                ..base_spec.clone()
+            },
+            &mut rng,
+            centrality_fn,
+        );
         ablate_ns += t0.elapsed().as_nanos();
         n_files += 1;
         n_goals += all.total;
@@ -438,7 +493,11 @@ fn run_check(
     println!("\n================ ablation self-test ================");
     println!("theories checked     : {n_files}");
     println!("in-range goals       : {n_goals}");
-    let pct = if n_goals > 0 { 100.0 * n_ablated as f64 / n_goals as f64 } else { 0.0 };
+    let pct = if n_goals > 0 {
+        100.0 * n_ablated as f64 / n_goals as f64
+    } else {
+        0.0
+    };
     println!("cleanly ablated      : {n_ablated} ({pct:.2}%)");
     if ablate_s > 0.0 {
         println!(

@@ -34,6 +34,7 @@ type spec = {
   delete_uniform : bool; (* delete-lemmas: pick deletions uniformly, not weighted by user count *)
   delete_leaves : bool; (* delete-lemmas: hole only the leaf steps citing L, not whole proofs *)
   aggressive : bool; (* delete-lemmas: relax syntactic guards (BE; needs check-build) *)
+  corollary : bool; (* delete-lemmas: restrict candidates to one random theorem's dep closure *)
 }
 
 let default_spec =
@@ -59,6 +60,7 @@ let default_spec =
     delete_uniform = false;
     delete_leaves = false;
     aggressive = false;
+    corollary = false;
   }
 
 let uses_centrality s =
@@ -545,7 +547,8 @@ let walk_all (spans : Span.t array) (spec : spec) (centrality : string -> int)
       top_segs := (buflen (), !orig, false, !ablated > abl0) :: !top_segs
     end
     else begin
-      let closer = Span.is_closer s in
+      (* keep block openers too, so shrink keeps a balanced Section/Module skeleton *)
+      let closer = Span.is_closer s || Span.is_opener s in
       emit (Span.source s);
       orig := !orig + String.length (Span.source s);
       incr i;
@@ -721,7 +724,98 @@ let ablate_delete (spans : Span.t array) (spec : spec) (rng : Rng.t) : result =
     go 0.0 remaining
   in
   let without l rem = List.filter (fun (c : Uses.lemma) -> c.opener <> l.Uses.opener) rem in
+  (* Corollary mode: pick a random theorem, take its transitive in-file dependency
+     closure, and draw deletions from the *eligible* members of that closure (fan-in
+     weighted via [pick_weighted], or uniform). One corollary is exhausted before a
+     fresh one is drawn, so deletions stay concentrated in a single proof's subtree
+     unless the target forces spilling. Mirrors the rust ablator's corollary_select. *)
+  let corollary_select () =
+    if cands = [] then []
+    else begin
+      let by_name : (string, Uses.lemma) Hashtbl.t = Hashtbl.create 64 in
+      List.iter
+        (fun (l : Uses.lemma) -> if not (Hashtbl.mem by_name l.name) then Hashtbl.replace by_name l.name l)
+        lemmas;
+      let deps_of (l : Uses.lemma) =
+        l.stmt_names @ l.body_names
+        |> List.filter_map (fun nm -> Hashtbl.find_opt by_name nm)
+        |> List.filter (fun (d : Uses.lemma) -> d.opener <> l.opener)
+      in
+      let cand_openers = Hashtbl.create 64 in
+      List.iter (fun (l : Uses.lemma) -> Hashtbl.replace cand_openers l.opener ()) cands;
+      let closure_cands (start : Uses.lemma) =
+        let seen = Hashtbl.create 64 in
+        let acc = ref [] and stack = ref (deps_of start) in
+        while !stack <> [] do
+          match !stack with
+          | [] -> ()
+          | (l : Uses.lemma) :: tl ->
+              stack := tl;
+              if l.opener <> start.opener && not (Hashtbl.mem seen l.opener) then begin
+                Hashtbl.replace seen l.opener ();
+                acc := l :: !acc;
+                stack := deps_of l @ !stack
+              end
+        done;
+        !acc
+        |> List.filter (fun (l : Uses.lemma) -> Hashtbl.mem cand_openers l.opener)
+        |> List.sort (fun (a : Uses.lemma) (b : Uses.lemma) -> compare a.opener b.opener)
+      in
+      let order = Array.of_list lemmas in
+      Rng.shuffle rng order;
+      let del = Hashtbl.create 16 and chosen = ref [] in
+      let target_deletions = spec.delete_count in
+      let target_ablations = if spec.delete_count = None then spec.count else None in
+      let use_prob = spec.delete_count = None && spec.count = None in
+      let covered_count () =
+        let s = Hashtbl.create 64 in
+        List.iter
+          (fun (l : Uses.lemma) ->
+            List.iter (fun u -> if not (Hashtbl.mem del u) then Hashtbl.replace s u ()) l.users)
+          !chosen;
+        Hashtbl.length s
+      in
+      let reached () =
+        match (target_deletions, target_ablations) with
+        | Some nd, _ -> List.length !chosen >= nd
+        | _, Some k -> covered_count () >= k
+        | _ -> false
+      in
+      let not_chosen (l : Uses.lemma) = not (Hashtbl.mem del l.opener) in
+      let i = ref 0 and stop = ref false in
+      while !i < Array.length order && not !stop do
+        let cor = order.(!i) in
+        incr i;
+        if use_prob then begin
+          let pool = List.filter not_chosen (closure_cands cor) in
+          if pool <> [] then begin
+            List.iter
+              (fun (l : Uses.lemma) ->
+                if Rng.next_f64 rng < spec.prob then begin
+                  Hashtbl.replace del l.opener ();
+                  chosen := l :: !chosen
+                end)
+              pool;
+            stop := true
+          end
+        end
+        else if reached () then stop := true
+        else begin
+          let pool = ref (List.filter not_chosen (closure_cands cor)) in
+          while !pool <> [] && not (reached ()) do
+            let l = pick_weighted !pool in
+            Hashtbl.replace del l.Uses.opener ();
+            chosen := l :: !chosen;
+            pool := List.filter (fun (c : Uses.lemma) -> c.Uses.opener <> l.Uses.opener) !pool
+          done
+        end
+      done;
+      List.rev !chosen
+    end
+  in
   let selected =
+    if spec.corollary then corollary_select ()
+    else
     match spec.delete_count with
     | Some kd ->
         (* [--delete-lemmas K]: delete exactly K lemmas (weighted random draw), no
@@ -946,7 +1040,9 @@ let ablate_delete (spans : Span.t array) (spec : spec) (rng : Rng.t) : result =
     end
     else begin
       let src = Span.source s in
-      let closer = Span.is_closer s in
+      (* keep block openers too (not just [End] closers) so shrink can't drop a
+         [Section]/[Module] header while keeping its [End] -> unbalanced file. *)
+      let closer = Span.is_closer s || Span.is_opener s in
       Buffer.add_string out src;
       chal_segs := (Buffer.length out, closer, false) :: !chal_segs;
       orig := !orig + String.length src;

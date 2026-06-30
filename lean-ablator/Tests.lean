@@ -144,6 +144,39 @@ def deleteCountArgTests : StateT Tally IO Unit := do
   check "delete-lemmas 1: exactly 1" (ndel 1 == 1)
   check "delete-lemmas 9: capped at 3 candidates" (ndel 9 == 3)
 
+-- corollary-delete-lemmas: a chain top -> mid -> base, plus isolated `lonely`. Only
+-- `top` ({mid,base}) and `mid` ({base}) have non-empty eligible closures, so whichever
+-- corollary the draw lands on, every deletion is in {mid, base} -- never `top`
+-- (nothing uses it) or `lonely`.
+def corollaryTests : StateT Tally IO Unit := do
+  let src := "theorem base : True := trivial\n\n\
+    theorem mid : True := base\n\n\
+    theorem top : True := mid\n\n\
+    theorem lonely : True := trivial\n"
+  let del1 := fun (seed : Nat) =>
+    (ablate (tokenize src) { deleteLemmas := true, corollary := true, deleteCount := some 1 }
+      (Rng.mk (UInt64.ofNat seed)) (fun _ => (0:Int))).deleted.toList.map Prod.fst
+  let mut sawBase := false
+  let mut sawMid := false
+  let mut bad := false
+  for s in [0:40] do
+    match del1 s with
+    | [n] => if n == "base" then sawBase := true
+             else if n == "mid" then sawMid := true
+             else bad := true
+    | _ => bad := true
+  check "corollary: =1 deletes one within a corollary closure (never top/lonely)" (! bad)
+  check "corollary: both closure members reachable across seeds" (sawBase && sawMid)
+  check "corollary: reproducible per seed" (del1 7 == del1 7)
+  -- wholesale holes the user; full solution preserved; uniform variant draws from closure
+  let rw := ablate (tokenize src) { deleteLemmas := true, corollary := true, deleteCount := some 1 }
+    (Rng.mk 2) (fun _ => (0:Int))
+  check "corollary: user proof holed; full solution preserved"
+    (has rw.text "sorry" && rw.solution == src && rw.deleted.size == 1)
+  let du := (ablate (tokenize src) { deleteLemmas := true, corollary := true, deleteUniform := true, deleteCount := some 1 }
+    (Rng.mk 5) (fun _ => (0:Int))).deleted.toList.map Prod.fst
+  check "corollary-uniform: deletion within the closure" (du.all (fun n => n == "base" || n == "mid"))
+
 -- solution_diff: apply(challenge, unifiedDiff challenge solution) = solution.
 -- Also extracted to keep the generated C functions small (see `deleteTests`).
 def diffTests : StateT Tally IO Unit := do
@@ -267,6 +300,7 @@ def main : IO UInt32 := do
     deleteCountTests
     deleteShrinkTests
     deleteCountArgTests
+    corollaryTests
     letDocTests
     diffTests
   ).run {}

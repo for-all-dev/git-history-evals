@@ -61,6 +61,11 @@ let usage =
                         as above but relaxes the syntactic guards and validates
                         each challenge with coqc (--check-build), dropping any
                         that don't compile. Needs coq.
+    --corollary-delete-lemmas [N]
+                        like --delete-lemmas but restrict deletions to one random
+                        theorem's (a "corollary") transitive in-file dependency
+                        closure (fan-in weighted; re-picks a corollary only when the
+                        closure runs dry). Variants: -uniform, -leaves.
 
   Other:
     -s SESSION       session/library label recorded in output (default: coq)
@@ -150,6 +155,7 @@ type opts = {
   mutable delete_uniform : bool;
   mutable delete_leaves : bool;
   mutable aggressive : bool;
+  mutable corollary : bool;
   mutable repeat : int;
   mutable strip_dirs : string list;
   mutable paths : string list;
@@ -164,7 +170,7 @@ let parse_args argv =
       truncate = false; shrink_challenge = false; shrink_solution = false;
       shrink_challenge_minimal = false; shrink_solution_minimal = false;
       allow_defined = false; delete_lemmas = false; delete_count = None; delete_uniform = false;
-      delete_leaves = false; aggressive = false;
+      delete_leaves = false; aggressive = false; corollary = false;
       repeat = 1; strip_dirs = []; paths = [] }
   in
   let n = Array.length argv in
@@ -204,6 +210,9 @@ let parse_args argv =
      | "--delete-lemmas-uniform" -> o.delete_lemmas <- true; o.delete_uniform <- true; o.delete_count <- peek_int ()
      | "--delete-lemmas-leaves" -> o.delete_lemmas <- true; o.delete_leaves <- true; o.delete_count <- peek_int ()
      | "--aggressively-delete-lemmas" -> o.delete_lemmas <- true; o.aggressive <- true; o.delete_count <- peek_int ()
+     | "--corollary-delete-lemmas" -> o.delete_lemmas <- true; o.corollary <- true; o.delete_count <- peek_int ()
+     | "--corollary-delete-lemmas-uniform" -> o.delete_lemmas <- true; o.corollary <- true; o.delete_uniform <- true; o.delete_count <- peek_int ()
+     | "--corollary-delete-lemmas-leaves" -> o.delete_lemmas <- true; o.corollary <- true; o.delete_leaves <- true; o.delete_count <- peek_int ()
      | "--difficulty" -> o.difficulty <- Some (next a)
      | "--min-depth" -> o.min_depth <- Some (parse_depth (next a))
      | "--max-depth" -> o.max_depth <- Some (parse_depth (next a))
@@ -262,6 +271,7 @@ let build_spec o =
       delete_uniform = o.delete_uniform;
       delete_leaves = o.delete_leaves;
       aggressive = o.aggressive;
+      corollary = o.corollary;
     }
 
 let count_goals text =
