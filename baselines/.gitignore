@@ -1,0 +1,15 @@
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.ruff_cache/
+dist/
+build/
+# prover/work artifacts that integration tests may create
+.lake/
+*.vo
+*.vok
+*.vos
+*.glob
+.isabelle-home/
+/tests/integration/_work/
