@@ -17,6 +17,9 @@ def usage : String :=
 
   Modes:
     --check          run the corpus self-test (round-trip + delimitation)
+    --check-build    compile-test each ablation with `lake env lean` (challenge +
+                     solution); only the file itself is built (deps must already
+                     be compiled), so --shrink can't break it
 
   Difficulty (raw knobs override any --difficulty preset):
     --difficulty L   preset ladder L0 (easy) .. L4 (code+spec only)
@@ -30,9 +33,27 @@ def usage : String :=
     --count N        ablate exactly min(N, matching) bodies (excl. -p/--all)
     --by-centrality  with --count, pick the most-cited bodies
 
-  Context shaping (challenge text only; ignored by --check):
-    --truncate       drop everything after the last inserted `sorry`
-    --shrink-context drop top-level decls after the last ablated one
+  Lemma deletion (instead of per-proof ablation):
+    --delete-lemmas     delete eligible used lemmas + ablate their users. With
+                        --count N, deletions are drawn at random weighted by in-file
+                        user count until >= N ablations result (seed-driven; popular
+                        lemmas favoured, the tail still reachable). No prover needed.
+    --delete-lemmas-uniform
+                        like --delete-lemmas but draw deletions uniformly.
+    --delete-lemmas-leaves
+                        like --delete-lemmas; leaf-level holing is deferred to the
+                        heavyweight semantic ablator, so this falls back to whole-proof.
+    --aggressively-delete-lemmas
+                        as above but relaxes guards and validates each challenge
+                        with `lake env lean` (--check-build), dropping failures.
+
+  Context shaping (ignored by --check):
+    --truncate          drop challenge text after the last inserted `sorry`
+    --shrink-challenge  drop challenge top-level decls after the N-th hole (--count)
+    --shrink-solution   same, for the solution
+    --shrink-challenge-minimal / --shrink-solution-minimal
+                        keep only the N holes + their dependency closure (drop all
+                        unrelated decls); solution restores the deleted lemma + deps
 
   Other:
     -s SESSION       session/library label recorded in output (default: lean)
@@ -49,6 +70,12 @@ structure Opts where
   seed         : Option UInt64 := none
   verbose      : Bool := false
   check        : Bool := false
+  checkBuild   : Bool := false
+  deleteLemmas : Bool := false
+  deleteCount  : Option Nat := none
+  deleteUniform : Bool := false
+  deleteLeaves : Bool := false
+  aggressive   : Bool := false
   compact      : Bool := false
   textMode     : Bool := false
   difficulty   : Option String := none
@@ -63,7 +90,10 @@ structure Opts where
   maxCentOpt   : Option Int := none
   byCentrality : Bool := false
   truncate     : Bool := false
-  shrinkCtx    : Bool := false
+  shrinkChallenge : Bool := false
+  shrinkSolution  : Bool := false
+  shrinkChallengeMinimal : Bool := false
+  shrinkSolutionMinimal  : Bool := false
   repeatN      : Nat := 1
   paths        : Array String := #[]
   stripDirs    : Array String := #[]
@@ -82,15 +112,30 @@ partial def parseArgs (args : List String) (o : Opts) : Except String Opts := do
       match rest with
       | v :: tl => parseArgs tl (k v)
       | [] => .error s!"missing arg for {a}"
+    -- a --delete-lemmas* flag, optionally followed by N (the number of lemmas)
+    let delLemmas (k : Opts → Opts) : Except String Opts :=
+      match rest with
+      | v :: tl => match v.toNat? with
+        | some c => parseArgs tl (k { o with deleteCount := some c })
+        | none => parseArgs rest (k o)
+      | [] => parseArgs rest (k o)
     match a with
     | "--check"          => parseArgs rest { o with check := true }
+    | "--check-build"    => parseArgs rest { o with checkBuild := true }
+    | "--delete-lemmas"  => delLemmas (fun o => { o with deleteLemmas := true })
+    | "--delete-lemmas-uniform" => delLemmas (fun o => { o with deleteLemmas := true, deleteUniform := true })
+    | "--delete-lemmas-leaves" => delLemmas (fun o => { o with deleteLemmas := true, deleteLeaves := true })
+    | "--aggressively-delete-lemmas" => delLemmas (fun o => { o with deleteLemmas := true, aggressive := true })
     | "--compact"        => parseArgs rest { o with compact := true }
     | "--text"           => parseArgs rest { o with textMode := true }
     | "-v"               => parseArgs rest { o with verbose := true }
     | "--all"            => parseArgs rest { o with probOpt := some 1.0 }
     | "--by-centrality"  => parseArgs rest { o with byCentrality := true }
-    | "--truncate"       => parseArgs rest { o with truncate := true }
-    | "--shrink-context" => parseArgs rest { o with shrinkCtx := true }
+    | "--truncate"         => parseArgs rest { o with truncate := true }
+    | "--shrink-challenge" => parseArgs rest { o with shrinkChallenge := true }
+    | "--shrink-solution"  => parseArgs rest { o with shrinkSolution := true }
+    | "--shrink-challenge-minimal" => parseArgs rest { o with shrinkChallengeMinimal := true }
+    | "--shrink-solution-minimal"  => parseArgs rest { o with shrinkSolutionMinimal := true }
     | "--leaves-only"    => parseArgs rest { o with leavesOpt := some true }
     | "--difficulty"     => needArg fun v => { o with difficulty := some v }
     | "--min-depth"      => match rest with
@@ -187,7 +232,15 @@ def buildSpec (o : Opts) (preset : Option Preset) : Spec :=
     minCentrality := o.minCentOpt.getD 0
     maxCentrality := o.maxCentOpt.getD INF
     truncate := o.truncate
-    shrinkContext := o.shrinkCtx }
+    shrinkChallenge := o.shrinkChallenge
+    shrinkSolution := o.shrinkSolution
+    shrinkChallengeMinimal := o.shrinkChallengeMinimal
+    shrinkSolutionMinimal := o.shrinkSolutionMinimal
+    deleteLemmas := o.deleteLemmas
+    deleteCount := o.deleteCount
+    deleteUniform := o.deleteUniform
+    deleteLeaves := o.deleteLeaves
+    aggressive := o.aggressive }
 
 structure Doc where
   path : System.FilePath
@@ -200,7 +253,8 @@ structure Doc where
     statement preservation. Returns `true` on all-clean. -/
 def runCheck (docs : Array Doc) (spec : Spec) (centrality : String → Int) : IO Bool := do
   -- disable count / context shaping (validate the ablation itself)
-  let baseSpec := { spec with count := none, truncate := false, shrinkContext := false }
+  let baseSpec := { spec with count := none, truncate := false, shrinkChallenge := false, shrinkSolution := false,
+                              shrinkChallengeMinimal := false, shrinkSolutionMinimal := false }
   let mut nFiles := 0
   let mut nGoals : Int := 0
   let mut nAblated : Int := 0
@@ -238,6 +292,34 @@ def runCheck (docs : Array Doc) (spec : Spec) (centrality : String → Int) : IO
   return ok
 
 def golden : UInt64 := 0x9E3779B97F4A7C15
+
+/-- Walk up from `p` to the enclosing Lake package root (the dir with a
+    lakefile). Returns `none` if there isn't one. -/
+partial def findLakeRoot (p : System.FilePath) : IO (Option System.FilePath) := do
+  if (← (p / "lakefile.toml").pathExists) || (← (p / "lakefile.lean").pathExists) then
+    return some p
+  else match p.parent with
+    | some par => if par.toString == p.toString then return none else findLakeRoot par
+    | none => return none
+
+/-- Native compile-test (used by `--check-build`): put `content` at `path`, run
+    `lake env lean <path>` — which compiles only that file against the package's
+    prebuilt deps, never its dependents — then restore the original. So dropping
+    trailing decls via --shrink can't break the check. Deps must already be
+    built (`lake build`). -/
+def checkCompiles (path : String) (content : String) : IO Bool := do
+  let fp := System.FilePath.mk path
+  let orig ← IO.FS.readFile fp
+  IO.FS.writeFile fp content
+  let result ← try
+      let rootOpt ← findLakeRoot fp
+      let root := rootOpt.getD (fp.parent.getD (System.FilePath.mk "."))
+      let out ← IO.Process.output
+        { cmd := "lake", args := #["env", "lean", fp.toString], cwd := some root.toString }
+      pure (out.exitCode == 0)
+    finally
+      IO.FS.writeFile fp orig
+  return result
 
 def main (args : List String) : IO UInt32 := do
   if args == ["-h"] || args == ["--help"] then
@@ -288,6 +370,21 @@ def main (args : List String) : IO UInt32 := do
     let ok ← runCheck docs spec centrality
     return (if ok then 0 else 1)
 
+  if o.checkBuild then do
+    let mut nok := 0
+    let mut nfail := 0
+    for d in docs do
+      let rng := Rng.mk (seedBase ^^^ fnv1a d.display)
+      let result := ablate d.toks spec rng centrality
+      let chal ← checkCompiles d.path.toString result.text
+      let sol ← checkCompiles d.path.toString result.solution
+      if chal && sol then nok := nok + 1 else nfail := nfail + 1
+      let cs := if chal then "ok" else "FAIL"
+      let ss := if sol then "ok" else "FAIL"
+      IO.println s!"{d.display}  challenge:{cs} solution:{ss}"
+    IO.println s!"\nbuild-check: {nok} ok, {nfail} failed (of {docs.size} files)"
+    return (if nfail == 0 then 0 else 1)
+
   let nRepeat := Nat.max 1 o.repeatN
   let mut emitted := 0
   for d in docs do
@@ -297,14 +394,16 @@ def main (args : List String) : IO UInt32 := do
       let pf := fnv1a d.display
       let rng := Rng.mk (seedBase ^^^ pf ^^^ (UInt64.ofNat k * golden))
       let result := ablate d.toks spec rng centrality
-      if !seen.contains result.text then
+      -- aggressive delete-lemmas: only keep challenges that actually compile
+      let valid ← if o.aggressive then checkCompiles d.path.toString result.text else pure true
+      if valid && !seen.contains result.text then
         seen := seen.insert result.text
         if o.textMode then
           IO.print result.text
         else
           let variant := if nRepeat > 1 then some produced else none
           let obj := Ablator.record d.display o.session spec (Int.ofNat seedBase.toNat)
-                       variant o.difficulty d.text result
+                       variant o.difficulty result
           IO.println (if o.compact then obj.compact else obj.pretty)
         produced := produced + 1
         emitted := emitted + 1

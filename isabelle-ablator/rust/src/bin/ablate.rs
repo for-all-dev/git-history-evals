@@ -28,6 +28,12 @@ struct Cli {
     #[arg(long)]
     check: bool,
 
+    /// compile-test each ablation with `isabelle build` (challenge + solution);
+    /// builds a throwaway session of just the theory, so only its upward closure
+    /// is built and --shrink can't break it
+    #[arg(long)]
+    check_build: bool,
+
     /// difficulty preset ladder L0 (easy) .. L4 (code+spec only)
     #[arg(long, value_name = "L")]
     difficulty: Option<String>,
@@ -70,9 +76,32 @@ struct Cli {
     /// drop everything after the last inserted `sorry` (challenge only)
     #[arg(long)]
     truncate: bool,
-    /// drop top-level lemmas/theorems after the last ablated one (challenge only)
+    /// drop challenge top-level lemmas/theorems after the N-th hole (--count); keeps prefix + closers
     #[arg(long)]
-    shrink_context: bool,
+    shrink_challenge: bool,
+    /// same, for the solution
+    #[arg(long)]
+    shrink_solution: bool,
+    /// challenge: keep only the N holes + their dependency closure (drop unrelated decls)
+    #[arg(long)]
+    shrink_challenge_minimal: bool,
+    /// same, for the solution (restores the deleted lemma + its deps)
+    #[arg(long)]
+    shrink_solution_minimal: bool,
+
+    /// delete eligible used lemmas + ablate their users (correct-by-construction).
+    /// Optional `=N` deletes exactly N lemmas (weighted draw); else --count/-p decide.
+    #[arg(long, num_args = 0..=1, require_equals = true, value_name = "N")]
+    delete_lemmas: Option<Option<u64>>,
+    /// like --delete-lemmas[=N] but draw deletions uniformly (unweighted by user count)
+    #[arg(long, num_args = 0..=1, require_equals = true, value_name = "N")]
+    delete_lemmas_uniform: Option<Option<u64>>,
+    /// like --delete-lemmas[=N] but hole only leaf steps citing L
+    #[arg(long, num_args = 0..=1, require_equals = true, value_name = "N")]
+    delete_lemmas_leaves: Option<Option<u64>>,
+    /// delete-lemmas[=N] with relaxed guards, validated by `isabelle build` (needs isabelle)
+    #[arg(long, num_args = 0..=1, require_equals = true, value_name = "N")]
+    aggressively_delete_lemmas: Option<Option<u64>>,
 
     /// session name (for the record's `session` field)
     #[arg(short = 's', long, default_value = "HOL")]
@@ -179,7 +208,23 @@ fn main() {
         min_centrality: parse_depth(&cli.min_centrality),
         max_centrality: parse_depth(&cli.max_centrality),
         truncate: cli.truncate,
-        shrink_context: cli.shrink_context,
+        shrink_challenge: cli.shrink_challenge,
+        shrink_solution: cli.shrink_solution,
+        shrink_challenge_minimal: cli.shrink_challenge_minimal,
+        shrink_solution_minimal: cli.shrink_solution_minimal,
+        delete_lemmas: cli.delete_lemmas.is_some()
+            || cli.delete_lemmas_uniform.is_some()
+            || cli.delete_lemmas_leaves.is_some()
+            || cli.aggressively_delete_lemmas.is_some(),
+        delete_count: cli
+            .delete_lemmas
+            .flatten()
+            .or(cli.delete_lemmas_uniform.flatten())
+            .or(cli.delete_lemmas_leaves.flatten())
+            .or(cli.aggressively_delete_lemmas.flatten()),
+        delete_uniform: cli.delete_lemmas_uniform.is_some(),
+        delete_leaves: cli.delete_lemmas_leaves.is_some(),
+        aggressive: cli.aggressively_delete_lemmas.is_some(),
     };
     if spec.min_depth < 1 {
         die("--min-depth must be >= 1");
@@ -227,6 +272,34 @@ fn main() {
         return;
     }
 
+    if cli.check_build {
+        let mut ok = 0u64;
+        let mut fail = 0u64;
+        for (path, original) in &docs {
+            let spans = syntax.parse_spans(original);
+            let mut rng = Rng::new((base as u64) ^ fnv1a(&path.to_string_lossy()));
+            let r = ablate(&spans, &spec, &mut rng, &centrality_fn);
+            let chal = isabelle_ablator::build_check::check_compiles(path, &r.text);
+            let sol = isabelle_ablator::build_check::check_compiles(path, &r.solution);
+            if chal && sol {
+                ok += 1;
+            } else {
+                fail += 1;
+            }
+            println!(
+                "{:<50} challenge:{:<4} solution:{:<4}",
+                path.display(),
+                if chal { "ok" } else { "FAIL" },
+                if sol { "ok" } else { "FAIL" }
+            );
+        }
+        println!("\nbuild-check: {ok} ok, {fail} failed (of {} files)", docs.len());
+        if fail > 0 {
+            exit(1);
+        }
+        return;
+    }
+
     // path display: strip longest matching -d prefix
     let mut strip: Vec<String> = cli
         .strip_dir
@@ -260,6 +333,12 @@ fn main() {
             let pf = fnv1a(&display);
             let mut rng = Rng::new((base as u64) ^ pf ^ k.wrapping_mul(0x9E3779B97F4A7C15));
             let result = ablate(&spans, &spec, &mut rng, &centrality_fn);
+            // aggressive delete-lemmas: only keep challenges that actually compile
+            if cli.aggressively_delete_lemmas.is_some()
+                && !isabelle_ablator::build_check::check_compiles(path, &result.text)
+            {
+                continue;
+            }
             if seen.insert(result.text.clone()) {
                 if cli.text {
                     print!("{}", result.text);
@@ -272,7 +351,6 @@ fn main() {
                         base,
                         variant,
                         cli.difficulty.as_deref(),
-                        original,
                         &result,
                     );
                     if cli.compact {
@@ -298,7 +376,15 @@ fn run_check(
     centrality_fn: &dyn Fn(&str) -> i64,
 ) -> bool {
     // disable count / context shaping (validate the proof ablation itself)
-    let base_spec = Spec { count: None, truncate: false, shrink_context: false, ..spec.clone() };
+    let base_spec = Spec {
+        count: None,
+        truncate: false,
+        shrink_challenge: false,
+        shrink_solution: false,
+        shrink_challenge_minimal: false,
+        shrink_solution_minimal: false,
+        ..spec.clone()
+    };
     let mut n_files = 0;
     let mut n_goals = 0i64;
     let mut n_ablated = 0i64;

@@ -63,6 +63,28 @@ def findAssign (toks : Array Token) (lo hi : Nat) : Option Nat := Id.run do
     i := i + 1
   return none
 
+/-- Index of the depth-0 `:=` that delimits a *declaration's* signature from its
+    proof body. Unlike `findAssign`, this skips the `:=` introduced by `let`/`have`
+    binders inside a dependent type, e.g.
+    `theorem foo : let x := e; P x := by …` — the `let`'s `:=` is not the body
+    delimiter. Each depth-0 `let`/`have` keyword "consumes" one subsequent depth-0
+    `:=` before we accept one as the body separator. -/
+def findDeclBody (toks : Array Token) (lo hi : Nat) : Option Nat := Id.run do
+  let mut i := lo
+  let mut depth := 0
+  let mut pending := 0
+  while i < hi do
+    let t := toks[i]!
+    if isOpenBracket t then depth := depth + 1
+    else if isCloseBracket t then depth := if depth == 0 then 0 else depth - 1
+    else if depth == 0 && t.isProper && t.isIdent && (t.src == "let" || t.src == "have") then
+      pending := pending + 1
+    else if depth == 0 && t.isSymNamed ":=" then
+      if pending == 0 then return some i
+      else pending := pending - 1
+    i := i + 1
+  return none
+
 /-- Declared name of a decl span: the identifier right after the command
     keyword, skipping modifiers and `@[ ... ]`. `""` when anonymous (`example`,
     anonymous `instance`). -/
@@ -107,14 +129,41 @@ def classifySpan (toks : Array Token) (lo hi : Nat) : Option String := Id.run do
     i := i + 1
   return none
 
+/-- Number of newlines in a token's source (a "blank line" between a doc comment
+    and a command — two or more — breaks the doc's attachment to that command). -/
+private def newlineCount (t : Token) : Nat :=
+  t.src.foldl (fun acc c => if c == '\n' then acc + 1 else acc) 0
+
+/-- Move a command boundary at `cmdIdx` earlier to absorb a doc-comment block that
+    sits directly above it (only whitespace, no blank line, in between). Lean attaches
+    such `/-- … -/` to the *following* declaration; without this they would trail the
+    previous span and be orphaned when the documented decl is deleted/ablated. Never
+    crosses below `lower` (the previous boundary) or a proper (code) token. -/
+private def attachedStart (toks : Array Token) (cmdIdx lower : Nat) : Nat := Id.run do
+  let mut start := cmdIdx
+  let mut k := cmdIdx
+  while k > lower do
+    let prev := toks[k-1]!
+    if prev.isSpace then
+      if newlineCount prev ≥ 2 then return start  -- blank line: not attached
+      k := k - 1
+    else if prev.isDocComment then
+      start := k - 1
+      k := k - 1
+    else
+      return start  -- code token or ordinary comment: stop
+  return start
+
 /-- Split tokens into top-level command spans. -/
 def parseSpans (toks : Array Token) : Array Span := Id.run do
   let n := toks.size
   if n == 0 then return #[]
-  -- boundary indices: where each command starts
+  -- boundary indices: where each command starts (absorbing any attached doc comment)
   let mut bounds : Array Nat := #[]
   for i in [0:n] do
-    if isCommandLeading toks[i]! then bounds := bounds.push i
+    if isCommandLeading toks[i]! then
+      let lower := if bounds.isEmpty then 0 else bounds[bounds.size - 1]!
+      bounds := bounds.push (attachedStart toks i lower)
   -- assemble spans between boundaries; tokens before the first boundary are preamble
   let mut spans : Array Span := #[]
   -- always cover [0, n): if there is no column-0 command (e.g. an import-only

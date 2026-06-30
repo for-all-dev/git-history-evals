@@ -67,9 +67,13 @@
     <div class="row"><div><label>min centrality</label><input type="text" id="minCent" value="0"></div>
       <div><label>max centrality</label><input type="text" id="maxCent" value="inf"></div></div>
 
+    <hr><h2>Lemma deletion</h2>
+    <div class="chk"><input type="checkbox" id="deleteLemmas"><label style="margin:0">delete used lemmas (+ ablate their users)</label></div>
+
     <hr><h2>Context shaping</h2>
     <div class="chk"><input type="checkbox" id="truncate"><label style="margin:0">truncate after last sorry</label></div>
-    <div class="chk"><input type="checkbox" id="shrink"><label style="margin:0">shrink context</label></div>
+    <div class="chk"><input type="checkbox" id="shrinkChal"><label style="margin:0">shrink challenge</label></div>
+    <div class="chk"><input type="checkbox" id="shrinkSol"><label style="margin:0">shrink solution</label></div>
 
     <hr><label>seed</label><input type="number" id="seed" value="42">
   </section>
@@ -131,7 +135,8 @@ const PRESETS = [ // L0..L4 (mirrors the CLI LADDER)
 function u32(s){ s=String(s).trim(); return (s===''||s==='inf'||s==='infinity') ? INF : (parseInt(s)>>>0); }
 
 let Module = null;
-const SIG = ['string','number','number','number','number','number','number','number','number','number','number','number','number','number'];
+// text + 15 numeric knobs (matches leanAblateTheory's argument order)
+const SIG = ['string'].concat(Array(15).fill('number'));
 
 function ablate(text) {
   const rate = $('rateMode').value;
@@ -144,7 +149,8 @@ function ablate(text) {
     u32($('minSize').value), u32($('maxSize').value),
     u32($('minCent').value), u32($('maxCent').value),
     count, byCent, permille,
-    $('truncate').checked?1:0, $('shrink').checked?1:0,
+    $('truncate').checked?1:0, $('shrinkChal').checked?1:0, $('shrinkSol').checked?1:0,
+    $('deleteLemmas').checked?1:0,
     Number($('seed').value)||0,
   ];
   const ptr = Module.ccall('ablate_json', 'number', SIG, args);
@@ -160,7 +166,9 @@ function run() {
   try {
     const r = ablate($('input').value);
     $('output').innerHTML = escapeHtml(r.text).replace(/\bsorry\b/g, '<span class="sorry">sorry</span>');
-    $('stats').innerHTML = `ablated <b>${r.ablated}</b> / ${r.total} matching bodies`;
+    const del = r.deleted_lemmas || [];
+    $('stats').innerHTML = `ablated <b>${r.ablated}</b> / ${r.total}`
+      + (del.length ? ` · deleted <b>${del.length}</b> lemma(s): ${del.map(d=>escapeHtml(d.name)).join(', ')}` : ' matching bodies');
     $('holes').innerHTML = (r.holes_filled||[]).map(h =>
       `<div class="hole"><b>${escapeHtml(h.theorem_name||'(anon)')}</b> — depth ${h.depth}, `
       + `${h.n_lines} lines, <span class="m">${escapeHtml(h.method)}</span>`
@@ -188,7 +196,7 @@ $('presets').onclick = e => {
   run();
 };
 for (const id of ['minDepth','maxDepth','leaves','minSize','maxSize','minCent','maxCent',
-                  'truncate','shrink','seed','count','byCent'])
+                  'truncate','shrinkChal','shrinkSol','deleteLemmas','seed','count','byCent'])
   $(id).addEventListener('input', run);
 $('input').addEventListener('input', () => { clearTimeout(window._t); window._t=setTimeout(run, 150); });
 

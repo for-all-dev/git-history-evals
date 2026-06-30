@@ -56,7 +56,18 @@ fn spec_from(opts: &Value) -> (Spec, Option<String>) {
         min_centrality: as_i64_inf(g("min_centrality"), 0),
         max_centrality: as_i64_inf(g("max_centrality"), INF),
         truncate: as_bool(g("truncate"), false),
-        shrink_context: as_bool(g("shrink_context"), false),
+        shrink_challenge: as_bool(g("shrink_challenge"), false),
+        shrink_solution: as_bool(g("shrink_solution"), false),
+        shrink_challenge_minimal: as_bool(g("shrink_challenge_minimal"), false),
+        shrink_solution_minimal: as_bool(g("shrink_solution_minimal"), false),
+        delete_lemmas: as_bool(g("delete_lemmas"), false),
+        delete_count: {
+            let v = g("delete_count");
+            if v.is_null() { None } else { v.as_u64() }
+        },
+        delete_uniform: as_bool(g("delete_uniform"), false),
+        delete_leaves: as_bool(g("delete_leaves"), false),
+        aggressive: false, // the prover-backed path is never exposed to the browser
     };
     (spec, difficulty)
 }
@@ -93,7 +104,8 @@ pub fn ablate_theory(text: &str, opts_json: &str, seed: f64) -> String {
             })
         })
         .collect();
-    json!({ "text": r.text, "total": r.total, "ablated": r.ablated, "holes": holes }).to_string()
+    let deleted: Vec<Value> = r.deleted.iter().map(|(nm, txt)| json!({ "name": nm, "text": txt })).collect();
+    json!({ "text": r.text, "solution_diff": crate::diff::unified(&r.text, &r.solution), "total": r.total, "ablated": r.ablated, "holes": holes, "deleted_lemmas": deleted }).to_string()
 }
 
 /// Number of HOL keywords baked in (sanity check for the JS side).

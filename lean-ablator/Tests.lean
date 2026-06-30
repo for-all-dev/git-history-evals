@@ -46,6 +46,146 @@ def run (spec : Spec) : AblationResult :=
 /-- Does `hay` contain `needle` as a substring? -/
 def has (hay needle : String) : Bool := (hay.splitOn needle).length > 1
 
+-- delete-lemmas: `helper` (used by `main`) deletable; `unused` (no user) and
+-- `keydef` (a def, referenced in a later statement) are not. Extracted into its
+-- own function so Lean emits a separate (smaller) C function — a single
+-- monolithic `main` makes gcc -O3 OOM on the generated C.
+def deleteTests : StateT Tally IO Unit := do
+  let dlSrc := "theorem helper : True := trivial\n\n\
+    theorem unused : True := trivial\n\n\
+    def keydef : Nat := 0\n\n\
+    theorem main : True := helper\n\n\
+    theorem about : keydef = keydef := rfl\n"
+  let dl := ablate (tokenize dlSrc) { prob := 1.0, deleteLemmas := true } (Rng.mk 0) (fun _ => (0:Int))
+  let delNames := dl.deleted.toList.map Prod.fst
+  check "delete: helper deleted" (delNames.contains "helper")
+  check "delete: unused (no user) not deleted" (! delNames.contains "unused")
+  check "delete: helper's statement gone" (! has dl.text "theorem helper")
+  check "delete: main's statement kept, proof holed" (has dl.text "theorem main : True :=" && has dl.text "sorry" && ! has dl.text ":= helper")
+  check "delete: solution is full original" (dl.solution == dlSrc)
+
+-- delete-lemmas + --count / --truncate: aaa has 2 users (ua1, ua2); bbb has 3
+-- (ub1..ub3). In delete mode --count is a target number of *ablations*.
+def deleteCountTests : StateT Tally IO Unit := do
+  let src := "theorem aaa : True := trivial\n\n\
+    theorem bbb : True := trivial\n\n\
+    theorem ua1 : True := aaa\n\n\
+    theorem ua2 : True := aaa\n\n\
+    theorem ub1 : True := bbb\n\n\
+    theorem ub2 : True := bbb\n\n\
+    theorem ub3 : True := bbb\n"
+  let run := fun (k : Nat) (trunc uniform : Bool) (seed : Nat) =>
+    ablate (tokenize src) { deleteLemmas := true, deleteUniform := uniform, count := some k, truncate := trunc }
+      (Rng.mk (UInt64.ofNat seed)) (fun _ => (0:Int))
+  -- count is a target reached by a weighted draw; aaa(2) or bbb(3) alone reaches
+  -- ≥ 2, so a single deletion suffices and ablations are ≥ count, reproducible/seed
+  let r2 := run 2 false false 1
+  check "delete+count=2: ≥ 2 from one deletion" (r2.ablated ≥ 2 && r2.deleted.size == 1)
+  check "delete+count=2: reproducible per seed" ((run 2 false false 1).deleted == r2.deleted)
+  -- count = 4 needs both lemmas (2 + 3): always 5 ablations, both deleted
+  let r4 := run 4 false false 0
+  check "delete+count=4: needs both -> 5" (r4.ablated == 5 && r4.deleted.size == 2)
+  -- --truncate caps ablations at exactly count, dropping the rest of the file
+  check "delete+truncate+count=2: exactly 2" ((run 2 true false 3).ablated == 2)
+  check "delete+truncate+count=1: exactly 1" ((run 1 true false 7).ablated == 1)
+  -- tail reachability + weighting across seeds: the sole deletion at count=2 is
+  -- sometimes the tail (aaa), sometimes the popular one (bbb); weighting favours bbb
+  let firstDel := fun (uniform : Bool) (seed : Nat) =>
+    match (run 2 false uniform seed).deleted.toList with | (n, _) :: _ => n | [] => ""
+  let tally := fun (uniform : Bool) =>
+    (List.range 100).foldl (fun (ab : Nat × Nat) s =>
+      match firstDel uniform s with
+      | "aaa" => (ab.1 + 1, ab.2) | "bbb" => (ab.1, ab.2 + 1) | _ => ab) (0, 0)
+  let w := tally false
+  let u := tally true
+  check "delete: weighted reaches tail (aaa) and popular (bbb)" (w.1 > 0 && w.2 > 0)
+  check "delete: weighting favours the more-used lemma (bbb)" (w.2 > w.1)
+  check "delete-uniform: both reachable" (u.1 > 0 && u.2 > 0)
+
+-- delete-lemmas + --shrink-* (prefix / minimal slice): base used by u1,u2,u3;
+-- un1/un2/un3 unrelated; declare-before-use.
+def deleteShrinkTests : StateT Tally IO Unit := do
+  let src := "theorem base : True := trivial\n\n\
+    theorem un1 : True := trivial\n\n\
+    theorem u1 : True := base\n\n\
+    theorem un2 : True := trivial\n\n\
+    theorem u2 : True := base\n\n\
+    theorem un3 : True := trivial\n\n\
+    theorem u3 : True := base\n"
+  let run := fun (mods : Spec → Spec) =>
+    ablate (tokenize src) (mods { deleteLemmas := true, count := some 2 }) (Rng.mk 0) (fun _ => (0:Int))
+  -- prefix: keep through 2nd hole (u2), drop u3; base deleted; context kept
+  let p := run (fun s => { s with shrinkChallenge := true })
+  check "shrink prefix: keeps u1,u2" (has p.text "theorem u1" && has p.text "theorem u2")
+  check "shrink prefix: drops u3" (! has p.text "theorem u3")
+  check "shrink prefix: base deleted" (! has p.text "theorem base")
+  check "shrink prefix: context kept" (has p.text "theorem un1")
+  -- minimal slice: only the 2 holes survive
+  let m := run (fun s => { s with shrinkChallengeMinimal := true })
+  check "slice: keeps u1,u2" (has m.text "theorem u1" && has m.text "theorem u2")
+  check "slice: drops unrelated" (! has m.text "theorem un1" && ! has m.text "theorem un2")
+  check "slice: drops base,u3" (! has m.text "theorem base" && ! has m.text "theorem u3")
+  -- solution slice: base restored with its real proof
+  let ms := run (fun s => { s with shrinkSolutionMinimal := true })
+  check "solution slice: base restored" (has ms.solution "theorem base")
+  check "solution slice: real proof present" (has ms.solution ":= base")
+
+-- --delete-lemmas N: delete exactly N lemmas (regardless of ablation count)
+def deleteCountArgTests : StateT Tally IO Unit := do
+  let src := "theorem aaa : True := trivial\n\n\
+    theorem bbb : True := trivial\n\n\
+    theorem ccc : True := trivial\n\n\
+    theorem ua : True := aaa\n\n\
+    theorem ub : True := bbb\n\n\
+    theorem uc : True := ccc\n"
+  let ndel := fun (n : Nat) =>
+    (ablate (tokenize src) { deleteLemmas := true, deleteCount := some n } (Rng.mk 0) (fun _ => (0:Int))).deleted.size
+  check "delete-lemmas 2: exactly 2" (ndel 2 == 2)
+  check "delete-lemmas 1: exactly 1" (ndel 1 == 1)
+  check "delete-lemmas 9: capped at 3 candidates" (ndel 9 == 3)
+
+-- solution_diff: apply(challenge, unifiedDiff challenge solution) = solution.
+-- Also extracted to keep the generated C functions small (see `deleteTests`).
+def diffTests : StateT Tally IO Unit := do
+  let rtCases := [("a\nb\nc\n", "a\nB\nc\n"), ("l1\nl2\nl3\nl4\n", "l1\nX\nl3\nY\n"),
+                  ("a\nb", "a\nc"), ("same\n", "same\n"), ("", "x\ny\n")]
+  for (ca, so) in rtCases do
+    check s!"diff round-trip {ca} -> {so}" (applyDiff ca (unifiedDiff ca so) == so)
+  -- ablation result round-trips through the diff
+  let allr := run { prob := 1.0 }
+  check "diff: ablation round-trip" (applyDiff allr.text (unifiedDiff allr.text allr.solution) == allr.solution)
+  -- large file + localized change -> tiny diff
+  let big := String.join ((List.range 300).map (fun i => s!"def d{i} : Nat := {i}\n"))
+  let solB := big ++ "theorem foo : True := by trivial\n"
+  let chalB := big ++ "theorem foo : True := sorry\n"
+  let dB := unifiedDiff chalB solB
+  check "diff: large localized round-trip" (applyDiff chalB dB == solB)
+  check "diff: large localized is tiny" (dB.length < solB.length / 4)
+
+-- Regressions from the ryu-lean4 real-data baseline:
+--  (a) a dependent `let … :=` in a theorem's *type* must not be mistaken for the
+--      proof-body `:=` (would truncate the decl); the proof, not the type, is holed.
+--  (b) a deleted lemma's leading `/-- doc -/` must travel with it (else orphaned
+--      above the next command, e.g. `/-- … -/ end`).
+def letDocTests : StateT Tally IO Unit := do
+  -- (a) let-in-type: helper is cited in user's proof; user's type carries a `let`.
+  let letSrc := "theorem helper : True := trivial\n\n\
+    theorem user : let x : Nat := 5\n    x = 5 := by\n  have := helper\n  rfl\n"
+  let lt := ablate (tokenize letSrc) { prob := 1.0, deleteLemmas := true } (Rng.mk 0) (fun _ => (0:Int))
+  check "let-in-type: helper deleted" ((lt.deleted.toList.map Prod.fst).contains "helper")
+  check "let-in-type: type's let value kept (not holed)" (has lt.text "let x : Nat := 5")
+  check "let-in-type: proof holed" (has lt.text "x = 5 := sorry")
+  check "let-in-type: not truncated at let" (! has lt.text "let x : Nat := sorry")
+  check "let-in-type: solution restores original" (lt.solution == letSrc)
+  -- (b) doc comment attaches to the documented decl, so deletion removes it too.
+  let docSrc := "/-- helper doc -/\ntheorem helper : True := trivial\n\n\
+    theorem user : True := helper\n"
+  let dc := ablate (tokenize docSrc) { prob := 1.0, deleteLemmas := true } (Rng.mk 0) (fun _ => (0:Int))
+  check "doc: helper deleted" ((dc.deleted.toList.map Prod.fst).contains "helper")
+  check "doc: orphaned doc comment removed" (! has dc.text "helper doc")
+  check "doc: helper statement gone" (! has dc.text "theorem helper")
+  check "doc: solution restores doc comment" (has dc.solution "/-- helper doc -/")
+
 def main : IO UInt32 := do
   let (_, tally) ← (do
     let toks := tokenize SAMPLE
@@ -122,6 +262,13 @@ def main : IO UInt32 := do
     let anP := ablate (tokenize "def v (n : Nat) : { k : Nat // 0 ≤ k } := ⟨id (by exact n), by omega⟩\n")
                  { prob := 1.0, minDepth := 2, maxDepth := INF } (Rng.mk 0) (fun _ => (0:Int))
     check "anon: paren-nested by kept" (anP.ablated == 1 && has anP.text "id (by exact n)")
+
+    deleteTests
+    deleteCountTests
+    deleteShrinkTests
+    deleteCountArgTests
+    letDocTests
+    diffTests
   ).run {}
   let total := tally.passed + tally.failed
   IO.println s!"ablate-test: {tally.passed}/{total} passed"

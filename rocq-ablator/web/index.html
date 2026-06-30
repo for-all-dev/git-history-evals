@@ -68,9 +68,16 @@
       <div><label>max centrality</label><input type="text" id="maxCent" value="inf"></div></div>
     <div class="chk"><input type="checkbox" id="allowDefined"><label style="margin:0">ablate Defined proofs</label></div>
 
+    <hr><h2>Lemma deletion</h2>
+    <div class="chk"><input type="checkbox" id="deleteLemmas"><label style="margin:0">delete used lemmas (+ ablate their users)</label></div>
+    <div class="chk"><input type="checkbox" id="deleteLeaves"><label style="margin:0">delete lemmas: hole only leaf steps citing them</label></div>
+
     <hr><h2>Context shaping</h2>
     <div class="chk"><input type="checkbox" id="truncate"><label style="margin:0">truncate after last hole</label></div>
-    <div class="chk"><input type="checkbox" id="shrink"><label style="margin:0">shrink context</label></div>
+    <div class="chk"><input type="checkbox" id="shrinkChal"><label style="margin:0">shrink challenge (prefix to N-th hole)</label></div>
+    <div class="chk"><input type="checkbox" id="shrinkSol"><label style="margin:0">shrink solution (prefix)</label></div>
+    <div class="chk"><input type="checkbox" id="shrinkChalMin"><label style="margin:0">shrink challenge — minimal slice</label></div>
+    <div class="chk"><input type="checkbox" id="shrinkSolMin"><label style="margin:0">shrink solution — minimal slice</label></div>
 
     <hr><label>seed</label><input type="number" id="seed" value="42">
   </section>
@@ -141,8 +148,13 @@ function opts() {
     min_centrality: depthVal($('minCent').value),
     max_centrality: depthVal($('maxCent').value),
     truncate: $('truncate').checked,
-    shrink_context: $('shrink').checked,
+    shrink_challenge: $('shrinkChal').checked,
+    shrink_solution: $('shrinkSol').checked,
+    shrink_challenge_minimal: $('shrinkChalMin').checked,
+    shrink_solution_minimal: $('shrinkSolMin').checked,
     allow_defined: $('allowDefined').checked,
+    delete_lemmas: $('deleteLemmas').checked || $('deleteLeaves').checked,
+    delete_leaves: $('deleteLeaves').checked,
   };
   if ($('rateMode').value === 'count') {
     o.count = parseInt($('count').value) || 0;
@@ -164,7 +176,9 @@ function run() {
     $('output').innerHTML = escapeHtml(r.text)
       .replace(/\bAdmitted\b/g, '<span class="adm">Admitted</span>')
       .replace(/\badmit\b/g, '<span class="adm">admit</span>');
-    $('stats').innerHTML = `ablated <b>${r.ablated}</b> / ${r.total} matching proofs`;
+    const del = r.deleted_lemmas || [];
+    $('stats').innerHTML = `ablated <b>${r.ablated}</b> / ${r.total}`
+      + (del.length ? ` · deleted <b>${del.length}</b> lemma(s): ${del.map(d=>escapeHtml(d.name)).join(', ')}` : ' matching proofs');
     $('holes').innerHTML = (r.holes||[]).map(h =>
       `<div class="hole"><b>${escapeHtml(h.theorem_name||'(nested)')}</b> — depth ${h.depth}, `
       + `${h.n_lines} lines, <span class="m">${escapeHtml(h.method)}</span>`
@@ -192,7 +206,8 @@ $('presets').onclick = e => {
   run();
 };
 for (const id of ['minDepth','maxDepth','leaves','minSize','maxSize','minCent','maxCent',
-                  'truncate','shrink','allowDefined','seed','count','byCent'])
+                  'truncate','shrinkChal','shrinkSol','shrinkChalMin','shrinkSolMin',
+                  'allowDefined','deleteLemmas','deleteLeaves','seed','count','byCent'])
   $(id).addEventListener('input', run);
 $('input').addEventListener('input', () => { clearTimeout(window._t); window._t=setTimeout(run, 150); });
 

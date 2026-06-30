@@ -1,3 +1,5 @@
 /target
 /web/pkg
 Cargo.lock
+result
+result-*

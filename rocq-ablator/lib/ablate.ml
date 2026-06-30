@@ -24,8 +24,16 @@ type spec = {
   min_centrality : int;
   max_centrality : int;
   truncate : bool;
-  shrink_context : bool;
+  shrink_challenge : bool; (* drop challenge top-level goals after the N-th hole *)
+  shrink_solution : bool; (* drop solution top-level goals after the N-th hole *)
+  shrink_challenge_minimal : bool; (* challenge: keep only the N holes + dep closure *)
+  shrink_solution_minimal : bool; (* solution: keep only the N holes' decls + dep closure *)
   allow_defined : bool; (* ablate Defined-terminated proofs too (opacity risk) *)
+  delete_lemmas : bool; (* delete eligible lemmas + ablate their users *)
+  delete_count : int option; (* delete-lemmas: delete exactly this many lemmas (None = count/prob) *)
+  delete_uniform : bool; (* delete-lemmas: pick deletions uniformly, not weighted by user count *)
+  delete_leaves : bool; (* delete-lemmas: hole only the leaf steps citing L, not whole proofs *)
+  aggressive : bool; (* delete-lemmas: relax syntactic guards (BE; needs check-build) *)
 }
 
 let default_spec =
@@ -41,8 +49,16 @@ let default_spec =
     min_centrality = 0;
     max_centrality = inf;
     truncate = false;
-    shrink_context = false;
+    shrink_challenge = false;
+    shrink_solution = false;
+    shrink_challenge_minimal = false;
+    shrink_solution_minimal = false;
     allow_defined = false;
+    delete_lemmas = false;
+    delete_count = None;
+    delete_uniform = false;
+    delete_leaves = false;
+    aggressive = false;
   }
 
 let uses_centrality s =
@@ -59,7 +75,14 @@ type hole = {
   proof_text : string;
 }
 
-type result = { text : string; total : int; ablated : int; holes : hole list }
+type result = {
+  text : string; (* the ablated challenge *)
+  solution : string; (* the original, optionally shrunk to match *)
+  total : int;
+  ablated : int;
+  holes : hole list;
+  deleted : (string * string) list; (* (name, original block) for --delete-lemmas *)
+}
 
 (* ---------- SplitMix64 PRNG (seedable, reproducible) ---------- *)
 
@@ -222,6 +245,13 @@ let walk_all (spans : Span.t array) (spec : spec) (centrality : string -> int)
       Buffer.add_string b (Span.source spans.(k))
     done;
     Buffer.contents b
+  in
+  let src_len lo hi =
+    let c = ref 0 in
+    for k = lo to hi - 1 do
+      c := !c + String.length (Span.source spans.(k))
+    done;
+    !c
   in
   let count_cmds lo hi =
     let c = ref 0 in
@@ -499,40 +529,391 @@ let walk_all (spans : Span.t array) (spec : spec) (centrality : string -> int)
     end
   in
 
-  (* top-level pass *)
+  (* top-level pass. Each segment records its end offset in BOTH the challenge
+     output ([buflen]) and the original text ([orig]), so the challenge and the
+     solution can be shrunk independently. *)
   let i = ref 0 in
+  let orig = ref 0 in
   while !i < n do
     let s = spans.(!i) in
     if Span.is_goal s then begin
       let abl0 = !ablated in
-      i := handle_goal !i;
-      top_segs := (buflen (), true, !ablated > abl0) :: !top_segs
+      let g = !i in
+      i := handle_goal g;
+      orig := !orig + src_len g !i;
+      (* a goal is never a structural closer *)
+      top_segs := (buflen (), !orig, false, !ablated > abl0) :: !top_segs
     end
     else begin
+      let closer = Span.is_closer s in
       emit (Span.source s);
+      orig := !orig + String.length (Span.source s);
       incr i;
-      top_segs := (buflen (), false, false) :: !top_segs
+      top_segs := (buflen (), !orig, closer, false) :: !top_segs
     end
   done;
 
   let full = Buffer.contents out in
+  let original = src_range 0 n in
   let segs = Array.of_list (List.rev !top_segs) in
-  let shaped =
+  let chal_segs = Array.map (fun (c, _, g, a) -> (c, g, a)) segs in
+  let sol_segs = Array.map (fun (_, o, g, a) -> (o, g, a)) segs in
+  let text =
     if spec.truncate && !last_admit_end >= 0 then String.sub full 0 !last_admit_end
-    else if spec.shrink_context then Shape.shrink_context full segs
+    else if spec.shrink_challenge then Shape.shrink ?count:spec.count full chal_segs
     else full
   in
+  let solution =
+    if spec.shrink_solution then Shape.shrink ?count:spec.count original sol_segs else original
+  in
   ( {
-      text = shaped;
+      text;
+      solution;
       total = !total;
       ablated = !ablated;
       holes = List.rev !holes;
+      deleted = [];
     },
     Array.of_list (List.rev !matches) )
+
+(* ---------- --delete-lemmas: delete eligible lemmas + ablate their users ----- *)
+
+(* Minimal dependency-closed slice for [--shrink-*-minimal]. Keep only the (first
+   [count]) holes plus the transitive closure of the goal-decls their statements
+   reference; ALL non-goal items (imports/sections/notations/defs) are kept as glue so
+   the slice stays well-formed. Challenge excludes the deleted lemma(s) and renders any
+   kept goal that still cites a deleted name as a hole (so it can't dangle); solution
+   keeps everything real, pulling the deleted lemma(s) + their deps back in. Purely
+   syntactic (no prover). *)
+let slice_delete (spans : Span.t array) (spec : spec)
+    ~(by_opener : (int, Uses.lemma) Hashtbl.t) ~(del : (int, Uses.lemma) Hashtbl.t)
+    ~(to_ablate : (int, unit) Hashtbl.t) ~(solution : bool) : string =
+  let n = Array.length spans in
+  let src_range lo hi =
+    let b = Buffer.create 64 in
+    for k = lo to hi - 1 do
+      Buffer.add_string b (Span.source spans.(k))
+    done;
+    Buffer.contents b
+  in
+  let opener_of_name = Hashtbl.create 64 in
+  Hashtbl.iter
+    (fun o (l : Uses.lemma) -> if not (Hashtbl.mem opener_of_name l.name) then Hashtbl.replace opener_of_name l.name o)
+    by_opener;
+  let deleted_names = Hashtbl.create 16 in
+  Hashtbl.iter (fun _ (l : Uses.lemma) -> Hashtbl.replace deleted_names l.Uses.name ()) del;
+  (* a kept goal must be holed in the challenge iff its body still cites a deleted name *)
+  let must_hole o =
+    match Hashtbl.find_opt by_opener o with
+    | Some l -> List.exists (fun nm -> Hashtbl.mem deleted_names nm) l.Uses.body_names
+    | None -> false
+  in
+  (* seed: the first [count] holes (file order); all of them if no --count *)
+  let seed =
+    let all = Hashtbl.fold (fun o () acc -> o :: acc) to_ablate [] |> List.sort compare in
+    match spec.count with Some k -> List.filteri (fun i _ -> i < k) all | None -> all
+  in
+  (* Keep-set computed BEFORE ablating, shared by challenge and solution: the full
+     statement+body dependency closure of the target holes over the *original* file.
+     This keeps every lemma the real proofs need (so a challenge never throws away
+     more than the deleted lemma itself) and gives challenge & solution the same
+     context window — they differ only by the deletion + holing. The deleted lemma
+     is kept in the set (restored in the solution, omitted from the challenge). *)
+  let keep = Hashtbl.create 64 in
+  let q = Queue.create () in
+  let add o =
+    if (not (Hashtbl.mem keep o)) && Hashtbl.mem by_opener o then begin
+      Hashtbl.replace keep o ();
+      Queue.push o q
+    end
+  in
+  List.iter add seed;
+  (* Structural items (Hint/Ltac/Notation/Arguments/…) are always kept, so any in-file
+     decl they cite must be kept too — both decls a kept item *needs* (e.g.
+     `Hint Resolve foo` needs `Lemma foo`) and decls kept proofs need *via* a kept item
+     (e.g. an `Ltac` helper). Seed the closure with those references so nothing
+     dangles. (Items citing the deleted lemma are handled at emit time below.) *)
+  for k = 0 to n - 1 do
+    if not (Span.is_goal spans.(k)) then
+      List.iter
+        (fun nm -> match Hashtbl.find_opt opener_of_name nm with Some o -> add o | None -> ())
+        (Uses.names_in spans.(k).Span.content)
+  done;
+  while not (Queue.is_empty q) do
+    let o = Queue.pop q in
+    let l = Hashtbl.find by_opener o in
+    List.iter
+      (fun nm -> match Hashtbl.find_opt opener_of_name nm with Some o' -> add o' | None -> ())
+      (l.Uses.stmt_names @ l.Uses.body_names)
+  done;
+  (* In the challenge the deleted lemma is omitted, so a kept structural item that cites
+     it (e.g. `Hint Resolve <deleted>`) would dangle — drop such items from the
+     challenge only (the solution restores the lemma, so they stay there). *)
+  let struct_ok (s : Span.t) =
+    solution
+    || not (List.exists (fun nm -> Hashtbl.mem deleted_names nm) (Uses.names_in s.Span.content))
+  in
+  let buf = Buffer.create 4096 in
+  let i = ref 0 in
+  while !i < n do
+    let s = spans.(!i) in
+    if Span.is_goal s then begin
+      let e = match Hashtbl.find_opt by_opener !i with Some l -> l.Uses.block_end | None -> !i + 1 in
+      if Hashtbl.mem keep !i then begin
+        if solution then Buffer.add_string buf (src_range !i e)
+        else if Hashtbl.mem del !i then () (* deleted lemma: omitted from the challenge *)
+        else if must_hole !i || Hashtbl.mem to_ablate !i then begin
+          Buffer.add_string buf (Span.source spans.(!i));
+          if !i + 1 < e then Buffer.add_string buf (lead_of spans.(!i + 1));
+          Buffer.add_string buf "Proof. Admitted."
+        end
+        else Buffer.add_string buf (src_range !i e)
+      end;
+      i := e
+    end
+    else begin
+      if struct_ok s then Buffer.add_string buf (Span.source s);
+      incr i
+    end
+  done;
+  Shape.collapse_blank_lines (Buffer.contents buf)
+
+let ablate_delete (spans : Span.t array) (spec : spec) (rng : Rng.t) : result =
+  let n = Array.length spans in
+  let src_range lo hi =
+    let b = Buffer.create 64 in
+    for k = lo to hi - 1 do
+      Buffer.add_string b (Span.source spans.(k))
+    done;
+    Buffer.contents b
+  in
+  let lemmas = Uses.analyze ~aggressive:spec.aggressive spans in
+  let by_opener = Hashtbl.create 64 in
+  List.iter (fun (l : Uses.lemma) -> Hashtbl.replace by_opener l.opener l) lemmas;
+  let total_eligible = List.length (List.filter (fun (l : Uses.lemma) -> l.eligible) lemmas) in
+  (* candidates: eligible lemmas within the centrality (= user-count) window *)
+  let nusers (l : Uses.lemma) = List.length l.users in
+  let cands =
+    List.filter
+      (fun (l : Uses.lemma) ->
+        l.eligible && nusers l >= spec.min_centrality && nusers l <= spec.max_centrality)
+      lemmas
+  in
+  (* [--count k] is a target number of *ablations* (holed users), not a number of
+     deletions: deleting a lemma forces every one of its in-file users to be
+     ablated, so ablations arrive in chunks. We draw deletions at random *without
+     replacement*, each with probability proportional to its weight (its in-file
+     user count — or 1 under [--delete-lemmas-uniform]), accumulating their forced
+     ablations until the distinct total reaches >= k, then stop. This is seed-driven
+     (so different seeds yield different evals), favours popular lemmas, yet keeps a
+     non-zero chance on the long tail. Without --count the per-lemma [prob] coin
+     decides, as before. (With --truncate we later keep only the first k.) *)
+  let weight (l : Uses.lemma) = if spec.delete_uniform then 1.0 else float_of_int (nusers l) in
+  (* one weighted pick (proportional to [weight]) from a non-empty candidate list *)
+  let pick_weighted remaining =
+    let total = List.fold_left (fun a l -> a +. weight l) 0.0 remaining in
+    let r = Rng.next_f64 rng *. total in
+    let rec go acc = function
+      | [ l ] -> l
+      | l :: tl -> let acc' = acc +. weight l in if acc' > r then l else go acc' tl
+      | [] -> assert false
+    in
+    go 0.0 remaining
+  in
+  let without l rem = List.filter (fun (c : Uses.lemma) -> c.opener <> l.Uses.opener) rem in
+  let selected =
+    match spec.delete_count with
+    | Some kd ->
+        (* [--delete-lemmas K]: delete exactly K lemmas (weighted random draw), no
+           matter how many ablations that forces. *)
+        let chosen = ref [] and remaining = ref cands in
+        let target = min kd (List.length cands) in
+        while List.length !chosen < target && !remaining <> [] do
+          let l = pick_weighted !remaining in
+          chosen := l :: !chosen;
+          remaining := without l !remaining
+        done;
+        List.rev !chosen
+    | None -> (
+        match spec.count with
+        | None -> List.filter (fun _ -> Rng.next_f64 rng < spec.prob) cands
+        | Some k when k <= 0 -> []
+        | Some k ->
+            let covered : (int, unit) Hashtbl.t = Hashtbl.create 64 in
+            let chosen = ref [] and remaining = ref cands in
+            while Hashtbl.length covered < k && !remaining <> [] do
+              let l = pick_weighted !remaining in
+              List.iter (fun u -> Hashtbl.replace covered u ()) l.users;
+              chosen := l :: !chosen;
+              remaining := without l !remaining
+            done;
+            List.rev !chosen)
+  in
+  let del = Hashtbl.create 16 in
+  List.iter (fun (l : Uses.lemma) -> Hashtbl.replace del l.opener l) selected;
+  (* distinct forced ablations: users of the selected lemmas that aren't themselves
+     deleted, in file order. With --truncate + --count we ablate exactly the first
+     [k] and cut the file after them; otherwise every user must be ablated (a
+     dangling reference to the deleted name would not compile). *)
+  let users_sorted =
+    List.concat_map (fun (l : Uses.lemma) -> l.users) selected
+    |> List.sort_uniq compare
+    |> List.filter (fun u -> not (Hashtbl.mem del u))
+  in
+  let ablate_users =
+    match (spec.truncate, spec.count) with
+    | true, Some k -> List.filteri (fun idx _ -> idx < k) users_sorted
+    | _ -> users_sorted
+  in
+  let to_ablate = Hashtbl.create 64 in
+  List.iter (fun u -> Hashtbl.replace to_ablate u ()) ablate_users;
+  (* whole-proof hole: statement + "Proof. Admitted." *)
+  let whole_proof opener e =
+    let b = Buffer.create 128 in
+    Buffer.add_string b (Span.source spans.(opener));
+    if opener + 1 < e then Buffer.add_string b (lead_of spans.(opener + 1));
+    Buffer.add_string b "Proof. Admitted.";
+    Buffer.contents b
+  in
+  (* [--delete-lemmas-leaves]: hole only the leaf steps (sentences) that cite a
+     deleted name, keeping the rest of the proof skeleton; the terminator becomes
+     [Admitted.] since an [admit.] leaves the proof incomplete. Returns [None] (=>
+     caller falls back to whole-proof) when a deleted name is cited outside an
+     ablatable sentence, or when no leaf actually cites it. *)
+  let deleted_names = Hashtbl.create 16 in
+  List.iter (fun (l : Uses.lemma) -> Hashtbl.replace deleted_names l.Uses.name ()) selected;
+  let cites (sp : Span.t) =
+    List.exists (fun nm -> Hashtbl.mem deleted_names nm) (Uses.names_in sp.Span.content)
+  in
+  let leaf_proof opener e =
+    let term = e - 1 in
+    if term <= opener || not (Span.is_terminator spans.(term)) then None
+    else begin
+      let bad = ref false and any = ref false in
+      for k = opener + 1 to term - 1 do
+        let sp = spans.(k) in
+        if cites sp then
+          match sp.kind with Span.Sentence _ -> any := true | _ -> bad := true
+      done;
+      if !bad || not !any then None
+      else begin
+        let b = Buffer.create 128 in
+        Buffer.add_string b (Span.source spans.(opener));
+        for k = opener + 1 to term - 1 do
+          let sp = spans.(k) in
+          match sp.kind with
+          | Span.Sentence _ when cites sp ->
+              Buffer.add_string b (lead_of sp);
+              Buffer.add_string b "admit."
+          | _ -> Buffer.add_string b (Span.source sp)
+        done;
+        Buffer.add_string b (lead_of spans.(term));
+        Buffer.add_string b "Admitted.";
+        Some (Buffer.contents b)
+      end
+    end
+  in
+  let render_user opener e =
+    if spec.delete_leaves then
+      match leaf_proof opener e with Some t -> (t, "deleted-dep-leaves") | None -> (whole_proof opener e, "deleted-dep")
+    else (whole_proof opener e, "deleted-dep")
+  in
+  (* Emit the challenge into [out] while recording, per top-level item, a [chal_segs]
+     entry (offset into [out], is_closer, had_hole) for items PRESENT in the challenge
+     and a [sol_segs] entry (offset into the original, is_closer, had_hole) for ALL
+     items — so [--shrink-challenge]/[--shrink-solution] can independently trim each
+     side to the first N holes (Shape.shrink ~count), and [--shrink-*-minimal] can keep
+     only the holes' dependency closure (Slice.compute). A deleted lemma is absent from
+     the challenge but present (original) in the solution. *)
+  let out = Buffer.create 4096 in
+  let holes = ref [] and deleted = ref [] and ablated = ref 0 in
+  let last_admit_end = ref (-1) in
+  let chal_segs = ref [] and sol_segs = ref [] and orig = ref 0 in
+  let i = ref 0 in
+  while !i < n do
+    let s = spans.(!i) in
+    if Span.is_goal s then begin
+      let e = match Hashtbl.find_opt by_opener !i with Some l -> l.Uses.block_end | None -> !i + 1 in
+      let item_src = src_range !i e in
+      if Hashtbl.mem del !i then begin
+        let l = Hashtbl.find by_opener !i in
+        deleted := (l.Uses.name, item_src) :: !deleted;
+        orig := !orig + String.length item_src;
+        sol_segs := (!orig, false, false) :: !sol_segs (* present in solution only *)
+      end
+      else if Hashtbl.mem to_ablate !i then begin
+        let l = Hashtbl.find by_opener !i in
+        let rendered, method_ = render_user !i e in
+        Buffer.add_string out rendered;
+        last_admit_end := Buffer.length out;
+        let proof_text = src_range (!i + 1) e in
+        holes :=
+          {
+            theorem_name = l.Uses.name;
+            depth = 1;
+            n_commands = 0;
+            n_lines = n_lines proof_text;
+            is_leaf = true;
+            centrality = List.length l.Uses.users;
+            method_;
+            proof_text;
+          }
+          :: !holes;
+        incr ablated;
+        chal_segs := (Buffer.length out, false, true) :: !chal_segs;
+        orig := !orig + String.length item_src;
+        sol_segs := (!orig, false, true) :: !sol_segs
+      end
+      else begin
+        Buffer.add_string out item_src;
+        chal_segs := (Buffer.length out, false, false) :: !chal_segs;
+        orig := !orig + String.length item_src;
+        sol_segs := (!orig, false, false) :: !sol_segs
+      end;
+      i := e
+    end
+    else begin
+      let src = Span.source s in
+      let closer = Span.is_closer s in
+      Buffer.add_string out src;
+      chal_segs := (Buffer.length out, closer, false) :: !chal_segs;
+      orig := !orig + String.length src;
+      sol_segs := (!orig, closer, false) :: !sol_segs;
+      incr i
+    end
+  done;
+  let raw = Buffer.contents out in
+  let original = src_range 0 n in
+  let chal_segs = Array.of_list (List.rev !chal_segs) in
+  let sol_segs = Array.of_list (List.rev !sol_segs) in
+  let text =
+    if spec.truncate && !last_admit_end >= 0 then
+      Shape.collapse_blank_lines (String.sub raw 0 !last_admit_end)
+    else if spec.shrink_challenge_minimal then
+      slice_delete spans spec ~by_opener ~del ~to_ablate ~solution:false
+    else if spec.shrink_challenge then Shape.shrink ?count:spec.count raw chal_segs
+    else Shape.collapse_blank_lines raw
+  in
+  let solution =
+    if spec.shrink_solution_minimal then
+      slice_delete spans spec ~by_opener ~del ~to_ablate ~solution:true
+    else if spec.shrink_solution then Shape.shrink ?count:spec.count original sol_segs
+    else original
+  in
+  {
+    text;
+    solution;
+    total = total_eligible;
+    ablated = !ablated;
+    holes = List.rev !holes;
+    deleted = List.rev !deleted;
+  }
 
 (* public entry. [centrality] maps a name to its corpus fan-in (0 if unused). *)
 let ablate (spans : Span.t array) (spec : spec) (rng : Rng.t)
     (centrality : string -> int) : result =
+  if spec.delete_lemmas then ablate_delete spans spec rng
+  else
   match spec.count with
   | Some target ->
       let _, cands = walk_all spans spec centrality (fun _ -> false) in

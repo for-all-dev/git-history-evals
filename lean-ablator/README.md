@@ -105,7 +105,8 @@ syntactic tokenizer needs nothing newer.)
 Output is indented JSONL by default (nice in `less`/`bat`, still `jq`-readable);
 `--compact` gives strict one-object-per-line JSONL for HuggingFace upload;
 `--text` writes the ablated source itself (byte-exact at `-p 0`). Each record
-carries `challenge_file_content`, `solution_file_content`, the difficulty knobs,
+carries `challenge_file_content`, `solution_diff` (see *Solution format* below),
+the difficulty knobs,
 and `holes_filled` — each removed body with `theorem_name`, `depth`,
 `n_commands`, `n_lines`, `is_leaf`, `centrality` (corpus fan-in), `method`
 (e.g. `by:simp`, `term`, `calc`, `trivial`) and `proof_text` — so a single dump
@@ -138,8 +139,10 @@ lemmas"). `centrality` is recorded on every hole regardless.
 
 * `--truncate` drops everything after the last inserted `sorry` — the file ends
   at the body to complete.
-* `--shrink-context` drops top-level decls that come *after* the last ablated
-  one (keeping earlier context and `end`s).
+* `--shrink-challenge` drops top-level decls that come *after* the last ablated
+  one from the **challenge** (keeping earlier context and `end`s);
+  `--shrink-solution` does the same to the **solution**, so the answer file
+  isn't padded with later theorems the model was never asked about.
 * `--repeat N` emits up to N **deduplicated** ablations per file — augmentation
   that's only fruitful with a stochastic selector (`-p`, `--count`).
 * `-d DIR` strips a path prefix from emitted `file_path`s (and the path-derived
@@ -150,6 +153,9 @@ lemmas"). `centrality` is recorded on every hole regardless.
 | flag | meaning |
 |------|---------|
 | `--check` | run the corpus self-test instead of emitting records |
+| `--check-build` | compile-test each ablation with `lake env lean` (challenge + solution); builds only the file itself (never its dependents), so `--shrink-*` can't break it. Deps must already be built (`lake build`). |
+| `--delete-lemmas` | delete eligible *used* lemmas + ablate their in-file users (correct-by-construction: only when every use is in a proof body, no `@[…]` attribute, ≥1 user). Records use `lemma_delete` + `deleted_lemmas`. |
+| `--aggressively-delete-lemmas` | as above, relaxed guards, validated with `lake env lean` (drops non-compiling); backend-only, not in the demo. |
 | `--difficulty L` | preset ladder `L0` (easy) … `L4` (code+spec only) |
 | `--min-depth N` / `--max-depth N` | nesting-depth window (`N` may be `inf`) |
 | `--leaves-only` | only bodies with no nested binding |
@@ -159,7 +165,7 @@ lemmas"). `centrality` is recorded on every hole regardless.
 | `--all` | ablate every selected body (`-p 1.0`) |
 | `--count N` | ablate exactly `min(N, matching)` bodies (excl. `-p`/`--all`) |
 | `--by-centrality` | with `--count`, pick the most-cited |
-| `--truncate` / `--shrink-context` | challenge-text shaping |
+| `--truncate` / `--shrink-challenge` / `--shrink-solution` | challenge/solution shaping |
 | `--repeat N` | up to N deduplicated ablations per file |
 | `-s SESSION` | library label recorded in output (default `lean`) |
 | `-d DIR` | strip prefix from emitted paths (repeatable) |
@@ -198,6 +204,34 @@ analogue of the Isabelle tool's `--check-build`.
 lake exe ablate-test        # unit tests (round-trip, top-level, nested, centrality)
 ```
 
+## Solution format (diffs)
+
+Records store the solution as **`solution_diff`** — a unified diff that turns
+`challenge_file_content` into the solution — not the whole file. Whole-file
+solutions are huge for big theories (l4v files run 100k–369k chars; see
+issue #107), so per-row storage is otherwise dominated by a near-duplicate of
+the challenge. The diff is self-rolled (`Ablator/Diff.lean`, no dependency, so
+it also runs in the WASM demo): Myers line diff, lines = `split '\n'`, hunks
+`@@ -a,b +c,d @@` with `-`/`+`/` ` prefixes; an empty diff means challenge =
+solution. The format is identical across all four ablators, so one `apply`
+recovers the solution everywhere:
+
+```python
+def apply(challenge: str, diff: str) -> str:
+    if not diff: return challenge
+    a, out, oi = challenge.split('\n'), [], 0
+    for line in diff.split('\n'):
+        if line[:2] == '@@':
+            start = int(line.split('-', 1)[1].split(',', 1)[0])
+            while oi < start - 1: out.append(a[oi]); oi += 1
+        elif line == '': pass
+        elif line[0] == ' ': out.append(line[1:]); oi += 1
+        elif line[0] == '-': oi += 1
+        elif line[0] == '+': out.append(line[1:])
+    out += a[oi:]
+    return '\n'.join(out)
+```
+
 ## Browser / WASM
 
 A browser playground where you move a slider and watch proofs dissolve into
@@ -206,7 +240,7 @@ client-side** (no server, nothing uploaded). Keeping the core `import Lean`- and
 `IO`-free is what makes this possible.
 
 ```bash
-nix develop .#wasm -c ./build-wasm.sh      # -> web/ablator.{js,wasm}
+nix develop -c ./build-wasm.sh             # -> web/ablator.{js,wasm}
 python3 -m http.server -d web 8000         # open http://localhost:8000/
 ```
 
@@ -227,9 +261,10 @@ How it works:
 * `wasm/uv_stubs.c` satisfies a few `libuv` temp-file symbols the runtime
   references but the pure ablation path never calls.
 
-The `flake.nix` provides the emscripten toolchain (`nix develop .#wasm`); the
-Lean toolchain comes from `elan`. Build outputs (`web/ablator.{js,wasm}`) are
-git-ignored — regenerate with `build-wasm.sh`.
+The `flake.nix` dev shell provides everything needed (`nix develop`): `elan`
+(which fetches the pinned Lean toolchain via `lean-toolchain`) plus the
+emscripten toolchain — nothing has to be pre-installed. Build outputs
+(`web/ablator.{js,wasm}`) are git-ignored — regenerate with `build-wasm.sh`.
 
 ## Layout
 

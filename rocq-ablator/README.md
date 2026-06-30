@@ -60,15 +60,68 @@ dune exec bin/main.exe -- theory.v           # JSONL (challenge, solution)
 dune exec bin/main.exe -- --all --text t.v   # just the ablated theory
 dune exec bin/main.exe -- --difficulty L2 src/   # preset ladder L0..L4 (nested)
 dune exec bin/main.exe -- --check ../data/fiat-crypto   # corpus self-test
+dune exec bin/main.exe -- --check-build src/Foo.v       # compile-test with coqc
 ```
+
+**`--check-build`** compile-tests each ablation with `coqc` (both the challenge
+and the solution). It builds only the file itself — `coqc F.v` never builds F's
+dependents — so dropping decls via `--shrink-*` can't break it, and a dependent
+theory that referenced a dropped name is simply never built. F's own
+dependencies must already be compiled (the normal state after a project build),
+and coqc flags are read from the nearest `_CoqProject`. Needs `coq` (in the
+flake's dev shell).
 
 Flags mirror the Isabelle/Lean tools: `--difficulty`,
 `--min-depth`/`--max-depth`, `--leaves-only`, `--min-size`/`--max-size`,
 `--min-centrality`/`--max-centrality`, `-p`/`--all`/`--count`/`--by-centrality`,
-`--truncate`/`--shrink-context`, `--allow-defined`, `--repeat`, `-d` (path
+`--truncate`/`--shrink-challenge`/`--shrink-solution`, `--allow-defined`, `--repeat`, `-d` (path
 strip), `-s` (session), `--text`/`--compact`, `--seed`, `-v`. Records use the
 shared schema with `proof_assistant: "coq"`, so a dump lines up field-for-field
 with the existing HuggingFace datasets.
+
+## Deleting lemmas
+
+`--delete-lemmas` deletes whole *used* lemmas and ablates every in-file proof
+that cited them — so the agent must re-derive the goal without the lemma it
+relied on (it never even sees the deleted statement). It is
+**correct-by-construction** (no prover): a lemma is deleted only when every use
+of its name lies inside an ablatable proof body and it is `Qed`-opaque with ≥1
+in-file user, so the result always compiles. Targets are chosen with the usual
+`-p`/`--count`/`--by-centrality`/`--min-centrality` selectors. The solution is
+the full original (the deleted lemma is the post-training "stuff it back in"
+artifact); records use `challenge_type: "lemma_delete"` + a `deleted_lemmas` list.
+
+`--aggressively-delete-lemmas` (backend-only, needs `coq`) relaxes the syntactic
+guards and validates each challenge with `coqc`, dropping any that don't compile.
+It is not surfaced in the browser demo.
+
+## Solution format (diffs)
+
+Records store the solution as **`solution_diff`** — a unified diff that turns
+`challenge_file_content` into the solution — not the whole file. Whole-file
+solutions are huge for big theories (l4v files run 100k–369k chars; see
+issue #107), so per-row storage is dominated by a near-duplicate of the
+challenge. The diff is self-rolled (no dependency, so it also runs in the WASM
+demo): Myers line diff, lines = `split('\n')`, hunks `@@ -a,b +c,d @@` with
+`-`/`+`/` ` prefixes; an empty diff means challenge = solution.
+
+Recover the full solution by applying it to the challenge:
+
+```python
+def apply(challenge: str, diff: str) -> str:
+    if not diff: return challenge
+    a, out, oi = challenge.split('\n'), [], 0
+    for line in diff.split('\n'):
+        if line[:2] == '@@':
+            start = int(line.split('-', 1)[1].split(',', 1)[0])
+            while oi < start - 1: out.append(a[oi]); oi += 1
+        elif line == '': pass
+        elif line[0] == ' ': out.append(line[1:]); oi += 1
+        elif line[0] == '-': oi += 1
+        elif line[0] == '+': out.append(line[1:])
+    out += a[oi:]
+    return '\n'.join(out)
+```
 
 ## Website (in-browser ablation)
 

@@ -14,6 +14,9 @@ let usage =
 
   Modes:
     --check          run the corpus self-test (round-trip + delimitation)
+    --check-build    compile-test each ablation with coqc (challenge + solution);
+                     only the file itself is built (its deps must already be
+                     compiled), so --shrink can't break it
 
   Difficulty (raw knobs override any --difficulty preset):
     --difficulty L   preset ladder L0 (easy) .. L4 (code+spec only)
@@ -28,9 +31,36 @@ let usage =
     --by-centrality  with --count, pick the most-cited proofs
     --allow-defined  also ablate Defined-terminated proofs (opacity risk)
 
-  Context shaping (challenge text only; ignored by --check):
-    --truncate       drop everything after the last inserted hole
-    --shrink-context drop top-level goals after the last ablated one
+  Context shaping (ignored by --check):
+    --truncate          drop challenge text after the last inserted hole
+    --shrink-challenge  drop challenge top-level goals after the N-th hole (--count);
+                        keeps the prefix + structural closers (well-formed)
+    --shrink-solution   same, for the solution
+    --shrink-challenge-minimal
+                        keep only the N holes + the dependency closure their
+                        statements need; drop all unrelated decls (syntactic slice)
+    --shrink-solution-minimal
+                        same for the solution (restores the deleted lemma + its deps)
+
+  Lemma deletion (instead of per-proof ablation):
+    --delete-lemmas [N] delete eligible used lemmas + ablate their users. An optional
+                        N deletes exactly N lemmas (weighted random draw); omit N for
+                        the --count/-p behavior below. (N works on every --delete-* flag.)
+                        With --count N, deletions are drawn at random weighted by
+                        in-file user count until >= N ablations result (seed-driven;
+                        popular lemmas favoured, the tail still reachable).
+                        Correct-by-construction (no prover).
+    --delete-lemmas-uniform
+                        like --delete-lemmas but draw deletions uniformly
+                        (unweighted by user count).
+    --delete-lemmas-leaves
+                        like --delete-lemmas but hole only the leaf steps citing the
+                        deleted lemma (keeping the proof skeleton); falls back to
+                        whole-proof ablation when a citation isn't leaf-isolated.
+    --aggressively-delete-lemmas
+                        as above but relaxes the syntactic guards and validates
+                        each challenge with coqc (--check-build), dropping any
+                        that don't compile. Needs coq.
 
   Other:
     -s SESSION       session/library label recorded in output (default: coq)
@@ -94,6 +124,7 @@ type opts = {
   mutable seed : int option;
   mutable verbose : bool;
   mutable check : bool;
+  mutable check_build : bool;
   mutable compact : bool;
   mutable text_mode : bool;
   mutable difficulty : string option;
@@ -109,8 +140,16 @@ type opts = {
   mutable min_cent : int option;
   mutable max_cent : int option;
   mutable truncate : bool;
-  mutable shrink : bool;
+  mutable shrink_challenge : bool;
+  mutable shrink_solution : bool;
+  mutable shrink_challenge_minimal : bool;
+  mutable shrink_solution_minimal : bool;
   mutable allow_defined : bool;
+  mutable delete_lemmas : bool;
+  mutable delete_count : int option;
+  mutable delete_uniform : bool;
+  mutable delete_leaves : bool;
+  mutable aggressive : bool;
   mutable repeat : int;
   mutable strip_dirs : string list;
   mutable paths : string list;
@@ -118,12 +157,15 @@ type opts = {
 
 let parse_args argv =
   let o =
-    { session = "coq"; seed = None; verbose = false; check = false; compact = false;
+    { session = "coq"; seed = None; verbose = false; check = false; check_build = false; compact = false;
       text_mode = false; difficulty = None; prob = None; all = false; count = None;
       by_centrality = false; min_depth = None; max_depth = None; leaves = false;
       min_size = None; max_size = None; min_cent = None; max_cent = None;
-      truncate = false; shrink = false; allow_defined = false; repeat = 1;
-      strip_dirs = []; paths = [] }
+      truncate = false; shrink_challenge = false; shrink_solution = false;
+      shrink_challenge_minimal = false; shrink_solution_minimal = false;
+      allow_defined = false; delete_lemmas = false; delete_count = None; delete_uniform = false;
+      delete_leaves = false; aggressive = false;
+      repeat = 1; strip_dirs = []; paths = [] }
   in
   let n = Array.length argv in
   let i = ref 1 in
@@ -131,20 +173,37 @@ let parse_args argv =
     incr i;
     if !i >= n then die ("missing arg for " ^ flag) else argv.(!i)
   in
+  (* consume the next token as a non-negative int if it looks like one (for the
+     optional count on --delete-lemmas[ N]); otherwise leave it for the next arg. *)
+  let peek_int () =
+    if !i + 1 < n then
+      match int_of_string_opt argv.(!i + 1) with
+      | Some k when k >= 0 -> incr i; Some k
+      | _ -> None
+    else None
+  in
   while !i < n do
     let a = argv.(!i) in
     (match a with
      | "-h" | "--help" -> print_string usage; exit 0
      | "--check" -> o.check <- true
+     | "--check-build" -> o.check_build <- true
      | "--compact" -> o.compact <- true
      | "--text" -> o.text_mode <- true
      | "-v" -> o.verbose <- true
      | "--all" -> o.all <- true
      | "--by-centrality" -> o.by_centrality <- true
      | "--truncate" -> o.truncate <- true
-     | "--shrink-context" -> o.shrink <- true
+     | "--shrink-challenge" -> o.shrink_challenge <- true
+     | "--shrink-solution" -> o.shrink_solution <- true
+     | "--shrink-challenge-minimal" -> o.shrink_challenge_minimal <- true
+     | "--shrink-solution-minimal" -> o.shrink_solution_minimal <- true
      | "--leaves-only" -> o.leaves <- true
      | "--allow-defined" -> o.allow_defined <- true
+     | "--delete-lemmas" -> o.delete_lemmas <- true; o.delete_count <- peek_int ()
+     | "--delete-lemmas-uniform" -> o.delete_lemmas <- true; o.delete_uniform <- true; o.delete_count <- peek_int ()
+     | "--delete-lemmas-leaves" -> o.delete_lemmas <- true; o.delete_leaves <- true; o.delete_count <- peek_int ()
+     | "--aggressively-delete-lemmas" -> o.delete_lemmas <- true; o.aggressive <- true; o.delete_count <- peek_int ()
      | "--difficulty" -> o.difficulty <- Some (next a)
      | "--min-depth" -> o.min_depth <- Some (parse_depth (next a))
      | "--max-depth" -> o.max_depth <- Some (parse_depth (next a))
@@ -191,8 +250,16 @@ let build_spec o =
       min_centrality = opt o.min_cent 0;
       max_centrality = opt o.max_cent Ablate.inf;
       truncate = o.truncate;
-      shrink_context = o.shrink;
+      shrink_challenge = o.shrink_challenge;
+      shrink_solution = o.shrink_solution;
+      shrink_challenge_minimal = o.shrink_challenge_minimal;
+      shrink_solution_minimal = o.shrink_solution_minimal;
       allow_defined = o.allow_defined;
+      delete_lemmas = o.delete_lemmas;
+      delete_count = o.delete_count;
+      delete_uniform = o.delete_uniform;
+      delete_leaves = o.delete_leaves;
+      aggressive = o.aggressive;
     }
 
 let count_goals text =
@@ -200,7 +267,11 @@ let count_goals text =
   Array.fold_left (fun a s -> if Span.is_goal s then a + 1 else a) 0 spans
 
 let run_check docs spec centrality =
-  let base = Ablate.{ spec with count = None; truncate = false; shrink_context = false } in
+  let base =
+    Ablate.
+      { spec with count = None; truncate = false; shrink_challenge = false; shrink_solution = false;
+                  shrink_challenge_minimal = false; shrink_solution_minimal = false }
+  in
   let n_files = ref 0 and n_goals = ref 0 and n_ablated = ref 0 in
   let rt = ref [] and dl = ref [] and rp = ref [] in
   List.iter
@@ -250,11 +321,30 @@ let () =
   let docs = List.filter_map (fun p -> try Some (p, read_file p) with _ -> None) files in
   if o.verbose then Printf.eprintf "[session %s: %d files]\n%!" o.session (List.length docs);
 
-  let need_cent = Ablate.uses_centrality spec || ((not o.check) && not o.text_mode) in
+  let need_cent =
+    Ablate.uses_centrality spec || ((not o.check) && not o.text_mode)
+  in
   let fan = if need_cent then Centrality.fan_in (List.map snd docs) else Hashtbl.create 1 in
   let centrality name = match Hashtbl.find_opt fan name with Some c -> c | None -> 0 in
 
   if o.check then exit (if run_check docs spec centrality then 0 else 1);
+
+  if o.check_build then begin
+    let ok = ref 0 and fail = ref 0 in
+    List.iter
+      (fun (path, original) ->
+        let spans = Span.parse_spans original in
+        let seed = Int64.logxor base_seed (fnv1a (display_path o.strip_dirs path)) in
+        let result = Ablate.ablate spans spec (Ablate.Rng.make seed) centrality in
+        let chal = Build_check.check_compiles path result.text in
+        let sol = Build_check.check_compiles path result.solution in
+        if chal && sol then incr ok else incr fail;
+        Printf.printf "%-50s challenge:%-4s solution:%-4s\n%!" path
+          (if chal then "ok" else "FAIL") (if sol then "ok" else "FAIL"))
+      docs;
+    Printf.printf "\nbuild-check: %d ok, %d failed (of %d files)\n" !ok !fail (List.length docs);
+    exit (if !fail = 0 then 0 else 1)
+  end;
 
   let n_repeat = max 1 o.repeat in
   let emitted = ref 0 in
@@ -270,7 +360,9 @@ let () =
           Int64.logxor base_seed (Int64.logxor pf (Int64.mul (Int64.of_int k) golden))
         in
         let result = Ablate.ablate spans spec (Ablate.Rng.make seed) centrality in
-        if not (Hashtbl.mem seen result.text) then begin
+        (* aggressive delete-lemmas: only keep challenges that actually compile *)
+        let valid = (not o.aggressive) || Build_check.check_compiles path result.text in
+        if valid && not (Hashtbl.mem seen result.text) then begin
           Hashtbl.replace seen result.text ();
           if o.text_mode then print_string result.text
           else begin
@@ -278,7 +370,7 @@ let () =
             let obj =
               Record.record ~file_path:display ~session:o.session ~spec
                 ~seed:(Int64.to_int base_seed) ~variant ~difficulty:o.difficulty
-                ~original ~result
+                ~result
             in
             print_endline
               (if o.compact then Yojson.Safe.to_string obj else Yojson.Safe.pretty_to_string obj)
