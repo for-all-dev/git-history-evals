@@ -10,6 +10,7 @@ from apply_ablate.provers.isabelle import (
     IsabelleProver,
     _check_root_text,
     _deps_root_text,
+    _extra_dirs,
     discover_session,
     imports_of,
     in_session_closure,
@@ -36,6 +37,17 @@ def test_coq_flags_parses_coqproject(tmp_path: Path):
     cp = tmp_path / "_CoqProject"
     cp.write_text("-R . Top\n-Q theories Foo\n-I src\n# comment\nFile.v\n")
     assert coq_flags(cp) == ["-R", ".", "Top", "-Q", "theories", "Foo", "-I", "src"]
+
+
+def test_isabelle_extra_dirs(tmp_path: Path, monkeypatch):
+    # unset → no extra -d flags
+    monkeypatch.delenv("ABLATE_ISABELLE_DIRS", raising=False)
+    assert _extra_dirs() == []
+    # existing dirs become `-d <dir>`; missing ones are skipped
+    d1 = tmp_path / "l4v"
+    d1.mkdir()
+    monkeypatch.setenv("ABLATE_ISABELLE_DIRS", f"{d1}:{tmp_path / 'nope'}")
+    assert _extra_dirs() == ["-d", str(d1)]
 
 
 def test_isabelle_theory_name():

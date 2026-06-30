@@ -110,6 +110,41 @@ def _isabelle_env(repo: Path) -> dict[str, str]:
     return env
 
 
+def _link_session_files(session_dir: Path, dst: Path) -> None:
+    """Symlink every entry of `session_dir` into `dst` (idempotent), except ROOT/ROOTS
+    (the caller writes its own). Lets a synthesized session resolve theories' auxiliary
+    resources (`ML_file`, sibling `.thy`, subdirs) without copying the tree. Entries may
+    themselves be symlinks (the apply-overlay), so resolve them to their real target."""
+    for entry in sorted(session_dir.iterdir()):
+        if entry.name in ("ROOT", "ROOTS"):
+            continue
+        link = dst / entry.name
+        if link.exists() or link.is_symlink():
+            continue
+        try:
+            link.symlink_to(entry.resolve())
+        except OSError:
+            pass
+
+
+def _extra_dirs() -> list[str]:
+    """Extra `-d <dir>` session-search dirs from `ABLATE_ISABELLE_DIRS` (colon-separated).
+
+    The closure/dep discovery here assumes an AFP-style `<root>/<Session>/ROOT` layout;
+    repos like l4v scatter sessions (lib/, spec/, …) under a top-level ROOTS file, so
+    their cross-session deps (`Monads`, `Word_Lib`, …) aren't found by `_dep_dirs`.
+    Pointing `ABLATE_ISABELLE_DIRS` at such a repo root lets `isabelle build` read its
+    ROOTS and resolve every session (against prebuilt heaps). Empty by default — no
+    effect on Coq/Lean/AFP runs. Returns flat `["-d", d, ...]`."""
+    raw = os.environ.get("ABLATE_ISABELLE_DIRS", "")
+    out: list[str] = []
+    for d in raw.split(":"):
+        d = d.strip()
+        if d and Path(d).is_dir():
+            out += ["-d", d]
+    return out
+
+
 def _tokenize(text: str) -> list[str]:
     """Split ROOT/header text into words, quoted strings, and `= + [ ]` symbols."""
     return re.findall(r'"[^"]*"|[^\s\[\]=+]+|[\[\]=+]', text)
@@ -152,14 +187,30 @@ class Session:
 def parse_root(root: Path) -> Session | None:
     """Parse the first `session` stanza of a ROOT file."""
     toks = _tokenize(root.read_text(encoding="utf-8", errors="replace"))
-    # Locate `session <name> = <parent> +`.
+    n = len(toks)
+    # Locate `session <name> [(group)] [in <dir>] = <parent> +`. l4v uses the
+    # `(group)` annotation (e.g. `session Lib (lib) = Word_Lib`) and `in <subdir>`
+    # (e.g. `session CLib (lib) in clib = CParser`), which a bare `name = parent`
+    # parser misses — falling back to throwaway mode and breaking cross-session deps.
     name = parent = None
+    in_dir: str | None = None
+    start = 0
     for i, tok in enumerate(toks):
-        if tok == "session" and i + 3 < len(toks) and toks[i + 2] == "=":
-            name = toks[i + 1].strip('"')
-            parent = toks[i + 3].strip('"')
-            start = i
-            break
+        if tok == "session" and i + 1 < n:
+            j = i + 2  # scan to the '=' separating the header from the parent
+            local_in: str | None = None
+            while j < n and toks[j] != "=" and toks[j] != "session":
+                if toks[j] == "in" and j + 1 < n:
+                    local_in = toks[j + 1].strip('"')
+                    j += 2
+                    continue
+                j += 1
+            if j < n and toks[j] == "=" and j + 1 < n:
+                name = toks[i + 1].strip('"')
+                parent = toks[j + 1].strip('"')
+                in_dir = local_in
+                start = i
+                break
     if name is None or parent is None:
         return None
 
@@ -168,7 +219,6 @@ def parse_root(root: Path) -> Session | None:
     block: str | None = None
     skip_block = False
     i = start
-    n = len(toks)
     while i < n:
         tok = toks[i]
         if tok == "session" and i != start:
@@ -203,9 +253,10 @@ def parse_root(root: Path) -> Session | None:
             theories.append(clean)
         i += 1
 
-    session_dir = root.parent
+    # `session … in <dir>` puts the session's theories under root.parent/<dir>.
+    session_dir = (root.parent / in_dir) if in_dir else root.parent
     # AFP layout: <afp>/thys/<Session>/ROOT, siblings under <afp>/thys/.
-    afp_root = session_dir.parent if (session_dir.parent / "ROOTS").exists() else None
+    afp_root = root.parent.parent if (root.parent.parent / "ROOTS").exists() else None
     return Session(name, parent, dep_sessions, theories, session_dir, afp_root)
 
 
@@ -223,14 +274,22 @@ def discover_session(target: Path) -> Session | None:
 
 
 def in_session_closure(target_theory: str, session: Session) -> set[str]:
-    """Transitive in-session imports of `target_theory` (excluding itself)."""
-    listed = set(session.theories)
+    """Transitive in-session imports of `target_theory` (excluding itself).
+
+    A bare import is in-session iff its `.thy` exists under `session_dir` — NOT iff
+    it's listed in the ROOT's `theories` block. l4v lists only top-level theories and
+    relies on imports to pull in the rest (e.g. `NICTATools` imports the unlisted
+    `Try_Attribute`), so filtering by the listed set drops them and the synthesized
+    deps session fails to load them. Qualified imports (`Monads.Foo`) are cross-session
+    and handled via `needed_sessions`."""
     seen: set[str] = set()
     stack = [target_theory]
     while stack:
         t = stack.pop()
         for imp in imports_of(session.session_dir / f"{t}.thy"):
-            if imp in listed and imp not in seen and imp != target_theory:
+            if "." in imp or imp == target_theory or imp in seen:
+                continue
+            if (session.session_dir / f"{imp}.thy").exists():
                 seen.add(imp)
                 stack.append(imp)
     return seen
@@ -401,22 +460,30 @@ class IsabelleProver:
         check_dir = root / check
         check_dir.mkdir(parents=True, exist_ok=True)
         cmd = ["isabelle", "build", "-o", "quick_and_dirty=true"]
+        cmd += _extra_dirs()  # repo-root dirs (e.g. l4v) so scattered sessions resolve
         for d in _dep_dirs(session, dep_sessions):
             cmd += ["-d", d]
         if deps:
             deps_name = _deps_name(session, name)
             deps_dir = root / deps_name
             deps_dir.mkdir(parents=True, exist_ok=True)
-            for dep in deps:  # unchanged dep sources: copy once so the heap caches
-                dst = deps_dir / f"{dep}.thy"
-                if not dst.exists():
-                    shutil.copyfile(session.session_dir / f"{dep}.thy", dst)
+            # Symlink every session-dir entry (all .thy + ML files + subdirs) into the
+            # deps dir, except ROOT/ROOTS (we write our own). l4v theories load auxiliary
+            # resources by relative path (`ML_file "crunch-cmd.ML"`), so copying just the
+            # .thy isn't enough — mirror the whole dir read-only.
+            _link_session_files(session.session_dir, deps_dir)
             (deps_dir / "ROOT").write_text(
                 _deps_root_text(session, name, deps, dep_sessions), encoding="utf-8"
             )
+            # The target's resources too (in case it ML_files); then overwrite its .thy
+            # with the import-qualified version so its in-session deps resolve to AblateDeps.
+            _link_session_files(session.session_dir, check_dir)
             content = (session.session_dir / f"{name}.thy").read_text(encoding="utf-8")
             content = qualify_imports(content, deps, deps_name)
-            (check_dir / f"{name}.thy").write_text(content, encoding="utf-8")
+            tgt = check_dir / f"{name}.thy"
+            if tgt.is_symlink():
+                tgt.unlink()
+            tgt.write_text(content, encoding="utf-8")
             (check_dir / "ROOT").write_text(
                 _check_root_text(session, name, dep_sessions), encoding="utf-8"
             )
@@ -452,6 +519,7 @@ class IsabelleProver:
                     "build",
                     "-o",
                     "quick_and_dirty=true",
+                    *_extra_dirs(),
                     "-d",
                     str(tmp),
                     "AblateCheck",
