@@ -35,3 +35,7 @@ artifacts/**/writer_transcript.json
 /hf/**/*.jsonl
 
 /docs/meetings/*.pdf
+
+# prebuilt Isabelle session heaps (large, local; keyed by version inside,
+# e.g. .isabelle-heaps/.isabelle/Isabelle2025{,-2}/ for l4v / AFP)
+.isabelle-heaps/
