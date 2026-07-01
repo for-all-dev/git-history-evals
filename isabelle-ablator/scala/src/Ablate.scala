@@ -668,8 +668,12 @@ object Ablate {
 
     // Minimal dependency-closed slice (mirrors rocq slice_delete).
     def sliceDelete(solution: Boolean): String = {
-      val openerOfName = lemmas.foldLeft(Map.empty[String, Int]) {
-        case (m, l) => if (m.contains(l.name)) m else m + (l.name -> l.opener)
+      // name -> ALL openers that define it. A name may be declared more than once (e.g.
+      // the same lemma name inside different locales/contexts); keeping only one can drop
+      // the definition a kept reference resolves to, leaving a dangling reference in the
+      // slice. (Mirrors rocq `openers_of_name`.)
+      val openersOfName = lemmas.foldLeft(Map.empty[String, List[Int]]) {
+        case (m, l) => m.updated(l.name, l.opener :: m.getOrElse(l.name, Nil))
       }
       val deletedNames = selected.map(_.name).toSet
       def mustHole(o: Int): Boolean = byOpener.get(o).exists(_.bodyNames.exists(deletedNames.contains))
@@ -686,7 +690,7 @@ object Ablate {
       seed.foreach(add)
       while (q.nonEmpty) {
         val o = q.dequeue(); val l = byOpener(o)
-        for (nm <- l.stmtNames ++ l.bodyNames; o2 <- openerOfName.get(nm)) add(o2)
+        for (nm <- l.stmtNames ++ l.bodyNames; o2 <- openersOfName.getOrElse(nm, Nil)) add(o2)
       }
       val sb = new mutable.StringBuilder
       var k = 0

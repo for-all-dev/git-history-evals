@@ -78,3 +78,18 @@ def test_solution_text_prefers_whole_file():
 def test_holed_theorems_extracted():
     rec = _rec(holes_filled=[{"theorem_name": "foo"}, {"theorem_name": ""}])
     assert rec.holed_theorems == ["foo"]
+
+
+def test_deleted_lemma_names_extracted():
+    rec = _rec(
+        deleted_lemmas=[
+            {"name": "helper", "text": "theorem helper : 1 = 1 := rfl"},
+            {"name": "", "text": ""},
+        ]
+    )
+    assert rec.deleted_lemma_names == ["helper"]
+    assert rec.deleted_lemmas[0].text.startswith("theorem helper")
+
+
+def test_deleted_lemmas_default_empty():
+    assert _rec().deleted_lemma_names == []

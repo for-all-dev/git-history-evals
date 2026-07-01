@@ -113,6 +113,11 @@ def run(
                     timeout=timeout,
                     dry_run=dry_run,
                 )
+                # Record what the ablator removed/holed so results are self-describing
+                # (multiple lemmas in delete/corollary mode), independent of which
+                # solve_one branch produced the result.
+                res.deleted_lemmas = rec.deleted_lemma_names
+                res.holed_theorems = rec.holed_theorems
                 outcome = (
                     "pass"
                     if res.succeeded
@@ -182,7 +187,8 @@ def run(
             f"  solution ok : {sol_ok} (ablator's ground-truth compiled hole-free)"
         )
         typer.echo(
-            f"  solution BAD: {sol_bad} (ground-truth did NOT compile — ablator bug)"
+            f"  solution BAD: {sol_bad} (ground-truth not hole-free: didn't compile, "
+            "or has a pre-existing sorry/axiom → unwinnable)"
         )
         typer.echo(f"  trivial     : {trivial} (empty diff; nothing deleted)")
         typer.echo(f"  malformed   : {malformed} (challenge did not compile)")

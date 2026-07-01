@@ -28,6 +28,16 @@ class HoleInfo(BaseModel):
     theorem_name: str = ""
 
 
+class DeletedLemma(BaseModel):
+    """A lemma the ablator removed entirely from the challenge (in delete/corollary
+    mode). `name` is its identifier; `text` is its original source (statement + proof),
+    which is the crux the agent must re-derive."""
+
+    model_config = ConfigDict(extra="ignore")
+    name: str = ""
+    text: str = ""
+
+
 class AblationRecord(BaseModel):
     """One row of an ablator JSONL: a self-contained (challenge, solution) pair."""
 
@@ -40,6 +50,7 @@ class AblationRecord(BaseModel):
     solution_file_content: str = ""
     solution_diff: str = ""
     holes_filled: list[HoleInfo] = Field(default_factory=list)
+    deleted_lemmas: list[DeletedLemma] = Field(default_factory=list)
     # informational
     task_id: str | None = None
     theory: str | None = None
@@ -54,6 +65,11 @@ class AblationRecord(BaseModel):
     def holed_theorems(self) -> list[str]:
         """Names of the theorems the agent was asked to re-prove (must be preserved)."""
         return [h.theorem_name for h in self.holes_filled if h.theorem_name]
+
+    @property
+    def deleted_lemma_names(self) -> list[str]:
+        """Names of lemmas the ablator deleted from the challenge (empty if none)."""
+        return [d.name for d in self.deleted_lemmas if d.name]
 
     def solution_text(self) -> str:
         """The (un-ablated) ground-truth file: the whole-file field if the ablator

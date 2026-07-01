@@ -616,7 +616,12 @@ def renderUserLean (toks : Array Token) (lo a contentHi hi parentCol : Nat) (del
 def sliceDelete (toks : Array Token) (spans : Array Span) (spec : Spec)
     (lemmas : Array DeletableLemma) (delSet userSet : HashSet Nat) (solution : Bool) : String := Id.run do
   let bySpan := fun (si : Nat) => lemmas.find? (fun l => l.spanIdx == si)
-  let openerOfName := fun (nm : String) => (lemmas.find? (fun l => l.name == nm)).map (·.spanIdx)
+  -- name -> ALL openers that define it. A name may be declared more than once (e.g. the
+  -- same lemma name inside different namespaces/sections); keeping only one — worse, an
+  -- arbitrary `find?` match — can drop the definition a kept reference resolves to,
+  -- leaving a dangling reference in the slice. (Mirrors rocq `openers_of_name`.)
+  let openersOfName := fun (nm : String) =>
+    lemmas.filterMap (fun l => if l.name == nm then some l.spanIdx else none)
   let mut deletedNames : HashSet String := {}
   for si in delSet.toList do
     match bySpan si with | some l => deletedNames := deletedNames.insert l.name | none => pure ()
@@ -642,11 +647,9 @@ def sliceDelete (toks : Array Token) (spans : Array Span) (spec : Spec)
     | none => pure ()
     | some l =>
       for nm in l.stmtNames ++ l.bodyNames do
-        match openerOfName nm with
-        | some o2 =>
+        for o2 in openersOfName nm do
           if !keep.contains o2 && (bySpan o2).isSome then
             keep := keep.insert o2; q := q.push o2
-        | none => pure ()
   let mut buf := ""
   for si in [0:spans.size] do
     let s := spans[si]!

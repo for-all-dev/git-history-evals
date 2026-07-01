@@ -387,6 +387,12 @@ class SolveResult(BaseModel):
     gave_up: bool
     reason: str | None = None
     solution_diff: str = ""  # challenge -> agent solution (empty if unsolved/unchanged)
+    agent_solution: str = ""  # the agent's final delivered file (whole)
+    original_solution: str = ""  # the ablator's ground-truth solution (whole)
+    # what the ablator removed/holed in this challenge (may be several — delete/corollary
+    # mode deletes N lemmas and holes all their in-file users)
+    deleted_lemmas: list[str] = Field(default_factory=list)
+    holed_theorems: list[str] = Field(default_factory=list)
     error: str | None = None
     malformed_challenge: bool = (
         False  # the challenge itself failed to compile (ablator bug)
@@ -444,6 +450,25 @@ def _tamper_reason(
     return None
 
 
+def _log_solutions(record: AblationRecord, final: str, *, outcome: str) -> None:
+    """Log the agent's final file and the ablator's original ground-truth solution
+    together (with a diff between them) so a human can copy both out of Logfire and
+    compare how the agent's re-derivation differs from the human proof. Emitted once
+    the agent has finished — whether it passed, failed, gave up, or ran out of turns."""
+    original = record.solution_text()
+    log(
+        "solution",
+        file_path=record.file_path,
+        assistant=record.assistant,
+        task_id=record.task_id,
+        outcome=outcome,
+        holed_theorems=record.holed_theorems,
+        agent_solution=final,
+        original_solution=original,
+        agent_vs_original_diff=unified_or_empty(original, final),
+    )
+
+
 def solve_one(
     record: AblationRecord,
     src: Path,
@@ -495,6 +520,9 @@ def solve_one(
         f"Make the file compile. Here is the current (holed) file:\n\n"
         f"```\n{chal}\n```"
     )
+    # Surface the deleted lemma(s) — the crux the agent must re-derive — when the
+    # challenge was produced in delete/corollary mode (empty for pure proof-ablation).
+    deleted = record.deleted_lemmas
     log(
         "challenge",
         file_path=record.file_path,
@@ -503,6 +531,9 @@ def solve_one(
         holes=_hole_count(chal),
         chars=len(chal),
         dry_run=dry_run,
+        deleted_lemmas=record.deleted_lemma_names,
+        deleted_lemma_text="\n\n".join(d.text for d in deleted if d.text) or None,
+        holed_theorems=record.holed_theorems,
         system_prompt=SYSTEM_PROMPT.format(
             assistant=record.assistant, budget=max_turns
         ),
@@ -529,21 +560,35 @@ def solve_one(
         )
     if dry_run:
         # Well-posedness check: the ablator's OWN ground-truth solution must compile
-        # hole-free. If it doesn't, the (challenge, solution) pair is broken (an ablator
-        # bug) — no model could ever pass it. This catches bad solutions the preflight
-        # (which only compiles the *holed* challenge) cannot.
+        # hole-free. If it doesn't, the (challenge, solution) pair is broken — no model
+        # could ever pass it. This catches bad solutions the preflight (which only
+        # compiles the *holed* challenge) cannot. Two failure modes both count as a bad
+        # solution: (a) the solution still contains forbidden tokens (`sorry`/`axiom`/…),
+        # which happens when the source file has PRE-EXISTING holes that a prefix shrink
+        # keeps — the challenge is then unwinnable; (b) it doesn't compile.
         sol = record.solution_text()
         sol_ok: bool | None = None
-        if sol.strip() and _forbidden(sol) is None:
-            with span(
-                "dry-run-solution",
-                assistant=record.assistant,
-                file_path=record.file_path,
-            ) as sp:
-                target.write_text(sol, encoding="utf-8")
-                sol_ok = prover.check(work, rel, allow_holes=False, timeout=timeout).ok
-                set_attrs(sp, ok=sol_ok)
-            target.write_text(chal, encoding="utf-8")  # restore the holed challenge
+        sol_note: str | None = None
+        if sol.strip():
+            forbidden = _forbidden(sol)
+            if forbidden is not None:
+                sol_ok = False
+                sol_note = (
+                    f"ground-truth solution contains {forbidden!r} "
+                    "(pre-existing hole/axiom in the source — challenge is unwinnable)"
+                )
+            else:
+                with span(
+                    "dry-run-solution",
+                    assistant=record.assistant,
+                    file_path=record.file_path,
+                ) as sp:
+                    target.write_text(sol, encoding="utf-8")
+                    sol_ok = prover.check(
+                        work, rel, allow_holes=False, timeout=timeout
+                    ).ok
+                    set_attrs(sp, ok=sol_ok)
+                target.write_text(chal, encoding="utf-8")  # restore the holed challenge
         return SolveResult(  # no model call
             task_id=record.task_id,
             assistant=record.assistant,
@@ -552,6 +597,7 @@ def solve_one(
             gave_up=False,
             dry_run=True,
             solution_compiles=sol_ok,
+            error=sol_note,
         )
     deps = SolveDeps(
         work_dir=work,
@@ -596,6 +642,11 @@ def solve_one(
             )
             if tamper:
                 ok = False
+            _log_solutions(
+                record,
+                final,
+                outcome="pass" if ok else ("tampered" if tamper else "turn_limit"),
+            )
             return SolveResult(
                 task_id=record.task_id,
                 assistant=record.assistant,
@@ -607,6 +658,8 @@ def solve_one(
                 error=tamper
                 or (None if ok else f"turn limit ({max_turns} requests) reached"),
                 solution_diff=unified_or_empty(record.challenge_file_content, final),
+                agent_solution=final,
+                original_solution=record.solution_text(),
             )
         return SolveResult(
             task_id=record.task_id,
@@ -638,6 +691,13 @@ def solve_one(
     )
     if tamper:
         ok = False
+    _log_solutions(
+        record,
+        final,
+        outcome="pass"
+        if ok
+        else ("tampered" if tamper else ("gave_up" if v.gave_up else "fail")),
+    )
     diff = unified_or_empty(record.challenge_file_content, final)
     return SolveResult(
         task_id=record.task_id,
@@ -649,4 +709,6 @@ def solve_one(
         tampered=tamper is not None,
         error=tamper,
         solution_diff=diff,
+        agent_solution=final,
+        original_solution=record.solution_text(),
     )

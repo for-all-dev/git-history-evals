@@ -599,9 +599,16 @@ let slice_delete (spans : Span.t array) (spec : spec)
     done;
     Buffer.contents b
   in
-  let opener_of_name = Hashtbl.create 64 in
+  (* name -> ALL openers that define it. A name can be declared more than once (e.g. a
+     `gtb_spec0` lemma inside each of the Nat/N/Z/Pos modules, or two `map_cps_correct`s),
+     so we must keep *every* same-named decl in the closure — keeping only one (and, worse,
+     an arbitrary one, since Hashtbl.iter order is unspecified) can drop the definition a
+     kept hint/instance/statement actually resolves to, leaving a dangling reference. *)
+  let openers_of_name = Hashtbl.create 64 in
   Hashtbl.iter
-    (fun o (l : Uses.lemma) -> if not (Hashtbl.mem opener_of_name l.name) then Hashtbl.replace opener_of_name l.name o)
+    (fun o (l : Uses.lemma) ->
+      let prev = try Hashtbl.find openers_of_name l.name with Not_found -> [] in
+      Hashtbl.replace openers_of_name l.name (o :: prev))
     by_opener;
   let deleted_names = Hashtbl.create 16 in
   Hashtbl.iter (fun _ (l : Uses.lemma) -> Hashtbl.replace deleted_names l.Uses.name ()) del;
@@ -630,6 +637,8 @@ let slice_delete (spans : Span.t array) (spec : spec)
       Queue.push o q
     end
   in
+  (* keep every in-file decl of a referenced name (all same-named openers, see above) *)
+  let add_name nm = match Hashtbl.find_opt openers_of_name nm with Some os -> List.iter add os | None -> () in
   List.iter add seed;
   (* Structural items (Hint/Ltac/Notation/Arguments/…) are always kept, so any in-file
      decl they cite must be kept too — both decls a kept item *needs* (e.g.
@@ -638,16 +647,12 @@ let slice_delete (spans : Span.t array) (spec : spec)
      dangles. (Items citing the deleted lemma are handled at emit time below.) *)
   for k = 0 to n - 1 do
     if not (Span.is_goal spans.(k)) then
-      List.iter
-        (fun nm -> match Hashtbl.find_opt opener_of_name nm with Some o -> add o | None -> ())
-        (Uses.names_in spans.(k).Span.content)
+      List.iter add_name (Uses.names_in spans.(k).Span.content)
   done;
   while not (Queue.is_empty q) do
     let o = Queue.pop q in
     let l = Hashtbl.find by_opener o in
-    List.iter
-      (fun nm -> match Hashtbl.find_opt opener_of_name nm with Some o' -> add o' | None -> ())
-      (l.Uses.stmt_names @ l.Uses.body_names)
+    List.iter add_name (l.Uses.stmt_names @ l.Uses.body_names)
   done;
   (* In the challenge the deleted lemma is omitted, so a kept structural item that cites
      it (e.g. `Hint Resolve <deleted>`) would dangle — drop such items from the

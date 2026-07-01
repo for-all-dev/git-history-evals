@@ -545,10 +545,14 @@ fn slice_delete(
     let n = spans.len();
     let src_range =
         |lo: usize, hi: usize| -> String { spans[lo..hi].iter().map(|s| s.source()).collect() };
-    let mut opener_of_name: std::collections::HashMap<&str, usize> =
+    // name -> ALL openers that define it. A name may be declared more than once (e.g.
+    // the same lemma name inside different locales/contexts); keeping only one — worse,
+    // an arbitrary map entry — can drop the definition a kept reference resolves to,
+    // leaving a dangling reference in the slice. (Mirrors rocq `openers_of_name`.)
+    let mut openers_of_name: std::collections::HashMap<&str, Vec<usize>> =
         std::collections::HashMap::new();
     for l in by_lemma.values() {
-        opener_of_name.entry(l.name.as_str()).or_insert(l.opener);
+        openers_of_name.entry(l.name.as_str()).or_default().push(l.opener);
     }
     let deleted_names: HashSet<String> = del
         .iter()
@@ -582,10 +586,12 @@ fn slice_delete(
     while let Some(o) = q.pop_front() {
         let l = by_lemma[&o];
         for nm in l.stmt_names.iter().chain(l.body_names.iter()) {
-            if let Some(&o2) = opener_of_name.get(nm.as_str()) {
-                if !keep.contains(&o2) && by_lemma.contains_key(&o2) {
-                    keep.insert(o2);
-                    q.push_back(o2);
+            if let Some(os) = openers_of_name.get(nm.as_str()) {
+                for &o2 in os {
+                    if !keep.contains(&o2) && by_lemma.contains_key(&o2) {
+                        keep.insert(o2);
+                        q.push_back(o2);
+                    }
                 }
             }
         }
