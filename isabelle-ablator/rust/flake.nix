@@ -20,6 +20,7 @@
             pkgs.binaryen # wasm-opt, used by wasm-pack
             pkgs.python3 # serve the demo
             pkgs.isabelle # isabelle build, for the CLI's --check-build
+            pkgs.ripgrep # the baselines agent's `search` tool shells out to `rg`
           ];
           shellHook = ''
             rustup default stable >/dev/null 2>&1 || true

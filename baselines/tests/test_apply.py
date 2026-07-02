@@ -8,9 +8,11 @@ from apply_ablate.apply import (
     ApplyError,
     apply_record,
     copy_repo,
+    find_lemma_user_files,
+    overlay_repo,
     resolve_target,
 )
-from apply_ablate.record import load_record
+from apply_ablate.record import AblationRecord, load_record
 
 
 def _make_src(tmp_path: Path) -> Path:
@@ -105,3 +107,105 @@ def test_apply_record_writes_solution(tmp_path: Path, fixture_jsonl: Path):
     dst = tmp_path / "dst"
     written = apply_record(rec, src, dst, overwrite=False, solution=True)
     assert written.read_text() == rec.solution_text()
+
+
+# --- withholding files that use a deleted lemma ---
+
+
+def _lemma_src(tmp_path: Path) -> Path:
+    """A src tree: target (Ablated.lean) + a downstream user + an unrelated file, in a
+    sibling directory to exercise the deep-exclude path."""
+    src = tmp_path / "src"
+    (src / "a").mkdir(parents=True)
+    (src / "b").mkdir(parents=True)
+    (src / "a" / "Ablated.lean").write_text("theorem helper : True := trivial\n")
+    (src / "b" / "User.lean").write_text("-- uses helper\nexample := helper\n")
+    (src / "b" / "Unrelated.lean").write_text("-- nothing to see\n")
+    return src
+
+
+def test_find_lemma_user_files_matches_users_only(tmp_path: Path):
+    src = _lemma_src(tmp_path)
+    found = find_lemma_user_files(
+        src, ["helper"], Path("a/Ablated.lean"), skip={".git"}
+    )
+    assert found == {Path("b/User.lean")}
+
+
+def test_find_lemma_user_files_empty_when_no_names(tmp_path: Path):
+    src = _lemma_src(tmp_path)
+    assert (
+        find_lemma_user_files(src, [], Path("a/Ablated.lean"), skip={".git"}) == set()
+    )
+
+
+def _lemma_record() -> AblationRecord:
+    return AblationRecord.model_validate(
+        {
+            "proof_assistant": "lean",
+            "file_path": "a/Ablated.lean",
+            "challenge_file_content": "theorem helper : True := by sorry\n",
+            "solution_file_content": "theorem helper : True := trivial\n",
+            "deleted_lemmas": [{"name": "helper", "text": "theorem helper ..."}],
+        }
+    )
+
+
+def test_apply_record_withholds_lemma_users(tmp_path: Path):
+    src = _lemma_src(tmp_path)
+    dst = tmp_path / "dst"
+    apply_record(_lemma_record(), src, dst, overwrite=False)
+    # the target is written real; the downstream user is withheld; siblings survive
+    assert (dst / "a" / "Ablated.lean").exists()
+    assert not (dst / "b" / "User.lean").exists()
+    assert (dst / "b" / "Unrelated.lean").exists()
+
+
+def test_apply_record_withhold_disabled(tmp_path: Path):
+    src = _lemma_src(tmp_path)
+    dst = tmp_path / "dst"
+    apply_record(_lemma_record(), src, dst, overwrite=False, withhold_lemma_users=False)
+    assert (dst / "b" / "User.lean").exists()  # present when disabled
+
+
+def test_apply_record_drops_target_vo_symlink(tmp_path: Path):
+    """The target's own .vo/.glob must NOT remain a symlink into src, else compiling
+    the challenge writes through the symlink and clobbers the pristine src .vo."""
+    src = tmp_path / "src"
+    (src / "Util").mkdir(parents=True)
+    (src / "Util" / "NatUtil.v").write_text("(* orig *)\n")
+    (src / "Util" / "NatUtil.vo").write_bytes(b"PRISTINE-VO")
+    (src / "Util" / "NatUtil.glob").write_text("glob\n")
+    rec = AblationRecord.model_validate(
+        {
+            "proof_assistant": "coq",
+            "file_path": "Util/NatUtil.v",
+            "challenge_file_content": "(* holed *)\nProof. Admitted.\n",
+            "solution_file_content": "(* solved *)\nProof. reflexivity. Qed.\n",
+            "deleted_lemmas": [],
+        }
+    )
+    dst = tmp_path / "dst"
+    target = apply_record(rec, src, dst, overwrite=False)
+    vo = dst / "Util" / "NatUtil.vo"
+    assert not vo.exists() and not vo.is_symlink()  # companion dropped
+    assert not (dst / "Util" / "NatUtil.glob").is_symlink()
+    # simulate the compiler writing a fresh .vo next to the challenge
+    vo.write_bytes(b"FRESH-VO")
+    assert (src / "Util" / "NatUtil.vo").read_bytes() == b"PRISTINE-VO"  # src intact
+    assert target.read_text().startswith("(* holed *)")
+
+
+def test_overlay_exclude_deep_sibling(tmp_path: Path):
+    src = _lemma_src(tmp_path)
+    dst = tmp_path / "dst"
+    overlay_repo(
+        src,
+        dst,
+        Path("a/Ablated.lean"),
+        overwrite=False,
+        exclude=frozenset({Path("b/User.lean")}),
+    )
+    assert not (dst / "b" / "User.lean").exists()
+    assert (dst / "b" / "Unrelated.lean").exists()  # symlinked
+    assert (dst / "b" / "Unrelated.lean").is_symlink()

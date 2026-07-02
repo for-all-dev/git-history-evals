@@ -110,6 +110,15 @@
       "schema_version": 1,
       "row_version": 0,
       "created_at": "2026-06-11T06:48:39.573986+00:00"
+    },
+    {
+      "manifest_hash": "9a7e5422ff069f0aff375bc66a183d37c929455a9507d55c4fe60d9b93fe58f7",
+      "path": "cedar-spec-eval/cedar-corollary-leaf-v1-9ab1ca6e/",
+      "dataset_id": "for-all-dev/cedar-spec-eval",
+      "version": "cedar-corollary-leaf-v1-9ab1ca6e",
+      "schema_version": 1,
+      "row_version": 0,
+      "created_at": "2026-07-02T13:10:19.278282+00:00"
     }
   ]
 }

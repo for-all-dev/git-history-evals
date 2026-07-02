@@ -164,6 +164,15 @@ let is_terminator s = is_qed s || is_admitted s || is_abort s
 (* a structural block-closer that shrink must keep so the file stays balanced:
    [End <name>.] closes a Section / Module / Module Type. *)
 let is_closer s = head s = "End"
+
+(* a structural block-OPENER that shrink must likewise keep: [Section X.] /
+   [Module X.] / [Module Type X.] open a block that an [End X.] later closes.
+   If shrink keeps the [End] but drops the opener, the file is unbalanced
+   ("There is nothing to end"). Keeping all openers + all closers preserves
+   balance regardless of what content between them is trimmed. (A self-contained
+   [Module X := Y.] also matches but is harmless to keep verbatim.) *)
+let is_opener s =
+  match head s with "Section" | "Module" -> true | _ -> false
 let is_open s = s.kind = Open
 let is_close s = s.kind = Close
 let is_bullet s = match s.kind with Bullet _ -> true | _ -> false

@@ -55,6 +55,14 @@ object Ablate {
 
   private def n_lines(s: String): Int = if (s.isEmpty) 0 else s.count(_ == '\n') + 1
 
+  // Seeded FNV-1a hash of a statement (XOR the per-run cutSalt) -> a reproducible
+  // pseudo-random value used to pick an apply-script cut point (per (seed, lemma)).
+  private def cutHash(s: String, salt: Long): Long = {
+    var h = 0xcbf29ce484222325L ^ salt
+    for (b <- s.getBytes("UTF-8")) { h ^= (b & 0xff).toLong; h *= 0x100000001b3L }
+    h
+  }
+
   /** A short label for a proof's main method, for difficulty stratification. */
   private def classify_method(span: Command_Span.Span): String =
     span.name match {
@@ -102,7 +110,9 @@ object Ablate {
     delete_count: Option[Int] = None,  // delete-lemmas: delete exactly this many lemmas (None = count/prob)
     delete_uniform: Boolean = false,   // delete-lemmas: draw deletions uniformly, not by user count
     delete_leaves: Boolean = false,    // delete-lemmas: hole only leaf steps (falls back to whole proof)
-    aggressive: Boolean = false        // delete-lemmas: relax guards (BE; needs --check-build)
+    aggressive: Boolean = false,       // delete-lemmas: relax guards (BE; needs --check-build)
+    corollary: Boolean = false,        // delete-lemmas: restrict candidates to one random theorem's dep closure
+    ablate_scripts: Boolean = false    // ablate apply-scripts whole, not the default prefix-cut
   ) {
     def uses_centrality: Boolean =
       min_centrality > 0 || max_centrality != Int.MaxValue || by_centrality
@@ -170,6 +180,28 @@ object Ablate {
     val n = spans.length
 
     def src(j: Int): String = Token.implode(spans(j).content)
+
+    val cutSalt: Long = rng.nextLong() // seeds the apply-script cut point (reproducible)
+
+    // Top-level (depth `base`) apply/apply_end step indices of a proof body [start,end).
+    // Steps inside a nested have/show/{ are excluded (depth tracked as in `measure`).
+    def applySteps(start: Int, end: Int, base: Int): List[Int] = {
+      val steps = mutable.ListBuffer[Int]()
+      var j = start; var dep = base
+      while (j < end) {
+        kind_of(spans(j)) match {
+          case Some(k) =>
+            if (dep == base && (spans(j).name == "apply" || spans(j).name == "apply_end"))
+              steps += j
+            if (Keyword.proof_goal.contains(k) || k == Keyword.PRF_OPEN) dep += 1
+            else if (closes(k)) dep -= 1
+            else if (closes_global(k)) dep = base - 1
+          case None =>
+        }
+        j += 1
+      }
+      steps.toList
+    }
 
     // One pass; `decide(stmt_index)` says whether to ablate each matching proof.
     // Returns the result plus, for every matching proof, (stmt index, centrality).
@@ -252,8 +284,15 @@ object Ablate {
         total += 1
         matches += ((stmt_idx, cent))
         if (decide(stmt_idx)) {
-          // sit `sorry` right after the statement (swallow the gap to the old
-          // proof) so it never dangles flush-left on its own line.
+          // Apply-script: keep a seeded-random prefix of `apply` steps and admit the
+          // rest with `sorry` (default). Otherwise (or --ablate-scripts, or a single
+          // step) sit `sorry` right after the statement, dropping the whole proof.
+          val steps = applySteps(i, m.end, goal_depth)
+          val keepK =
+            if (!spec.ablate_scripts && steps.length >= 2)
+              1 + Math.floorMod(cutHash(src(stmt_idx), cutSalt), (steps.length - 1).toLong).toInt
+            else 0
+          if (keepK > 0) out ++= (i until steps(keepK - 1) + 1).map(src).mkString
           out ++= " sorry"
           last_sorry_end = out.length
           ablated += 1
@@ -277,7 +316,10 @@ object Ablate {
           // a goal is never a structural closer
           top_segs += ((out.length, orig, false, ablated > ablated0))
         case _ =>
-          val closer = spans(i).name == "end"   // closes theory/locale/context
+          // keep `end` closers AND block openers (kind thy_decl_block, which absorb
+          // their `begin`) so shrink keeps a balanced theory/locale/context skeleton.
+          val closer = spans(i).name == "end" ||
+            spans(i).kind.keyword_kind.contains(Keyword.THY_DECL_BLOCK)
           orig += src(i).length
           out ++= src(i); i += 1
           top_segs += ((out.length, orig, closer, false))
@@ -400,7 +442,70 @@ object Ablate {
       }
       idx
     }
-    val selected: List[Lemma] = spec.delete_count match {
+    // Corollary mode: pick a random theorem, take its transitive in-file dependency
+    // closure, and draw deletions from the *eligible* members of that closure (fan-in
+    // weighted, or uniform). One corollary is exhausted before a fresh one is drawn, so
+    // deletions stay concentrated in a single proof's subtree unless the target forces
+    // spilling. Mirrors the rust ablator's corollary_select.
+    def corollarySelect(): List[Lemma] = {
+      if (cands.isEmpty) Nil
+      else {
+        val byNameFirst = lemmas.foldLeft(Map.empty[String, Lemma]) {
+          (m, l) => if (m.contains(l.name)) m else m + (l.name -> l)
+        }
+        def depsOf(l: Lemma): List[Lemma] =
+          (l.stmtNames ++ l.bodyNames).flatMap(byNameFirst.get)
+            .filter(_.opener != l.opener).distinct
+        val candOpeners = cands.map(_.opener).toSet
+        def closureCands(start: Lemma): Vector[Lemma] = {
+          val seen = mutable.Set.empty[Int]
+          val acc = new mutable.ListBuffer[Lemma]
+          var stack = depsOf(start)
+          while (stack.nonEmpty) {
+            val l = stack.head; stack = stack.tail
+            if (l.opener != start.opener && seen.add(l.opener)) {
+              acc += l
+              stack = depsOf(l) ::: stack
+            }
+          }
+          acc.toVector.filter(l => candOpeners.contains(l.opener)).sortBy(_.opener)
+        }
+        val order = rng.shuffle(lemmas.toVector)
+        val del = mutable.Set.empty[Int]
+        val chosen = new mutable.ListBuffer[Lemma]
+        val targetDeletions = spec.delete_count
+        val targetAblations = if (spec.delete_count.isEmpty) spec.count else None
+        val useProb = spec.delete_count.isEmpty && spec.count.isEmpty
+        def coveredCount: Int = chosen.flatMap(_.users).filterNot(del.contains).distinct.size
+        def reached: Boolean = (targetDeletions, targetAblations) match {
+          case (Some(nd), _) => chosen.length >= nd
+          case (_, Some(k))  => coveredCount >= k
+          case _ => false
+        }
+        var oi = 0; var stop = false
+        while (oi < order.length && !stop) {
+          val cor = order(oi); oi += 1
+          if (useProb) {
+            val pool = closureCands(cor).filterNot(l => del.contains(l.opener))
+            if (pool.nonEmpty) {
+              for (pp <- pool if rng.nextDouble() < spec.prob) { del += pp.opener; chosen += pp }
+              stop = true
+            }
+          } else if (reached) stop = true
+          else {
+            var pool = closureCands(cor).filterNot(l => del.contains(l.opener))
+            while (pool.nonEmpty && !reached) {
+              val idx = pickIdx(pool); val l = pool(idx)
+              del += l.opener; chosen += l
+              pool = pool.patch(idx, Nil, 1)
+            }
+          }
+        }
+        chosen.toList
+      }
+    }
+    val selected: List[Lemma] = if (spec.corollary) corollarySelect()
+    else spec.delete_count match {
       // --delete-lemmas N: delete exactly N lemmas (weighted draw), any ablation count
       case Some(kd) =>
         val chosen = new mutable.ListBuffer[Lemma]
@@ -469,6 +574,18 @@ object Ablate {
       found
     }
     def subtreeCites(lo: Int, hi: Int): Boolean = (lo until hi).exists(spanCites)
+    // First OWN-level (depth d) span citing a deleted name (skips nested goal-units);
+    // -1 if none. Used to cut an apply-script at the step using a deleted lemma.
+    def firstCitingToplevel(lo: Int, hi: Int, d: Int): Int = {
+      var jj = lo; var res = -1
+      while (jj < hi && res < 0) {
+        kind_of(spans(jj)) match {
+          case Some(k) if Keyword.proof_goal.contains(k) => jj = measureEnd(jj + 1, d + 1)
+          case _ => if (spanCites(jj)) res = jj else jj += 1
+        }
+      }
+      res
+    }
     def leafRender(lo: Int, hi: Int, d: Int): (String, Boolean) = {
       val sb = new mutable.StringBuilder; var ok = true; var jj = lo
       while (jj < hi) {
@@ -490,7 +607,15 @@ object Ablate {
     def renderUser(opener: Int, end: Int): String =
       if (spec.delete_leaves) {
         val (body, ok) = leafRender(opener + 1, end, 0)
-        if (ok) src(opener) + body else src(opener) + " sorry"
+        if (ok) src(opener) + body
+        else if (!spec.ablate_scripts) {
+          // apply-script: cut at the first top-level step citing the deleted name,
+          // keeping the citation-free prefix + sorry.
+          val cut = firstCitingToplevel(opener + 1, end, 0)
+          if (cut >= 0 && !subtreeCites(opener + 1, cut))
+            src(opener) + (opener + 1 until cut).map(src).mkString + " sorry"
+          else src(opener) + " sorry"
+        } else src(opener) + " sorry"
       } else src(opener) + " sorry"
 
     // Emit the challenge + record per-item challenge/solution segments (offset, closer,
@@ -528,7 +653,9 @@ object Ablate {
         }
         j = e
       } else {
-        val s = src(j); val closer = spans(j).name == "end"
+        val s = src(j)
+        val closer = spans(j).name == "end" ||
+          spans(j).kind.keyword_kind.contains(Keyword.THY_DECL_BLOCK)
         out ++= s
         chal_segs += ((out.length, closer, false))
         orig_len += s.length; sol_segs += ((orig_len, closer, false))
@@ -541,8 +668,12 @@ object Ablate {
 
     // Minimal dependency-closed slice (mirrors rocq slice_delete).
     def sliceDelete(solution: Boolean): String = {
-      val openerOfName = lemmas.foldLeft(Map.empty[String, Int]) {
-        case (m, l) => if (m.contains(l.name)) m else m + (l.name -> l.opener)
+      // name -> ALL openers that define it. A name may be declared more than once (e.g.
+      // the same lemma name inside different locales/contexts); keeping only one can drop
+      // the definition a kept reference resolves to, leaving a dangling reference in the
+      // slice. (Mirrors rocq `openers_of_name`.)
+      val openersOfName = lemmas.foldLeft(Map.empty[String, List[Int]]) {
+        case (m, l) => m.updated(l.name, l.opener :: m.getOrElse(l.name, Nil))
       }
       val deletedNames = selected.map(_.name).toSet
       def mustHole(o: Int): Boolean = byOpener.get(o).exists(_.bodyNames.exists(deletedNames.contains))
@@ -557,9 +688,18 @@ object Ablate {
       def add(o: Int): Unit =
         if (!keep.contains(o) && byOpener.contains(o)) { keep += o; q.enqueue(o) }
       seed.foreach(add)
+      // Structural (non-goal) items are always kept, so any in-file lemma they cite must
+      // be kept too — else it dangles (`lemmas foo = bar [OF refl]` needs `bar`). Seed the
+      // closure with those references. (Mirrors the rocq ablator's non-goal seeding loop.)
+      for (k <- 0 until n) {
+        val isGoal = spans(k).kind.keyword_kind.exists(Keyword.theory_goal.contains)
+        if (!isGoal)
+          for (nm <- names_in(spans(k).content); o2 <- openersOfName.getOrElse(nm, Nil))
+            add(o2)
+      }
       while (q.nonEmpty) {
         val o = q.dequeue(); val l = byOpener(o)
-        for (nm <- l.stmtNames ++ l.bodyNames; o2 <- openerOfName.get(nm)) add(o2)
+        for (nm <- l.stmtNames ++ l.bodyNames; o2 <- openersOfName.getOrElse(nm, Nil)) add(o2)
       }
       val sb = new mutable.StringBuilder
       var k = 0
@@ -573,7 +713,15 @@ object Ablate {
             else sb ++= (k until e).map(src).mkString
           }
           k = e
-        } else { sb ++= src(k); k += 1 }
+        } else {
+          // Structural item (e.g. `lemmas foo = bar` bundle): in the challenge the
+          // deleted lemma is gone, so an item citing it would dangle (`Undefined fact`).
+          // Drop it from the challenge; the solution restores the lemma. (rocq struct_ok.)
+          val citesDeleted =
+            !solution && names_in(spans(k).content).exists(deletedNames.contains)
+          if (!citesDeleted) sb ++= src(k)
+          k += 1
+        }
       }
       collapse(sb.toString)
     }
@@ -683,7 +831,8 @@ object Ablate {
       "challenge_file_content" -> result.text,
       // solution stored as a diff against the challenge (apply to recover) — full
       // files are huge for big theories (issue #107)
-      "solution_diff" -> Diff.unified(result.text, result.solution))
+      "solution_diff" -> Diff.unified(result.text, result.solution),
+      "solution_file_content" -> result.solution)
   }
 
   /** Single-theory compile-test used by `--aggressively-delete-lemmas`: write
@@ -769,6 +918,14 @@ object Ablate {
       |    --aggressively-delete-lemmas
       |                        as above, relaxed guards, validated with `isabelle build`
       |                        (drops non-compiling challenges; needs the HOL heap)
+      |    --corollary-delete-lemmas [N]
+      |                        like --delete-lemmas but restrict deletions to one random
+      |                        theorem's (a "corollary") transitive in-file dependency
+      |                        closure (fan-in weighted; re-picks a corollary only when the
+      |                        closure runs dry). Variants: -uniform, -leaves.
+      |    --ablate-scripts    ablate apply-scripts whole (drop the entire script)
+      |                        instead of the default prefix-cut (keep some `apply`
+      |                        steps, `sorry` the rest)
       |
       |  Context shaping (ignored by --check / --check-build):
       |    --truncate          drop challenge text after the last inserted `sorry`
@@ -820,6 +977,8 @@ object Ablate {
     var deleteUniform = false
     var deleteLeaves = false
     var aggressive = false
+    var corollary = false
+    var ablateScripts = false
     var repeat = 1
     val paths = new mutable.ListBuffer[String]
     val build_targets = new mutable.ListBuffer[String]
@@ -861,6 +1020,19 @@ object Ablate {
         case "--aggressively-delete-lemmas" :: n :: tl if n.toIntOption.exists(_ >= 0) =>
           deleteLemmas = true; aggressive = true; deleteCount = n.toIntOption; rest = tl
         case "--aggressively-delete-lemmas" :: tl => deleteLemmas = true; aggressive = true; rest = tl
+        // corollary mode: deletions restricted to one random theorem's dependency closure
+        case "--corollary-delete-lemmas" :: n :: tl if n.toIntOption.exists(_ >= 0) =>
+          deleteLemmas = true; corollary = true; deleteCount = n.toIntOption; rest = tl
+        case "--corollary-delete-lemmas" :: tl => deleteLemmas = true; corollary = true; rest = tl
+        case "--corollary-delete-lemmas-uniform" :: n :: tl if n.toIntOption.exists(_ >= 0) =>
+          deleteLemmas = true; corollary = true; deleteUniform = true; deleteCount = n.toIntOption; rest = tl
+        case "--corollary-delete-lemmas-uniform" :: tl =>
+          deleteLemmas = true; corollary = true; deleteUniform = true; rest = tl
+        case "--corollary-delete-lemmas-leaves" :: n :: tl if n.toIntOption.exists(_ >= 0) =>
+          deleteLemmas = true; corollary = true; deleteLeaves = true; deleteCount = n.toIntOption; rest = tl
+        case "--corollary-delete-lemmas-leaves" :: tl =>
+          deleteLemmas = true; corollary = true; deleteLeaves = true; rest = tl
+        case "--ablate-scripts" :: tl => ablateScripts = true; rest = tl
         case "--repeat" :: v :: tl => repeat = v.toInt; rest = tl
         case "-s" :: v :: tl => session = v; rest = tl
         case "-d" :: v :: tl => dirs = dirs ::: List(Path.explode(v)); rest = tl
@@ -901,15 +1073,19 @@ object Ablate {
       min_centrality = minCentralityOpt.getOrElse(0),
       max_centrality = maxCentralityOpt.getOrElse(Int.MaxValue),
       truncate = truncate,
-      shrink_challenge = shrinkChallenge,
+      // shrinking the solution implies shrinking the challenge (a shrunk solution
+      // against a full challenge is meaningless)
+      shrink_challenge = shrinkChallenge || shrinkSolution,
       shrink_solution = shrinkSolution,
-      shrink_challenge_minimal = shrinkChallengeMinimal,
+      shrink_challenge_minimal = shrinkChallengeMinimal || shrinkSolutionMinimal,
       shrink_solution_minimal = shrinkSolutionMinimal,
       delete_lemmas = deleteLemmas,
       delete_count = deleteCount,
       delete_uniform = deleteUniform,
       delete_leaves = deleteLeaves,
-      aggressive = aggressive)
+      aggressive = aggressive,
+      corollary = corollary,
+      ablate_scripts = ablateScripts)
 
     if (spec.min_depth < 1) { Console.err.println("--min-depth must be >= 1"); sys.exit(2) }
     if (paths.isEmpty && build_targets.isEmpty) { Console.err.println(usage); sys.exit(2) }
@@ -997,7 +1173,12 @@ object Ablate {
         val result = ablate(syntax, original, spec, rng, centrality)
         // aggressive delete-lemmas: only keep challenges that actually compile
         val valid = !spec.aggressive || check_compiles(thy, result.text)
-        if (valid && seen.add(result.text)) {  // best-effort dedup across repeats
+        // only emit *real* challenges: at least one hole was inserted AND the challenge
+        // differs from the solution. A theory with no eligible lemmas (or a no-op
+        // ablation) otherwise yields a trivial, already-complete challenge that would
+        // inflate any downstream baseline
+        val nontrivial = result.ablated > 0 && result.text != result.solution
+        if (valid && nontrivial && seen.add(result.text)) {  // best-effort dedup across repeats
           if (text_mode) System.out.print(result.text)   // raw ablated theory, byte-exact
           else {
             val variant = if (n_repeat > 1) Some(produced) else None

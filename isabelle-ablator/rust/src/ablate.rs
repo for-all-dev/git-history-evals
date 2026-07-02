@@ -31,6 +31,13 @@ pub struct Spec {
     pub delete_uniform: bool,
     pub delete_leaves: bool,
     pub aggressive: bool,
+    /// corollary mode: restrict deletion candidates to one random theorem's
+    /// (the "corollary") transitive in-file dependency closure, re-picking a fresh
+    /// corollary only when the current closure is exhausted before the target count.
+    pub corollary: bool,
+    /// Ablate apply-scripts whole (drop the entire script) instead of the default
+    /// prefix-cut (keep some `apply` steps, `sorry` the rest).
+    pub ablate_scripts: bool,
 }
 
 impl Default for Spec {
@@ -56,6 +63,8 @@ impl Default for Spec {
             delete_uniform: false,
             delete_leaves: false,
             aggressive: false,
+            corollary: false,
+            ablate_scripts: false,
         }
     }
 }
@@ -152,7 +161,11 @@ fn proper_after_command(content: &[Token]) -> Vec<&Token> {
 /// Best-effort theorem name (Ablate.scala goal_name).
 pub fn goal_name(span: &Span) -> String {
     let after = proper_after_command(&span.content);
-    let rest: &[&Token] = if after.first().map(|t| t.is_keyword_str("(")).unwrap_or(false) {
+    let rest: &[&Token] = if after
+        .first()
+        .map(|t| t.is_keyword_str("("))
+        .unwrap_or(false)
+    {
         // drop until ")" then drop it
         match after.iter().position(|t| t.is_keyword_str(")")) {
             Some(p) => &after[p + 1..],
@@ -185,6 +198,44 @@ fn classify_method(span: &Span) -> String {
     }
 }
 
+/// Indices of the top-level (depth `base`) `apply`/`apply_end` steps in a proof body
+/// `[start, end)`. `base` is the proof body's own depth (the goal's depth). Steps inside
+/// a nested `have`/`show`/`{` are excluded (depth tracked exactly as in `measure`). An
+/// apply-script proof is one whose step list is non-empty; keeping a prefix of these
+/// steps and admitting the rest with `sorry` is always well-formed.
+fn apply_steps(spans: &[Span], start: usize, end: usize, base: i64) -> Vec<usize> {
+    let mut steps = Vec::new();
+    let mut dep = base;
+    let mut j = start;
+    while j < end {
+        if let Some(k) = kind_of(&spans[j]) {
+            if dep == base && k == kw::PRF_SCRIPT {
+                steps.push(j);
+            }
+            if kw::is_proof_goal(k) || k == kw::PRF_OPEN {
+                dep += 1;
+            } else if kw::is_proof_close(k) {
+                dep -= 1;
+            } else if kw::is_qed_global(k) {
+                dep = base - 1;
+            }
+        }
+        j += 1;
+    }
+    steps
+}
+
+/// Seeded hash of a statement (XOR the per-run `cut_salt`) → a reproducible pseudo-random
+/// value used to pick an apply-script cut point. Deterministic per `(seed, lemma)`.
+fn cut_hash(s: &str, salt: u64) -> u64 {
+    let mut h = 0xcbf29ce484222325u64 ^ salt;
+    for b in s.bytes() {
+        h ^= b as u64;
+        h = h.wrapping_mul(0x100000001b3);
+    }
+    h
+}
+
 /* ---------- the walk ---------- */
 
 struct Body {
@@ -213,6 +264,7 @@ struct Walker<'a> {
     ablated: i64,
     i: usize,
     depth: i64,
+    cut_salt: u64, // seeds the apply-script cut point (reproducible per run)
 }
 
 impl<'a> Walker<'a> {
@@ -270,7 +322,11 @@ impl<'a> Walker<'a> {
             text: body,
             n_commands: n_cmds,
             is_leaf,
-            method: if method.is_empty() { "?".to_string() } else { method },
+            method: if method.is_empty() {
+                "?".to_string()
+            } else {
+                method
+            },
             clean: clean && dep == d,
         }
     }
@@ -330,6 +386,22 @@ impl<'a> Walker<'a> {
             self.total += 1;
             self.matches.push((stmt_idx, cent));
             if (self.decide)(stmt_idx) {
+                // Apply-script proofs: keep a seeded-random prefix of `apply` steps and
+                // admit the rest with `sorry` (a head start for the agent) instead of
+                // dropping the whole proof. Other proofs (structured, `by`, single
+                // `apply`) keep the whole-proof ` sorry`.
+                let steps = apply_steps(self.spans, self.i, m.end, goal_depth);
+                let keep_k = if !self.spec.ablate_scripts && steps.len() >= 2 {
+                    1 + (cut_hash(&stmt_src, self.cut_salt) % (steps.len() as u64 - 1)) as usize
+                } else {
+                    0 // --ablate-scripts (or a single step): drop the whole script
+                };
+                if keep_k > 0 {
+                    let prefix: String = (self.i..steps[keep_k - 1] + 1)
+                        .map(|j| self.src(j))
+                        .collect();
+                    self.out.push_str(&prefix);
+                }
                 self.out.push_str(" sorry");
                 self.last_sorry_end = self.out.chars().count() as i64;
                 self.ablated += 1;
@@ -378,7 +450,11 @@ impl<'a> Walker<'a> {
                     ));
                 }
                 _ => {
-                    let closer = self.spans[self.i].name() == "end"; // closes theory/locale/context
+                    // keep `end` closers AND block openers (`context`/`locale`/… , kind
+                    // thy_decl_block, which absorb their `begin`) so shrink can't drop an
+                    // opener while keeping its `end` -> unbalanced theory.
+                    let closer = self.spans[self.i].name() == "end"
+                        || self.spans[self.i].keyword_kind() == Some(kw::THY_DECL_BLOCK);
                     let s = self.src(self.i);
                     self.orig += s.chars().count();
                     self.out.push_str(&s);
@@ -396,6 +472,7 @@ fn walk_all(
     spec: &Spec,
     centrality: &dyn Fn(&str) -> i64,
     decide: &mut dyn FnMut(usize) -> bool,
+    cut_salt: u64,
 ) -> (AblationResult, Vec<(usize, i64)>) {
     let mut w = Walker {
         spans,
@@ -412,6 +489,7 @@ fn walk_all(
         ablated: 0,
         i: 0,
         depth: 0,
+        cut_salt,
     };
     w.run();
 
@@ -437,7 +515,14 @@ fn walk_all(
     };
 
     (
-        AblationResult { text, solution, total: w.total, ablated: w.ablated, holes: w.holes, deleted: Vec::new() },
+        AblationResult {
+            text,
+            solution,
+            total: w.total,
+            ablated: w.ablated,
+            holes: w.holes,
+            deleted: Vec::new(),
+        },
         w.matches,
     )
 }
@@ -458,15 +543,27 @@ fn slice_delete(
 ) -> String {
     use std::collections::{HashSet, VecDeque};
     let n = spans.len();
-    let src_range = |lo: usize, hi: usize| -> String { spans[lo..hi].iter().map(|s| s.source()).collect() };
-    let mut opener_of_name: std::collections::HashMap<&str, usize> = std::collections::HashMap::new();
+    let src_range =
+        |lo: usize, hi: usize| -> String { spans[lo..hi].iter().map(|s| s.source()).collect() };
+    // name -> ALL openers that define it. A name may be declared more than once (e.g.
+    // the same lemma name inside different locales/contexts); keeping only one — worse,
+    // an arbitrary map entry — can drop the definition a kept reference resolves to,
+    // leaving a dangling reference in the slice. (Mirrors rocq `openers_of_name`.)
+    let mut openers_of_name: std::collections::HashMap<&str, Vec<usize>> =
+        std::collections::HashMap::new();
     for l in by_lemma.values() {
-        opener_of_name.entry(l.name.as_str()).or_insert(l.opener);
+        openers_of_name.entry(l.name.as_str()).or_default().push(l.opener);
     }
-    let deleted_names: HashSet<String> =
-        del.iter().filter_map(|o| by_lemma.get(o).map(|l| l.name.clone())).collect();
+    let deleted_names: HashSet<String> = del
+        .iter()
+        .filter_map(|o| by_lemma.get(o).map(|l| l.name.clone()))
+        .collect();
     let must_hole = |o: usize| -> bool {
-        by_lemma.get(&o).is_some_and(|l| l.body_names.iter().any(|nm| deleted_names.contains(nm.as_str())))
+        by_lemma.get(&o).is_some_and(|l| {
+            l.body_names
+                .iter()
+                .any(|nm| deleted_names.contains(nm.as_str()))
+        })
     };
     let mut seed: Vec<usize> = users.iter().copied().collect();
     seed.sort_unstable();
@@ -486,13 +583,34 @@ fn slice_delete(
             q.push_back(o);
         }
     }
+    // Structural (non-goal) items are always kept, so any in-file lemma they cite must be
+    // kept too — else it dangles (e.g. `lemmas foo = bar [OF refl]` needs `bar`). Seed the
+    // closure with those references. (Mirrors the rocq ablator's non-goal seeding loop.)
+    for sp in spans.iter() {
+        let is_goal = sp.keyword_kind().map(kw::is_theory_goal).unwrap_or(false);
+        if is_goal {
+            continue;
+        }
+        for nm in crate::uses::names_in(&sp.content) {
+            if let Some(os) = openers_of_name.get(nm.as_str()) {
+                for &o2 in os {
+                    if !keep.contains(&o2) && by_lemma.contains_key(&o2) {
+                        keep.insert(o2);
+                        q.push_back(o2);
+                    }
+                }
+            }
+        }
+    }
     while let Some(o) = q.pop_front() {
         let l = by_lemma[&o];
         for nm in l.stmt_names.iter().chain(l.body_names.iter()) {
-            if let Some(&o2) = opener_of_name.get(nm.as_str()) {
-                if !keep.contains(&o2) && by_lemma.contains_key(&o2) {
-                    keep.insert(o2);
-                    q.push_back(o2);
+            if let Some(os) = openers_of_name.get(nm.as_str()) {
+                for &o2 in os {
+                    if !keep.contains(&o2) && by_lemma.contains_key(&o2) {
+                        keep.insert(o2);
+                        q.push_back(o2);
+                    }
                 }
             }
         }
@@ -500,21 +618,41 @@ fn slice_delete(
     let mut buf = String::new();
     let mut i = 0;
     while i < n {
-        let is_goal = spans[i].keyword_kind().map(kw::is_theory_goal).unwrap_or(false);
+        let is_goal = spans[i]
+            .keyword_kind()
+            .map(kw::is_theory_goal)
+            .unwrap_or(false);
         if is_goal {
             let e = by_lemma.get(&i).map(|l| l.block_end).unwrap_or(i + 1);
             if keep.contains(&i) {
                 if !solution && del.contains(&i) {
                     // deleted lemma: omitted from the challenge
                 } else if !solution && (must_hole(i) || users.contains(&i)) {
-                    buf.push_str(&render_user(spans, i, e, &deleted_names, spec.delete_leaves));
+                    buf.push_str(&render_user(
+                        spans,
+                        i,
+                        e,
+                        &deleted_names,
+                        spec.delete_leaves,
+                        spec.ablate_scripts,
+                    ));
                 } else {
                     buf.push_str(&src_range(i, e));
                 }
             }
             i = e;
         } else {
-            buf.push_str(&spans[i].source());
+            // Structural item (e.g. a `lemmas foo = bar` bundle, `declare`, notation).
+            // In the challenge the deleted lemma is gone, so a structural item that cites
+            // it would dangle (`Undefined fact "…"`); drop it. The solution restores the
+            // lemma, so keep it there. Mirrors the rocq ablator's `struct_ok`.
+            let cites_deleted = !solution
+                && crate::uses::names_in(&spans[i].content)
+                    .iter()
+                    .any(|nm| deleted_names.contains(nm.as_str()));
+            if !cites_deleted {
+                buf.push_str(&spans[i].source());
+            }
             i += 1;
         }
     }
@@ -554,11 +692,19 @@ fn measure_end(spans: &[Span], start: usize, d: i64) -> usize {
 }
 
 fn span_cites(span: &Span, deleted: &std::collections::HashSet<String>) -> bool {
-    crate::uses::names_in(&span.content).iter().any(|nm| deleted.contains(nm))
+    crate::uses::names_in(&span.content)
+        .iter()
+        .any(|nm| deleted.contains(nm))
 }
 
 /// Does `[lo,hi)` cite a deleted name at its OWN level (outside nested goal-units)?
-fn own_cites(spans: &[Span], lo: usize, hi: usize, d: i64, deleted: &std::collections::HashSet<String>) -> bool {
+fn own_cites(
+    spans: &[Span],
+    lo: usize,
+    hi: usize,
+    d: i64,
+    deleted: &std::collections::HashSet<String>,
+) -> bool {
     let mut j = lo;
     while j < hi {
         match kind_of(&spans[j]) {
@@ -575,14 +721,50 @@ fn own_cites(spans: &[Span], lo: usize, hi: usize, d: i64, deleted: &std::collec
 }
 
 /// Does `[lo,hi)` cite a deleted name anywhere (including nested units)?
-fn subtree_cites(spans: &[Span], lo: usize, hi: usize, deleted: &std::collections::HashSet<String>) -> bool {
+fn subtree_cites(
+    spans: &[Span],
+    lo: usize,
+    hi: usize,
+    deleted: &std::collections::HashSet<String>,
+) -> bool {
     (lo..hi).any(|j| span_cites(&spans[j], deleted))
+}
+
+/// Index of the first OWN-level (depth `d`) span in `[lo,hi)` that cites a deleted name,
+/// skipping over nested goal-units (mirrors `own_cites`). Used to cut an apply-script at
+/// the step that uses a deleted lemma.
+fn first_citing_toplevel(
+    spans: &[Span],
+    lo: usize,
+    hi: usize,
+    d: i64,
+    deleted: &std::collections::HashSet<String>,
+) -> Option<usize> {
+    let mut j = lo;
+    while j < hi {
+        match kind_of(&spans[j]) {
+            Some(k) if kw::is_proof_goal(k) => j = measure_end(spans, j + 1, d + 1),
+            _ => {
+                if span_cites(&spans[j], deleted) {
+                    return Some(j);
+                }
+                j += 1;
+            }
+        }
+    }
+    None
 }
 
 /// Render proof body `[lo,hi)` (whose enclosing unit measured at depth `d`), holing
 /// the innermost units that own-level-cite a deleted name. Returns (text, all_covered):
 /// `all_covered=false` means a deleted name survives at this level (caller whole-proofs).
-fn leaf_render(spans: &[Span], lo: usize, hi: usize, d: i64, deleted: &std::collections::HashSet<String>) -> (String, bool) {
+fn leaf_render(
+    spans: &[Span],
+    lo: usize,
+    hi: usize,
+    d: i64,
+    deleted: &std::collections::HashSet<String>,
+) -> (String, bool) {
     let mut out = String::new();
     let mut ok = true;
     let mut j = lo;
@@ -619,17 +801,179 @@ fn leaf_render(spans: &[Span], lo: usize, hi: usize, d: i64, deleted: &std::coll
 
 /// Render one holed user. `--delete-lemmas-leaves` holes the smallest enclosing steps
 /// citing a deleted name (whole-proof fallback); otherwise whole-proof (`stmt + sorry`).
-fn render_user(spans: &[Span], opener: usize, end: usize, deleted: &std::collections::HashSet<String>, leaves: bool) -> String {
+fn render_user(
+    spans: &[Span],
+    opener: usize,
+    end: usize,
+    deleted: &std::collections::HashSet<String>,
+    leaves: bool,
+    ablate_scripts: bool,
+) -> String {
     if leaves {
         let (body, ok) = leaf_render(spans, opener + 1, end, 0, deleted);
         if ok {
             return format!("{}{}", spans[opener].source(), body);
+        }
+        // Apply-script: a top-level step (not a nested have/show) cites the deleted name.
+        // Cut at the first such step, keeping the citation-free prefix + `sorry`
+        // (unless --ablate-scripts, which drops the whole script below).
+        if !ablate_scripts {
+            if let Some(cut) = first_citing_toplevel(spans, opener + 1, end, 0, deleted) {
+                if !subtree_cites(spans, opener + 1, cut, deleted) {
+                    let prefix: String =
+                        spans[opener + 1..cut].iter().map(|s| s.source()).collect();
+                    return format!("{}{} sorry", spans[opener].source(), prefix);
+                }
+            }
         }
     }
     format!("{} sorry", spans[opener].source())
 }
 
 /// --delete-lemmas: delete eligible used lemmas + whole-proof-ablate their users.
+/// Position in `lemmas` of the lemma whose span opener is `opener`, or `usize::MAX`.
+fn u_pos(lemmas: &[crate::uses::Lemma], opener: usize) -> usize {
+    lemmas
+        .iter()
+        .position(|l| l.opener == opener)
+        .unwrap_or(usize::MAX)
+}
+
+/// Corollary selection: pick a random theorem, take its transitive in-file dependency
+/// closure, and draw deletions from the *eligible* members of that closure (fan-in
+/// weighted, or uniform). One corollary is exhausted before a fresh one is drawn, so
+/// deletions stay concentrated in a single proof's subtree unless the target forces
+/// spilling. Returns positions (in `lemmas`) of the lemmas to delete.
+fn corollary_select(
+    lemmas: &[crate::uses::Lemma],
+    cand_pos: &std::collections::HashSet<usize>,
+    spec: &Spec,
+    rng: &mut Rng,
+) -> Vec<usize> {
+    use std::collections::{HashMap, HashSet};
+    if cand_pos.is_empty() {
+        return Vec::new();
+    }
+    // name -> first lemma position, for resolving citation edges to in-file lemmas.
+    let mut idx_of: HashMap<&str, usize> = HashMap::new();
+    for (p, l) in lemmas.iter().enumerate() {
+        idx_of.entry(l.name.as_str()).or_insert(p);
+    }
+    let deps_of = |p: usize| -> Vec<usize> {
+        let l = &lemmas[p];
+        let mut s: Vec<usize> = l
+            .stmt_names
+            .iter()
+            .chain(l.body_names.iter())
+            .filter_map(|nm| idx_of.get(nm.as_str()).copied())
+            .filter(|&q| q != p)
+            .collect();
+        s.sort_unstable();
+        s.dedup();
+        s
+    };
+    // eligible candidates in `corollary`'s transitive dependency closure (excl. itself).
+    let closure_cands = |start: usize| -> Vec<usize> {
+        let mut seen: HashSet<usize> = HashSet::new();
+        let mut stack = deps_of(start);
+        while let Some(p) = stack.pop() {
+            if seen.insert(p) {
+                for q in deps_of(p) {
+                    if !seen.contains(&q) {
+                        stack.push(q);
+                    }
+                }
+            }
+        }
+        seen.remove(&start);
+        let mut v: Vec<usize> = seen.into_iter().filter(|p| cand_pos.contains(p)).collect();
+        v.sort_unstable();
+        v
+    };
+    let weight = |p: usize| -> f64 {
+        if spec.delete_uniform {
+            1.0
+        } else {
+            (lemmas[p].users.len() as f64).max(1.0)
+        }
+    };
+    let pick = |pool: &[usize], rng: &mut Rng| -> usize {
+        let total: f64 = pool.iter().map(|&p| weight(p)).sum();
+        let r = rng.next_f64() * total;
+        let mut acc = 0.0;
+        for (j, &p) in pool.iter().enumerate() {
+            acc += weight(p);
+            if acc > r {
+                return j;
+            }
+        }
+        pool.len() - 1
+    };
+
+    let mut order: Vec<usize> = (0..lemmas.len()).collect();
+    rng.shuffle(&mut order);
+
+    let mut del: HashSet<usize> = HashSet::new();
+    let mut chosen: Vec<usize> = Vec::new();
+    let target_deletions: Option<usize> = spec.delete_count.map(|n| n as usize);
+    let target_ablations: Option<usize> = if spec.delete_count.is_none() {
+        spec.count.map(|c| c as usize)
+    } else {
+        None
+    };
+    let use_prob = spec.delete_count.is_none() && spec.count.is_none();
+
+    let covered = |del: &HashSet<usize>, chosen: &[usize]| -> usize {
+        let mut s: HashSet<usize> = HashSet::new();
+        for &cp in chosen {
+            for &u in &lemmas[cp].users {
+                let up = u_pos(lemmas, u);
+                if up == usize::MAX || !del.contains(&up) {
+                    s.insert(u);
+                }
+            }
+        }
+        s.len()
+    };
+    let reached = |del: &HashSet<usize>, chosen: &[usize]| -> bool {
+        match (target_deletions, target_ablations) {
+            (Some(nd), _) => chosen.len() >= nd,
+            (_, Some(k)) => covered(del, chosen) >= k,
+            _ => false,
+        }
+    };
+
+    for &cor in &order {
+        if !use_prob && reached(&del, &chosen) {
+            break;
+        }
+        let mut pool: Vec<usize> = closure_cands(cor)
+            .into_iter()
+            .filter(|p| !del.contains(p))
+            .collect();
+        if pool.is_empty() {
+            continue;
+        }
+        if use_prob {
+            // no count/=N target: a per-candidate coin over one corollary's closure.
+            for &pp in &pool {
+                if rng.next_f64() < spec.prob {
+                    del.insert(pp);
+                    chosen.push(pp);
+                }
+            }
+            break;
+        }
+        while !pool.is_empty() && !reached(&del, &chosen) {
+            let j = pick(&pool, rng);
+            let cp = pool.remove(j);
+            del.insert(cp);
+            chosen.push(cp);
+        }
+    }
+    chosen
+}
+
 fn ablate_delete(spans: &[Span], spec: &Spec, rng: &mut Rng) -> AblationResult {
     use std::collections::{HashMap, HashSet};
     let lemmas = crate::uses::analyze(spans, spec.aggressive);
@@ -637,7 +981,9 @@ fn ablate_delete(spans: &[Span], spec: &Spec, rng: &mut Rng) -> AblationResult {
     let nusers = |l: &crate::uses::Lemma| l.users.len() as i64;
     let cands: Vec<&crate::uses::Lemma> = lemmas
         .iter()
-        .filter(|l| l.eligible && nusers(l) >= spec.min_centrality && nusers(l) <= spec.max_centrality)
+        .filter(|l| {
+            l.eligible && nusers(l) >= spec.min_centrality && nusers(l) <= spec.max_centrality
+        })
         .collect();
     // `--count k` is a target number of *ablations* (holed users), not deletions:
     // deleting a lemma forces every one of its users to be ablated, so ablations
@@ -648,7 +994,11 @@ fn ablate_delete(spans: &[Span], spec: &Spec, rng: &mut Rng) -> AblationResult {
     // yet keeps a non-zero chance on the tail. Without --count the per-lemma `prob`
     // coin decides. (With --truncate we later keep only the first k.)
     let weight = |l: &crate::uses::Lemma| -> f64 {
-        if spec.delete_uniform { 1.0 } else { l.users.len() as f64 }
+        if spec.delete_uniform {
+            1.0
+        } else {
+            l.users.len() as f64
+        }
     };
     // index of one weighted pick (proportional to `weight`) from a non-empty list
     let pick_idx = |remaining: &[&crate::uses::Lemma], rng: &mut Rng| -> usize {
@@ -665,45 +1015,69 @@ fn ablate_delete(spans: &[Span], spec: &Spec, rng: &mut Rng) -> AblationResult {
         }
         idx
     };
-    let selected: Vec<&crate::uses::Lemma> = match spec.delete_count {
-        // --delete-lemmas N: delete exactly N lemmas (weighted draw), any ablation count
-        Some(kd) => {
-            let target = (kd as usize).min(cands.len());
-            let mut chosen: Vec<&crate::uses::Lemma> = Vec::new();
-            let mut remaining: Vec<&crate::uses::Lemma> = cands.clone();
-            while chosen.len() < target && !remaining.is_empty() {
-                let idx = pick_idx(&remaining, rng);
-                chosen.push(remaining.remove(idx));
-            }
-            chosen
-        }
-        None => match spec.count {
-            None => {
-                let p = spec.prob;
-                cands.into_iter().filter(|_| rng.next_f64() < p).collect()
-            }
-            Some(0) => Vec::new(),
-            Some(k) => {
-                let k = k as usize;
-                let mut covered: HashSet<usize> = HashSet::new();
+    // Corollary mode restricts the candidate pool to one random theorem's dependency
+    // closure (see corollary_select); everything downstream (user ablation, shrink,
+    // --count/--truncate) is shared with plain --delete-lemmas.
+    let selected: Vec<&crate::uses::Lemma> = if spec.corollary {
+        let cand_pos: std::collections::HashSet<usize> = {
+            let opener_pos: HashMap<usize, usize> = lemmas
+                .iter()
+                .enumerate()
+                .map(|(p, l)| (l.opener, p))
+                .collect();
+            cands
+                .iter()
+                .filter_map(|c| opener_pos.get(&c.opener).copied())
+                .collect()
+        };
+        corollary_select(&lemmas, &cand_pos, spec, rng)
+            .into_iter()
+            .map(|p| &lemmas[p])
+            .collect()
+    } else {
+        match spec.delete_count {
+            // --delete-lemmas N: delete exactly N lemmas (weighted draw), any ablation count
+            Some(kd) => {
+                let target = (kd as usize).min(cands.len());
                 let mut chosen: Vec<&crate::uses::Lemma> = Vec::new();
                 let mut remaining: Vec<&crate::uses::Lemma> = cands.clone();
-                while covered.len() < k && !remaining.is_empty() {
+                while chosen.len() < target && !remaining.is_empty() {
                     let idx = pick_idx(&remaining, rng);
-                    let l = remaining.remove(idx);
-                    covered.extend(l.users.iter().copied());
-                    chosen.push(l);
+                    chosen.push(remaining.remove(idx));
                 }
                 chosen
             }
-        },
+            None => match spec.count {
+                None => {
+                    let p = spec.prob;
+                    cands.into_iter().filter(|_| rng.next_f64() < p).collect()
+                }
+                Some(0) => Vec::new(),
+                Some(k) => {
+                    let k = k as usize;
+                    let mut covered: HashSet<usize> = HashSet::new();
+                    let mut chosen: Vec<&crate::uses::Lemma> = Vec::new();
+                    let mut remaining: Vec<&crate::uses::Lemma> = cands.clone();
+                    while covered.len() < k && !remaining.is_empty() {
+                        let idx = pick_idx(&remaining, rng);
+                        let l = remaining.remove(idx);
+                        covered.extend(l.users.iter().copied());
+                        chosen.push(l);
+                    }
+                    chosen
+                }
+            },
+        }
     };
     let del: HashSet<usize> = selected.iter().map(|l| l.opener).collect();
     let deleted_names: HashSet<String> = selected.iter().map(|l| l.name.clone()).collect();
     // distinct forced ablations (users not themselves deleted), in file order.
     let mut users_sorted: Vec<usize> = {
-        let mut s: Vec<usize> =
-            selected.iter().flat_map(|l| l.users.iter().copied()).filter(|u| !del.contains(u)).collect();
+        let mut s: Vec<usize> = selected
+            .iter()
+            .flat_map(|l| l.users.iter().copied())
+            .filter(|u| !del.contains(u))
+            .collect();
         s.sort_unstable();
         s.dedup();
         s
@@ -716,8 +1090,10 @@ fn ablate_delete(spans: &[Span], spec: &Spec, rng: &mut Rng) -> AblationResult {
         }
     }
     let users: HashSet<usize> = users_sorted.into_iter().collect();
-    let by_lemma: HashMap<usize, &crate::uses::Lemma> = lemmas.iter().map(|l| (l.opener, l)).collect();
-    let src_range = |lo: usize, hi: usize| -> String { spans[lo..hi].iter().map(|s| s.source()).collect() };
+    let by_lemma: HashMap<usize, &crate::uses::Lemma> =
+        lemmas.iter().map(|l| (l.opener, l)).collect();
+    let src_range =
+        |lo: usize, hi: usize| -> String { spans[lo..hi].iter().map(|s| s.source()).collect() };
     let n = spans.len();
 
     // Emit the challenge while recording per-item challenge/solution segments (char
@@ -735,7 +1111,10 @@ fn ablate_delete(spans: &[Span], spec: &Spec, rng: &mut Rng) -> AblationResult {
     let mut orig_chars = 0usize;
     let mut i = 0;
     while i < n {
-        let is_goal = spans[i].keyword_kind().map(kw::is_theory_goal).unwrap_or(false);
+        let is_goal = spans[i]
+            .keyword_kind()
+            .map(kw::is_theory_goal)
+            .unwrap_or(false);
         if is_goal {
             let l = by_lemma.get(&i).copied();
             let e = l.map(|l| l.block_end).unwrap_or(i + 1);
@@ -747,7 +1126,14 @@ fn ablate_delete(spans: &[Span], spec: &Spec, rng: &mut Rng) -> AblationResult {
                 orig_chars += item_chars;
                 sol_segs.push((orig_chars, false, false)); // solution only
             } else if users.contains(&i) {
-                out.push_str(&render_user(spans, i, e, &deleted_names, spec.delete_leaves));
+                out.push_str(&render_user(
+                    spans,
+                    i,
+                    e,
+                    &deleted_names,
+                    spec.delete_leaves,
+                    spec.ablate_scripts,
+                ));
                 last_sorry_end = out.chars().count() as i64;
                 let proof_text = src_range(i + 1, e);
                 holes.push(Hole {
@@ -773,7 +1159,10 @@ fn ablate_delete(spans: &[Span], spec: &Spec, rng: &mut Rng) -> AblationResult {
             i = e;
         } else {
             let src = spans[i].source();
-            let closer = spans[i].name() == "end";
+            // keep `end` closers AND block openers (kind thy_decl_block) so shrink keeps
+            // a balanced theory/locale/context skeleton.
+            let closer = spans[i].name() == "end"
+                || spans[i].keyword_kind() == Some(kw::THY_DECL_BLOCK);
             out.push_str(&src);
             chal_segs.push((out.chars().count(), closer, false));
             orig_chars += src.chars().count();
@@ -784,7 +1173,11 @@ fn ablate_delete(spans: &[Span], spec: &Spec, rng: &mut Rng) -> AblationResult {
     let original: String = spans.iter().map(|s| s.source()).collect();
     let cnt = spec.count.map(|c| c as usize);
     let text = if spec.truncate && last_sorry_end >= 0 {
-        collapse_blank_lines(&out.chars().take(last_sorry_end as usize).collect::<String>())
+        collapse_blank_lines(
+            &out.chars()
+                .take(last_sorry_end as usize)
+                .collect::<String>(),
+        )
     } else if spec.shrink_challenge_minimal {
         slice_delete(spans, spec, &by_lemma, &del, &users, false)
     } else if spec.shrink_challenge {
@@ -799,7 +1192,14 @@ fn ablate_delete(spans: &[Span], spec: &Spec, rng: &mut Rng) -> AblationResult {
     } else {
         original
     };
-    AblationResult { text, solution, total: total_eligible, ablated, holes, deleted }
+    AblationResult {
+        text,
+        solution,
+        total: total_eligible,
+        ablated,
+        holes,
+        deleted,
+    }
 }
 
 /// Public entry. `centrality` maps a theorem name to its corpus fan-in (0 if unused).
@@ -812,30 +1212,34 @@ pub fn ablate(
     if spec.delete_lemmas {
         return ablate_delete(spans, spec, rng);
     }
+    let cut_salt = rng.next_u64();
     match spec.count {
         Some(target) => {
             let mut none = |_idx: usize| false;
-            let cands = walk_all(spans, spec, centrality, &mut none).1;
+            let cands = walk_all(spans, spec, centrality, &mut none, cut_salt).1;
             let selected: std::collections::HashSet<usize> = if cands.len() as u64 <= target {
                 cands.iter().map(|(i, _)| *i).collect()
             } else if spec.by_centrality {
                 let mut c = cands.clone();
                 c.sort_by(|a, b| b.1.cmp(&a.1).then(a.0.cmp(&b.0)));
-                c.into_iter().take(target as usize).map(|(i, _)| i).collect()
+                c.into_iter()
+                    .take(target as usize)
+                    .map(|(i, _)| i)
+                    .collect()
             } else {
                 let mut idx: Vec<usize> = cands.iter().map(|(i, _)| *i).collect();
                 rng.shuffle(&mut idx);
                 idx.into_iter().take(target as usize).collect()
             };
             let mut decide = |idx: usize| selected.contains(&idx);
-            let (mut r, _) = walk_all(spans, spec, centrality, &mut decide);
+            let (mut r, _) = walk_all(spans, spec, centrality, &mut decide, cut_salt);
             r.total = cands.len() as i64;
             r
         }
         None => {
             let p = spec.prob;
             let mut decide = |_idx: usize| rng.next_f64() < p;
-            walk_all(spans, spec, centrality, &mut decide).0
+            walk_all(spans, spec, centrality, &mut decide, cut_salt).0
         }
     }
 }
@@ -935,15 +1339,43 @@ pub struct Preset {
 }
 
 pub const LADDER: [Preset; 5] = [
-    Preset { prob: 0.3, min_depth: 1, max_depth: INF, leaves_only: true },
-    Preset { prob: 1.0, min_depth: 1, max_depth: INF, leaves_only: true },
-    Preset { prob: 1.0, min_depth: 2, max_depth: INF, leaves_only: false },
-    Preset { prob: 0.5, min_depth: 1, max_depth: 1, leaves_only: false },
-    Preset { prob: 1.0, min_depth: 1, max_depth: 1, leaves_only: false },
+    Preset {
+        prob: 0.3,
+        min_depth: 1,
+        max_depth: INF,
+        leaves_only: true,
+    },
+    Preset {
+        prob: 1.0,
+        min_depth: 1,
+        max_depth: INF,
+        leaves_only: true,
+    },
+    Preset {
+        prob: 1.0,
+        min_depth: 2,
+        max_depth: INF,
+        leaves_only: false,
+    },
+    Preset {
+        prob: 0.5,
+        min_depth: 1,
+        max_depth: 1,
+        leaves_only: false,
+    },
+    Preset {
+        prob: 1.0,
+        min_depth: 1,
+        max_depth: 1,
+        leaves_only: false,
+    },
 ];
 
 pub fn preset_of(s: &str) -> Option<&'static Preset> {
     let t = s.to_lowercase();
     let t = t.strip_prefix('l').unwrap_or(&t);
-    t.parse::<usize>().ok().filter(|i| *i < LADDER.len()).map(|i| &LADDER[i])
+    t.parse::<usize>()
+        .ok()
+        .filter(|i| *i < LADDER.len())
+        .map(|i| &LADDER[i])
 }

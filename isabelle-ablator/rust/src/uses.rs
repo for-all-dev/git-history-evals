@@ -72,7 +72,10 @@ pub fn analyze(spans: &[Span], aggressive: bool) -> Vec<Lemma> {
     let mut nonproof: Vec<(String, usize)> = Vec::new(); // (name, span index)
     let mut i = 0;
     while i < n {
-        let is_goal = spans[i].keyword_kind().map(kw::is_theory_goal).unwrap_or(false);
+        let is_goal = spans[i]
+            .keyword_kind()
+            .map(kw::is_theory_goal)
+            .unwrap_or(false);
         if is_goal {
             let opener = i;
             let name = crate::ablate::goal_name(&spans[i]);
@@ -107,7 +110,14 @@ pub fn analyze(spans: &[Span], aggressive: bool) -> Vec<Lemma> {
                 }
                 i += 1;
             }
-            goals.push(Goal { opener, end: i, name, normal, attr, cited });
+            goals.push(Goal {
+                opener,
+                end: i,
+                name,
+                normal,
+                attr,
+                cited,
+            });
         } else {
             for nm in names_in(&spans[i].content) {
                 nonproof.push((nm, i));

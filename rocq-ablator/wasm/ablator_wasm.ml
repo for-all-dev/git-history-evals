@@ -64,6 +64,7 @@ let spec_from (opts : Yojson.Safe.t) : Ablate.spec =
       delete_uniform = as_bool (g "delete_uniform") false;
       delete_leaves = as_bool (g "delete_leaves") false;
       aggressive = false (* the prover-backed path is never exposed to the browser *);
+      corollary = as_bool (g "corollary") false;
     }
 
 (* ablate one theory; returns the {text,total,ablated,holes} JSON string. *)

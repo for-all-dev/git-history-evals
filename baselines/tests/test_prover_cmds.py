@@ -10,6 +10,7 @@ from apply_ablate.provers.isabelle import (
     IsabelleProver,
     _check_root_text,
     _deps_root_text,
+    _extra_dirs,
     discover_session,
     imports_of,
     in_session_closure,
@@ -38,9 +39,39 @@ def test_coq_flags_parses_coqproject(tmp_path: Path):
     assert coq_flags(cp) == ["-R", ".", "Top", "-Q", "theories", "Foo", "-I", "src"]
 
 
+def test_isabelle_extra_dirs(tmp_path: Path, monkeypatch):
+    # unset → no extra -d flags
+    monkeypatch.delenv("ABLATE_ISABELLE_DIRS", raising=False)
+    assert _extra_dirs() == []
+    # existing dirs become `-d <dir>`; missing ones are skipped
+    d1 = tmp_path / "l4v"
+    d1.mkdir()
+    monkeypatch.setenv("ABLATE_ISABELLE_DIRS", f"{d1}:{tmp_path / 'nope'}")
+    assert _extra_dirs() == ["-d", str(d1)]
+
+
 def test_isabelle_theory_name():
     assert theory_name("theory Sample\nimports Main\nbegin\nend\n") == "Sample"
     assert theory_name("no header here") is None
+
+
+def test_isabelle_theory_name_skips_comments():
+    # l4v's Bisim_UL has `(* A theory of … *)` above the real header; the naive
+    # parser used to return "of". Comments must be stripped first.
+    src = (
+        "(* Copyright *)\n\n(* A theory of guarded monadic bisimulation. *)\n\n"
+        "theory Bisim_UL\nimports Main\nbegin\nend\n"
+    )
+    assert theory_name(src) == "Bisim_UL"
+
+
+def test_isabelle_imports_of_skips_comments(tmp_path: Path):
+    (tmp_path / "T.thy").write_text(
+        "(* mentions imports Bogus in a comment *)\n"
+        "theory T\nimports Main Foo\nbegin\nend\n",
+        encoding="utf-8",
+    )
+    assert imports_of(tmp_path / "T.thy") == ["Main", "Foo"]
 
 
 def _write_session(root_dir: Path) -> None:
@@ -107,10 +138,16 @@ def test_isabelle_discover_session(tmp_path: Path):
     _write_session(tmp_path)
     s = discover_session(tmp_path / "Top.thy")
     assert s is not None and s.name == "Demo"
-    # a theory not listed in any ROOT → no session (throwaway-HOL fallback)
+    # A theory in the session's directory but NOT listed in ROOT still belongs to the
+    # session (l4v ROOTs list only top-level theories; the rest are pulled in by imports).
     stray = tmp_path / "Stray.thy"
     stray.write_text("theory Stray\n  imports Main\nbegin\nend\n")
-    assert discover_session(stray) is None
+    s2 = discover_session(stray)
+    assert s2 is not None and s2.name == "Demo"
+    # A theory outside any session directory → no session (throwaway-HOL fallback).
+    outside = tmp_path.parent / "Outside.thy"
+    outside.write_text("theory Outside\n  imports Main\nbegin\nend\n")
+    assert discover_session(outside) is None
 
 
 def test_isabelle_deps_and_check_roots(tmp_path: Path):
@@ -122,7 +159,7 @@ def test_isabelle_deps_and_check_roots(tmp_path: Path):
     assert 'session "AblateDeps_Demo_Top" = "HOL-Library" +' in deps
     assert '"HOL-Eisbach"' in deps and '"Finite-Map-Extras"' not in deps  # pruned
     for thy in ("Base", "Mid"):
-        assert f"    {thy}\n" in deps
+        assert f"    {thy}\n" in deps  # listed by bare name
     assert "    Top\n" not in deps  # the target is not in its own deps
     # check session inherits the deps session and lists only the target
     chk = _check_root_text(s, "Top", ["HOL-Eisbach"])

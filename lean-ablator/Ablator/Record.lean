@@ -78,8 +78,9 @@ def record (filePath session : String) (spec : Spec) (seed : Int) (variant : Opt
     ("deleted_lemmas", Json.arr (result.deleted.map
       (fun (nm, txt) => Json.obj [("name", Json.str nm), ("text", Json.str txt)])).toList),
     ("challenge_file_content", Json.str result.text),
-    -- solution stored as a diff against the challenge (apply to recover) — full
-    -- files are huge for big theories (issue #107)
+    -- the answer as a whole (shrunk) file, plus the diff for back-compat. With
+    -- --shrink-solution the solution is the shrunk file, so this stays manageable.
+    ("solution_file_content", Json.str result.solution),
     ("solution_diff", Json.str (unifiedDiff result.text result.solution)) ]
 
 end Ablator

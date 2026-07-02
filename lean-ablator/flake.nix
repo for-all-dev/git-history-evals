@@ -22,6 +22,7 @@
             pkgs.zstd # unzstd, to unpack the prebuilt wasm32 runtime
             pkgs.curl # download the runtime release asset
             pkgs.python3 # serve the demo
+            pkgs.ripgrep # the baselines agent's `search` tool shells out to `rg`
           ];
           shellHook = ''
             echo "lean-ablator dev shell — $(emcc --version | head -1)"

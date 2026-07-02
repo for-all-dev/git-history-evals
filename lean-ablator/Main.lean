@@ -46,6 +46,11 @@ def usage : String :=
     --aggressively-delete-lemmas
                         as above but relaxes guards and validates each challenge
                         with `lake env lean` (--check-build), dropping failures.
+    --corollary-delete-lemmas[ N]
+                        like --delete-lemmas but restrict deletions to one random
+                        theorem's (a 'corollary') transitive in-file dependency closure
+                        (fan-in weighted; re-picks a corollary only when the closure
+                        runs dry). Variants: -uniform, -leaves.
 
   Context shaping (ignored by --check):
     --truncate          drop challenge text after the last inserted `sorry`
@@ -76,6 +81,7 @@ structure Opts where
   deleteUniform : Bool := false
   deleteLeaves : Bool := false
   aggressive   : Bool := false
+  corollary    : Bool := false
   compact      : Bool := false
   textMode     : Bool := false
   difficulty   : Option String := none
@@ -126,6 +132,9 @@ partial def parseArgs (args : List String) (o : Opts) : Except String Opts := do
     | "--delete-lemmas-uniform" => delLemmas (fun o => { o with deleteLemmas := true, deleteUniform := true })
     | "--delete-lemmas-leaves" => delLemmas (fun o => { o with deleteLemmas := true, deleteLeaves := true })
     | "--aggressively-delete-lemmas" => delLemmas (fun o => { o with deleteLemmas := true, aggressive := true })
+    | "--corollary-delete-lemmas" => delLemmas (fun o => { o with deleteLemmas := true, corollary := true })
+    | "--corollary-delete-lemmas-uniform" => delLemmas (fun o => { o with deleteLemmas := true, corollary := true, deleteUniform := true })
+    | "--corollary-delete-lemmas-leaves" => delLemmas (fun o => { o with deleteLemmas := true, corollary := true, deleteLeaves := true })
     | "--compact"        => parseArgs rest { o with compact := true }
     | "--text"           => parseArgs rest { o with textMode := true }
     | "-v"               => parseArgs rest { o with verbose := true }
@@ -232,15 +241,18 @@ def buildSpec (o : Opts) (preset : Option Preset) : Spec :=
     minCentrality := o.minCentOpt.getD 0
     maxCentrality := o.maxCentOpt.getD INF
     truncate := o.truncate
-    shrinkChallenge := o.shrinkChallenge
+    -- shrinking the solution implies shrinking the challenge (a shrunk solution against
+    -- a full challenge is meaningless), so the solution flag forces the challenge flag
+    shrinkChallenge := o.shrinkChallenge || o.shrinkSolution
     shrinkSolution := o.shrinkSolution
-    shrinkChallengeMinimal := o.shrinkChallengeMinimal
+    shrinkChallengeMinimal := o.shrinkChallengeMinimal || o.shrinkSolutionMinimal
     shrinkSolutionMinimal := o.shrinkSolutionMinimal
     deleteLemmas := o.deleteLemmas
     deleteCount := o.deleteCount
     deleteUniform := o.deleteUniform
     deleteLeaves := o.deleteLeaves
-    aggressive := o.aggressive }
+    aggressive := o.aggressive
+    corollary := o.corollary }
 
 structure Doc where
   path : System.FilePath
@@ -396,7 +408,12 @@ def main (args : List String) : IO UInt32 := do
       let result := ablate d.toks spec rng centrality
       -- aggressive delete-lemmas: only keep challenges that actually compile
       let valid ← if o.aggressive then checkCompiles d.path.toString result.text else pure true
-      if valid && !seen.contains result.text then
+      -- Only emit *real* challenges: at least one hole was inserted AND the challenge
+      -- differs from the solution. A file with no eligible lemmas (or a no-op ablation)
+      -- otherwise yields a trivial challenge — already-complete, no holes to fill —
+      -- which any model "passes" by doing nothing, inflating baselines. (#trivial-skip)
+      let nontrivial := result.ablated > 0 && result.text != result.solution
+      if valid && nontrivial && !seen.contains result.text then
         seen := seen.insert result.text
         if o.textMode then
           IO.print result.text

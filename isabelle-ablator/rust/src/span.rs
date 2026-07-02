@@ -7,7 +7,10 @@ use crate::tokenize::{explode, Lexicon};
 
 #[derive(Clone, Debug)]
 pub enum SpanKind {
-    Command { name: String, keyword_kind: Option<String> },
+    Command {
+        name: String,
+        keyword_kind: Option<String>,
+    },
     Ignored,
     Malformed,
 }
@@ -50,7 +53,11 @@ impl Syntax {
     pub fn new(keywords: Keywords) -> Syntax {
         let major = Lexicon::from_names(keywords.major_names());
         let minor = Lexicon::from_names(keywords.minor_names());
-        Syntax { keywords, major, minor }
+        Syntax {
+            keywords,
+            major,
+            minor,
+        }
     }
 
     pub fn hol() -> Syntax {
@@ -86,9 +93,15 @@ impl Syntax {
                     },
                 }
             };
-            result.push(Span { kind, content: toks });
+            result.push(Span {
+                kind,
+                content: toks,
+            });
         };
-        let flush = |result: &mut Vec<Span>, content: &mut Vec<Token>, ignored: &mut Vec<Token>, kw: &Keywords| {
+        let flush = |result: &mut Vec<Span>,
+                     content: &mut Vec<Token>,
+                     ignored: &mut Vec<Token>,
+                     kw: &Keywords| {
             if !content.is_empty() {
                 ship(result, std::mem::take(content), kw);
             }

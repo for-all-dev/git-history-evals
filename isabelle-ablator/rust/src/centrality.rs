@@ -22,7 +22,10 @@ fn cited_names(content: &[crate::token::Token], into: &mut HashSet<String>) {
 }
 
 /// name -> fan-in (distinct top-level theorems whose proof cites it).
-pub fn fan_in<'a>(syntax: &Syntax, theories: impl IntoIterator<Item = &'a str>) -> HashMap<String, i64> {
+pub fn fan_in<'a>(
+    syntax: &Syntax,
+    theories: impl IntoIterator<Item = &'a str>,
+) -> HashMap<String, i64> {
     // per top-level goal: (name, set of cited identifiers)
     let mut goals: Vec<(String, HashSet<String>)> = Vec::new();
 
@@ -31,8 +34,10 @@ pub fn fan_in<'a>(syntax: &Syntax, theories: impl IntoIterator<Item = &'a str>) 
         let n = spans.len();
         let mut i = 0;
         while i < n {
-            let is_thy_goal =
-                spans[i].keyword_kind().map(kw::is_theory_goal).unwrap_or(false);
+            let is_thy_goal = spans[i]
+                .keyword_kind()
+                .map(kw::is_theory_goal)
+                .unwrap_or(false);
             if is_thy_goal {
                 let name = crate::ablate::goal_name(&spans[i]);
                 i += 1;

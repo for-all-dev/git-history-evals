@@ -34,6 +34,7 @@ type spec = {
   delete_uniform : bool; (* delete-lemmas: pick deletions uniformly, not weighted by user count *)
   delete_leaves : bool; (* delete-lemmas: hole only the leaf steps citing L, not whole proofs *)
   aggressive : bool; (* delete-lemmas: relax syntactic guards (BE; needs check-build) *)
+  corollary : bool; (* delete-lemmas: restrict candidates to one random theorem's dep closure *)
 }
 
 let default_spec =
@@ -59,6 +60,7 @@ let default_spec =
     delete_uniform = false;
     delete_leaves = false;
     aggressive = false;
+    corollary = false;
   }
 
 let uses_centrality s =
@@ -545,7 +547,8 @@ let walk_all (spans : Span.t array) (spec : spec) (centrality : string -> int)
       top_segs := (buflen (), !orig, false, !ablated > abl0) :: !top_segs
     end
     else begin
-      let closer = Span.is_closer s in
+      (* keep block openers too, so shrink keeps a balanced Section/Module skeleton *)
+      let closer = Span.is_closer s || Span.is_opener s in
       emit (Span.source s);
       orig := !orig + String.length (Span.source s);
       incr i;
@@ -596,9 +599,16 @@ let slice_delete (spans : Span.t array) (spec : spec)
     done;
     Buffer.contents b
   in
-  let opener_of_name = Hashtbl.create 64 in
+  (* name -> ALL openers that define it. A name can be declared more than once (e.g. a
+     `gtb_spec0` lemma inside each of the Nat/N/Z/Pos modules, or two `map_cps_correct`s),
+     so we must keep *every* same-named decl in the closure — keeping only one (and, worse,
+     an arbitrary one, since Hashtbl.iter order is unspecified) can drop the definition a
+     kept hint/instance/statement actually resolves to, leaving a dangling reference. *)
+  let openers_of_name = Hashtbl.create 64 in
   Hashtbl.iter
-    (fun o (l : Uses.lemma) -> if not (Hashtbl.mem opener_of_name l.name) then Hashtbl.replace opener_of_name l.name o)
+    (fun o (l : Uses.lemma) ->
+      let prev = try Hashtbl.find openers_of_name l.name with Not_found -> [] in
+      Hashtbl.replace openers_of_name l.name (o :: prev))
     by_opener;
   let deleted_names = Hashtbl.create 16 in
   Hashtbl.iter (fun _ (l : Uses.lemma) -> Hashtbl.replace deleted_names l.Uses.name ()) del;
@@ -627,6 +637,8 @@ let slice_delete (spans : Span.t array) (spec : spec)
       Queue.push o q
     end
   in
+  (* keep every in-file decl of a referenced name (all same-named openers, see above) *)
+  let add_name nm = match Hashtbl.find_opt openers_of_name nm with Some os -> List.iter add os | None -> () in
   List.iter add seed;
   (* Structural items (Hint/Ltac/Notation/Arguments/…) are always kept, so any in-file
      decl they cite must be kept too — both decls a kept item *needs* (e.g.
@@ -635,16 +647,12 @@ let slice_delete (spans : Span.t array) (spec : spec)
      dangles. (Items citing the deleted lemma are handled at emit time below.) *)
   for k = 0 to n - 1 do
     if not (Span.is_goal spans.(k)) then
-      List.iter
-        (fun nm -> match Hashtbl.find_opt opener_of_name nm with Some o -> add o | None -> ())
-        (Uses.names_in spans.(k).Span.content)
+      List.iter add_name (Uses.names_in spans.(k).Span.content)
   done;
   while not (Queue.is_empty q) do
     let o = Queue.pop q in
     let l = Hashtbl.find by_opener o in
-    List.iter
-      (fun nm -> match Hashtbl.find_opt opener_of_name nm with Some o' -> add o' | None -> ())
-      (l.Uses.stmt_names @ l.Uses.body_names)
+    List.iter add_name (l.Uses.stmt_names @ l.Uses.body_names)
   done;
   (* In the challenge the deleted lemma is omitted, so a kept structural item that cites
      it (e.g. `Hint Resolve <deleted>`) would dangle — drop such items from the
@@ -721,7 +729,98 @@ let ablate_delete (spans : Span.t array) (spec : spec) (rng : Rng.t) : result =
     go 0.0 remaining
   in
   let without l rem = List.filter (fun (c : Uses.lemma) -> c.opener <> l.Uses.opener) rem in
+  (* Corollary mode: pick a random theorem, take its transitive in-file dependency
+     closure, and draw deletions from the *eligible* members of that closure (fan-in
+     weighted via [pick_weighted], or uniform). One corollary is exhausted before a
+     fresh one is drawn, so deletions stay concentrated in a single proof's subtree
+     unless the target forces spilling. Mirrors the rust ablator's corollary_select. *)
+  let corollary_select () =
+    if cands = [] then []
+    else begin
+      let by_name : (string, Uses.lemma) Hashtbl.t = Hashtbl.create 64 in
+      List.iter
+        (fun (l : Uses.lemma) -> if not (Hashtbl.mem by_name l.name) then Hashtbl.replace by_name l.name l)
+        lemmas;
+      let deps_of (l : Uses.lemma) =
+        l.stmt_names @ l.body_names
+        |> List.filter_map (fun nm -> Hashtbl.find_opt by_name nm)
+        |> List.filter (fun (d : Uses.lemma) -> d.opener <> l.opener)
+      in
+      let cand_openers = Hashtbl.create 64 in
+      List.iter (fun (l : Uses.lemma) -> Hashtbl.replace cand_openers l.opener ()) cands;
+      let closure_cands (start : Uses.lemma) =
+        let seen = Hashtbl.create 64 in
+        let acc = ref [] and stack = ref (deps_of start) in
+        while !stack <> [] do
+          match !stack with
+          | [] -> ()
+          | (l : Uses.lemma) :: tl ->
+              stack := tl;
+              if l.opener <> start.opener && not (Hashtbl.mem seen l.opener) then begin
+                Hashtbl.replace seen l.opener ();
+                acc := l :: !acc;
+                stack := deps_of l @ !stack
+              end
+        done;
+        !acc
+        |> List.filter (fun (l : Uses.lemma) -> Hashtbl.mem cand_openers l.opener)
+        |> List.sort (fun (a : Uses.lemma) (b : Uses.lemma) -> compare a.opener b.opener)
+      in
+      let order = Array.of_list lemmas in
+      Rng.shuffle rng order;
+      let del = Hashtbl.create 16 and chosen = ref [] in
+      let target_deletions = spec.delete_count in
+      let target_ablations = if spec.delete_count = None then spec.count else None in
+      let use_prob = spec.delete_count = None && spec.count = None in
+      let covered_count () =
+        let s = Hashtbl.create 64 in
+        List.iter
+          (fun (l : Uses.lemma) ->
+            List.iter (fun u -> if not (Hashtbl.mem del u) then Hashtbl.replace s u ()) l.users)
+          !chosen;
+        Hashtbl.length s
+      in
+      let reached () =
+        match (target_deletions, target_ablations) with
+        | Some nd, _ -> List.length !chosen >= nd
+        | _, Some k -> covered_count () >= k
+        | _ -> false
+      in
+      let not_chosen (l : Uses.lemma) = not (Hashtbl.mem del l.opener) in
+      let i = ref 0 and stop = ref false in
+      while !i < Array.length order && not !stop do
+        let cor = order.(!i) in
+        incr i;
+        if use_prob then begin
+          let pool = List.filter not_chosen (closure_cands cor) in
+          if pool <> [] then begin
+            List.iter
+              (fun (l : Uses.lemma) ->
+                if Rng.next_f64 rng < spec.prob then begin
+                  Hashtbl.replace del l.opener ();
+                  chosen := l :: !chosen
+                end)
+              pool;
+            stop := true
+          end
+        end
+        else if reached () then stop := true
+        else begin
+          let pool = ref (List.filter not_chosen (closure_cands cor)) in
+          while !pool <> [] && not (reached ()) do
+            let l = pick_weighted !pool in
+            Hashtbl.replace del l.Uses.opener ();
+            chosen := l :: !chosen;
+            pool := List.filter (fun (c : Uses.lemma) -> c.Uses.opener <> l.Uses.opener) !pool
+          done
+        end
+      done;
+      List.rev !chosen
+    end
+  in
   let selected =
+    if spec.corollary then corollary_select ()
+    else
     match spec.delete_count with
     | Some kd ->
         (* [--delete-lemmas K]: delete exactly K lemmas (weighted random draw), no
@@ -775,42 +874,114 @@ let ablate_delete (spans : Span.t array) (spec : spec) (rng : Rng.t) : result =
     Buffer.add_string b "Proof. Admitted.";
     Buffer.contents b
   in
-  (* [--delete-lemmas-leaves]: hole only the leaf steps (sentences) that cite a
-     deleted name, keeping the rest of the proof skeleton; the terminator becomes
-     [Admitted.] since an [admit.] leaves the proof incomplete. Returns [None] (=>
-     caller falls back to whole-proof) when a deleted name is cited outside an
-     ablatable sentence, or when no leaf actually cites it. *)
+  (* does a span cite one of the deleted lemma names? (used by the leaf holer below) *)
   let deleted_names = Hashtbl.create 16 in
   List.iter (fun (l : Uses.lemma) -> Hashtbl.replace deleted_names l.Uses.name ()) selected;
   let cites (sp : Span.t) =
     List.exists (fun nm -> Hashtbl.mem deleted_names nm) (Uses.names_in sp.Span.content)
   in
+  (* [--delete-lemmas-leaves]: hole the *smallest enclosing ablatable unit* that cites a
+     deleted name. A Coq tactic only safely becomes [admit.] if doing so discharges the
+     goal it focuses — true for a bullet segment ([- …]) or brace block ([{ … }]), each
+     of which focuses one goal, but NOT for a tactic in a flat sequence (replacing it
+     mid-sequence leaves the following tactics with "No such goal"). So we recurse into
+     the proof's focus structure: a unit that cites is replaced wholesale with [admit.]
+     (preferring the innermost citing unit), siblings are kept verbatim; a citation in a
+     flat top-level sequence yields [None] => caller whole-proof-ablates. *)
   let leaf_proof opener e =
     let term = e - 1 in
     if term <= opener || not (Span.is_terminator spans.(term)) then None
     else begin
-      let bad = ref false and any = ref false in
-      for k = opener + 1 to term - 1 do
-        let sp = spans.(k) in
-        if cites sp then
-          match sp.kind with Span.Sentence _ -> any := true | _ -> bad := true
-      done;
-      if !bad || not !any then None
-      else begin
-        let b = Buffer.create 128 in
-        Buffer.add_string b (Span.source spans.(opener));
-        for k = opener + 1 to term - 1 do
-          let sp = spans.(k) in
-          match sp.kind with
-          | Span.Sentence _ when cites sp ->
-              Buffer.add_string b (lead_of sp);
-              Buffer.add_string b "admit."
-          | _ -> Buffer.add_string b (Span.source sp)
+      (* matching [}] for the [{] at [j] (index of the Close), bounded by [term] *)
+      let brace_end j =
+        let d = ref 0 and k = ref (j + 1) and res = ref term in
+        while !res = term && !k < term do
+          (match spans.(!k).kind with
+           | Span.Open -> incr d
+           | Span.Close -> if !d = 0 then res := !k else decr d
+           | _ -> ());
+          if !res = term then incr k
         done;
-        Buffer.add_string b (lead_of spans.(term));
-        Buffer.add_string b "Admitted.";
-        Some (Buffer.contents b)
-      end
+        !res
+      in
+      (* exclusive end of the bullet segment opened at [j] with signature [sg] *)
+      let bullet_end j sg =
+        let d = ref 0 and k = ref (j + 1) and res = ref term in
+        while !res = term && !k < term do
+          let s = spans.(!k) in
+          (match s.kind with
+           | Span.Open -> incr d
+           | Span.Close -> if !d = 0 then res := !k else decr d
+           | Span.Bullet b -> if !d = 0 && b = sg then res := !k
+           | Span.Sentence _ -> if !d = 0 && Span.is_terminator s then res := !k
+           | _ -> ());
+          if !res = term then incr k
+        done;
+        !res
+      in
+      let cites_range lo hi =
+        let r = ref false in
+        for k = lo to hi - 1 do if cites spans.(k) then r := true done;
+        !r
+      in
+      (* render the tactics of one focused goal in [lo, hi): [`Admit] if a citation sits
+         in this level's flat sequence (caller must admit the whole focus), else [`Keep t]
+         with only the citing sub-units holed. *)
+      let rec render_focused lo hi =
+        (* a citation in a depth-0 sentence (outside any sub-unit) can't be isolated *)
+        let direct = ref false and k = ref lo in
+        while !k < hi do
+          let s = spans.(!k) in
+          (match s.kind with
+           | Span.Open -> k := brace_end !k + 1
+           | Span.Bullet sg -> k := bullet_end !k sg
+           | Span.Sentence _ -> if cites s then direct := true; incr k
+           | _ -> incr k)
+        done;
+        if !direct then `Admit
+        else begin
+          let b = Buffer.create 128 in
+          let i = ref lo in
+          while !i < hi do
+            let s = spans.(!i) in
+            match s.kind with
+            | Span.Open ->
+                let be = brace_end !i in
+                if cites_range (!i + 1) be then begin
+                  Buffer.add_string b (Span.source s);
+                  (match render_focused (!i + 1) be with
+                   | `Admit -> Buffer.add_string b " admit. "
+                   | `Keep t -> Buffer.add_string b t);
+                  Buffer.add_string b (Span.source spans.(be));
+                  i := be + 1
+                end
+                else begin Buffer.add_string b (src_range !i (be + 1)); i := be + 1 end
+            | Span.Bullet sg ->
+                let bend = bullet_end !i sg in
+                if cites_range (!i + 1) bend then begin
+                  Buffer.add_string b (Span.source s);
+                  (match render_focused (!i + 1) bend with
+                   | `Admit -> Buffer.add_string b " admit."
+                   | `Keep t -> Buffer.add_string b t);
+                  i := bend
+                end
+                else begin Buffer.add_string b (src_range !i bend); i := bend end
+            | _ -> Buffer.add_string b (Span.source s); incr i
+          done;
+          `Keep (Buffer.contents b)
+        end
+      in
+      if not (cites_range (opener + 1) term) then None
+      else
+        match render_focused (opener + 1) term with
+        | `Admit -> None (* flat top-level citation: fall back to whole-proof *)
+        | `Keep body ->
+            let b = Buffer.create 128 in
+            Buffer.add_string b (Span.source spans.(opener));
+            Buffer.add_string b body;
+            Buffer.add_string b (lead_of spans.(term));
+            Buffer.add_string b "Admitted.";
+            Some (Buffer.contents b)
     end
   in
   let render_user opener e =
@@ -874,7 +1045,9 @@ let ablate_delete (spans : Span.t array) (spec : spec) (rng : Rng.t) : result =
     end
     else begin
       let src = Span.source s in
-      let closer = Span.is_closer s in
+      (* keep block openers too (not just [End] closers) so shrink can't drop a
+         [Section]/[Module] header while keeping its [End] -> unbalanced file. *)
+      let closer = Span.is_closer s || Span.is_opener s in
       Buffer.add_string out src;
       chal_segs := (Buffer.length out, closer, false) :: !chal_segs;
       orig := !orig + String.length src;

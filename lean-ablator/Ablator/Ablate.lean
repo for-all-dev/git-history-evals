@@ -19,6 +19,7 @@ type, so non-`Prop` `def`/`abbrev` bodies ablate too.
 -/
 
 import Std.Data.HashSet
+import Std.Data.HashMap
 import Ablator.Token
 import Ablator.Keyword
 import Ablator.Span
@@ -26,7 +27,7 @@ import Ablator.Uses
 
 namespace Ablator
 
-open Std (HashSet)
+open Std (HashSet HashMap)
 
 def INF : Int := 9223372036854775807   -- 2^63 - 1, the "infinity" sentinel
 
@@ -52,6 +53,8 @@ structure Spec where
   deleteUniform   : Bool := false
   deleteLeaves    : Bool := false
   aggressive      : Bool := false
+  -- corollary mode: restrict deletion candidates to one random theorem's dep closure
+  corollary       : Bool := false
   deriving Inhabited
 
 def Spec.usesCentrality (s : Spec) : Bool :=
@@ -445,7 +448,9 @@ def runWalk : W Unit := do
     else
       emit (s.source toks)
       let orig := (← get).origLen + srcLen
-      let closer := s.cmd == some "end"   -- `end` closes a namespace/section
+      -- keep block openers (`namespace`/`section`) too, not just the `end` closer,
+      -- so shrink can't drop an opener while keeping its `end` -> unbalanced file.
+      let closer := s.cmd == some "end" || s.cmd == some "namespace" || s.cmd == some "section"
       modify fun z => { z with origLen := orig }
       modify fun z => { z with topSegs := z.topSegs.push (z.outLen, orig, closer, false) }
 
@@ -611,7 +616,12 @@ def renderUserLean (toks : Array Token) (lo a contentHi hi parentCol : Nat) (del
 def sliceDelete (toks : Array Token) (spans : Array Span) (spec : Spec)
     (lemmas : Array DeletableLemma) (delSet userSet : HashSet Nat) (solution : Bool) : String := Id.run do
   let bySpan := fun (si : Nat) => lemmas.find? (fun l => l.spanIdx == si)
-  let openerOfName := fun (nm : String) => (lemmas.find? (fun l => l.name == nm)).map (·.spanIdx)
+  -- name -> ALL openers that define it. A name may be declared more than once (e.g. the
+  -- same lemma name inside different namespaces/sections); keeping only one — worse, an
+  -- arbitrary `find?` match — can drop the definition a kept reference resolves to,
+  -- leaving a dangling reference in the slice. (Mirrors rocq `openers_of_name`.)
+  let openersOfName := fun (nm : String) =>
+    lemmas.filterMap (fun l => if l.name == nm then some l.spanIdx else none)
   let mut deletedNames : HashSet String := {}
   for si in delSet.toList do
     match bySpan si with | some l => deletedNames := deletedNames.insert l.name | none => pure ()
@@ -629,6 +639,15 @@ def sliceDelete (toks : Array Token) (spans : Array Span) (spec : Spec)
   for o in seed do
     if !keep.contains o && (bySpan o).isSome then
       keep := keep.insert o; q := q.push o
+  -- Structural (non-goal) items are always kept, so any in-file decl they cite must be
+  -- kept too — else it dangles. Seed the closure with those references. (rocq parity.)
+  for si in [0:spans.size] do
+    if (bySpan si).isNone then
+      let s := spans[si]!
+      for nm in Uses.namesIn toks s.lo s.hi do
+        for o2 in openersOfName nm do
+          if !keep.contains o2 && (bySpan o2).isSome then
+            keep := keep.insert o2; q := q.push o2
   let mut qi := 0
   while qi < q.size do
     let o := q[qi]!
@@ -637,11 +656,9 @@ def sliceDelete (toks : Array Token) (spans : Array Span) (spec : Spec)
     | none => pure ()
     | some l =>
       for nm in l.stmtNames ++ l.bodyNames do
-        match openerOfName nm with
-        | some o2 =>
+        for o2 in openersOfName nm do
           if !keep.contains o2 && (bySpan o2).isSome then
             keep := keep.insert o2; q := q.push o2
-        | none => pure ()
   let mut buf := ""
   for si in [0:spans.size] do
     let s := spans[si]!
@@ -658,8 +675,103 @@ def sliceDelete (toks : Array Token) (spans : Array Span) (spec : Spec)
             buf := buf ++ renderUserLean toks s.lo a contentHi s.hi binderCol deletedNames spec.deleteLeaves
           | none => buf := buf ++ s.source toks
         else buf := buf ++ s.source toks
-    | none => buf := buf ++ s.source toks -- structural: always kept
+    | none =>
+      -- structural item (e.g. `attribute`/`open`): drop from the challenge if it cites a
+      -- deleted lemma (else it dangles); the solution restores the lemma. (rocq struct_ok.)
+      let citesDeleted := !solution && (Uses.namesIn toks s.lo s.hi).any deletedNames.contains
+      if !citesDeleted then buf := buf ++ s.source toks
   return collapseBlankLines buf
+
+/-- Corollary selection: pick a random theorem, take its transitive in-file
+dependency closure, and draw deletions from the *eligible* members of that closure
+(fan-in weighted, or uniform). One corollary is exhausted before a fresh one is drawn,
+so deletions stay concentrated in a single proof's subtree unless the target forces
+spilling. Mirrors the rust ablator's `corollary_select`. Returns the chosen lemmas and
+the advanced RNG. -/
+def corollarySelect (lemmas : Array DeletableLemma) (cands : Array DeletableLemma)
+    (spec : Spec) (rng : Rng) : Array DeletableLemma × Rng := Id.run do
+  if cands.isEmpty then return (#[], rng)
+  -- name -> first lemma position
+  let mut byNamePos : HashMap String Nat := {}
+  for i in [0:lemmas.size] do
+    let l := lemmas[i]!
+    if !byNamePos.contains l.name then byNamePos := byNamePos.insert l.name i
+  let depsOf := fun (l : DeletableLemma) =>
+    (l.stmtNames ++ l.bodyNames).foldl (fun acc nm =>
+      if byNamePos.contains nm then
+        let d := lemmas[byNamePos.getD nm 0]!
+        if d.spanIdx != l.spanIdx then acc.push d else acc
+      else acc) (#[] : Array DeletableLemma)
+  let candSet : HashSet Nat := HashSet.ofArray (cands.map (·.spanIdx))
+  let closureCands := fun (start : DeletableLemma) => Id.run do
+    let mut seen : HashSet Nat := {}
+    let mut acc : Array DeletableLemma := #[]
+    let mut stack : Array DeletableLemma := depsOf start
+    while stack.size > 0 do
+      let l := stack.back!
+      stack := stack.pop
+      if l.spanIdx != start.spanIdx && !seen.contains l.spanIdx then
+        seen := seen.insert l.spanIdx
+        acc := acc.push l
+        for d in depsOf l do
+          if !seen.contains d.spanIdx then stack := stack.push d
+    return (acc.filter (fun l => candSet.contains l.spanIdx)).qsort (fun a b => a.spanIdx < b.spanIdx)
+  let weight := fun (l : DeletableLemma) => if spec.deleteUniform then 1.0 else Float.ofNat l.users.size
+  let pickIdx := fun (remaining : Array DeletableLemma) (x : Float) => Id.run do
+    let total := remaining.foldl (fun a l => a + weight l) 0.0
+    let target := x * total
+    let mut acc := 0.0
+    let mut idx := remaining.size - 1
+    let mut found := false
+    for j in [0:remaining.size] do
+      if !found then
+        acc := acc + weight remaining[j]!
+        if acc > target then idx := j; found := true
+    return idx
+  let (orderIdx, rngAfter) := rng.shuffle (List.range lemmas.size).toArray
+  let order := orderIdx.map (fun i => lemmas[i]!)
+  let targetDeletions := spec.deleteCount
+  let targetAblations := if spec.deleteCount.isNone then spec.count else none
+  let useProb := spec.deleteCount.isNone && spec.count.isNone
+  let coveredCount := fun (chosen : Array DeletableLemma) (del : HashSet Nat) => Id.run do
+    let mut s : HashSet Nat := {}
+    for l in chosen do
+      for u in l.users do
+        if !del.contains u then s := s.insert u
+    return s.size
+  let reached : Array DeletableLemma → HashSet Nat → Bool := fun chosen del =>
+    match targetDeletions, targetAblations with
+    | some nd, _ => decide (chosen.size ≥ nd)
+    | _, some k => decide (coveredCount chosen del ≥ k)
+    | _, _ => false
+  let mut r := rngAfter
+  let mut del : HashSet Nat := {}
+  let mut chosen : Array DeletableLemma := #[]
+  let mut stop := false
+  for cor in order do
+    if !stop then
+      if useProb then
+        let pool := (closureCands cor).filter (fun l => !del.contains l.spanIdx)
+        if !pool.isEmpty then
+          for pp in pool do
+            let (x, r') := r.nextF64
+            r := r'
+            if x < spec.prob then
+              del := del.insert pp.spanIdx
+              chosen := chosen.push pp
+          stop := true
+      else if reached chosen del then
+        stop := true
+      else
+        let mut pool := (closureCands cor).filter (fun l => !del.contains l.spanIdx)
+        while pool.size > 0 && !(reached chosen del) do
+          let (x, r') := r.nextF64
+          r := r'
+          let l := pool[pickIdx pool x]!
+          del := del.insert l.spanIdx
+          chosen := chosen.push l
+          pool := pool.filter (fun y => y.spanIdx != l.spanIdx)
+  return (chosen, r)
 
 /-- `--delete-lemmas`: delete eligible used lemmas + whole-proof-ablate users. -/
 def ablateDelete (toks : Array Token) (spec : Spec) (rng : Rng) : AblationResult := Id.run do
@@ -692,7 +804,13 @@ def ablateDelete (toks : Array Token) (spec : Spec) (rng : Rng) : AblationResult
     return idx
   let mut selected : Array DeletableLemma := #[]
   let mut r := rng
-  match spec.deleteCount with
+  if spec.corollary then
+    -- Corollary mode restricts the candidate pool to one random theorem's dependency
+    -- closure; everything downstream (user ablation, shrink, --count) is shared.
+    let (sel, r') := corollarySelect lemmas cands spec r
+    selected := sel
+    r := r'
+  else match spec.deleteCount with
   | some kd =>
     -- --delete-lemmas N: delete exactly N lemmas (weighted draw), any ablation count
     let mut remaining := cands
@@ -755,7 +873,9 @@ def ablateDelete (toks : Array Token) (spec : Spec) (rng : Rng) : AblationResult
   let mut origLen := 0
   for si in [0:spans.size] do
     let s := spans[si]!
-    let closer := s.cmd == some "end"
+    -- keep block openers (`namespace`/`section`) too (see shrink); else a kept `end`
+    -- could dangle after its opener was trimmed.
+    let closer := s.cmd == some "end" || s.cmd == some "namespace" || s.cmd == some "section"
     let itemLen := (s.source toks).length
     if delSet.contains si then
       deleted := deleted.push (nameOf si, s.source toks)

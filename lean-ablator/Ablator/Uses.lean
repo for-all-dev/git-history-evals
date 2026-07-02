@@ -42,10 +42,7 @@ def namesIn (toks : Array Token) (lo hi : Nat) : Array String := Id.run do
   for i in [lo:hi] do
     let t := toks[i]!
     if t.isIdent then
-      acc := acc.push t.src
-      match t.src.splitOn "." |>.getLast? with
-      | some last => if last != t.src then acc := acc.push last
-      | none => pure ()
+      acc := acc ++ Centrality.dottedRefs t.src   -- full + components + prefixes
   return acc
 
 end Uses

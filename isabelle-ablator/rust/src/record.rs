@@ -84,5 +84,6 @@ pub fn record(
         // solution stored as a diff against the challenge (apply to recover it) —
         // full files are huge for big theories (issue #107)
         "solution_diff": crate::diff::unified(&result.text, &result.solution),
+        "solution_file_content": result.solution,
     })
 }

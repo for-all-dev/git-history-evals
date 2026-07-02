@@ -32,7 +32,10 @@ pub struct Token {
 
 impl Token {
     pub fn new(kind: Kind, source: impl Into<String>) -> Token {
-        Token { kind, source: source.into() }
+        Token {
+            kind,
+            source: source.into(),
+        }
     }
 
     pub fn is_command(&self) -> bool {

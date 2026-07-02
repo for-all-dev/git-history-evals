@@ -21,7 +21,10 @@ fn as_bool(v: &Value, default: bool) -> bool {
 
 fn spec_from(opts: &Value) -> (Spec, Option<String>) {
     let g = |k: &str| &opts[k];
-    let difficulty = opts.get("difficulty").and_then(|v| v.as_str()).map(|s| s.to_string());
+    let difficulty = opts
+        .get("difficulty")
+        .and_then(|v| v.as_str())
+        .map(|s| s.to_string());
     let preset = difficulty.as_deref().and_then(preset_of);
 
     let count = match g("count") {
@@ -41,15 +44,27 @@ fn spec_from(opts: &Value) -> (Spec, Option<String>) {
         by_centrality: as_bool(g("by_centrality"), false),
         min_depth: {
             let v = g("min_depth");
-            if v.is_null() { preset.map(|p| p.min_depth).unwrap_or(1) } else { as_i64_inf(v, 1) }
+            if v.is_null() {
+                preset.map(|p| p.min_depth).unwrap_or(1)
+            } else {
+                as_i64_inf(v, 1)
+            }
         },
         max_depth: {
             let v = g("max_depth");
-            if v.is_null() { preset.map(|p| p.max_depth).unwrap_or(1) } else { as_i64_inf(v, 1) }
+            if v.is_null() {
+                preset.map(|p| p.max_depth).unwrap_or(1)
+            } else {
+                as_i64_inf(v, 1)
+            }
         },
         leaves_only: {
             let v = g("leaves_only");
-            if v.is_null() { preset.map(|p| p.leaves_only).unwrap_or(false) } else { as_bool(v, false) }
+            if v.is_null() {
+                preset.map(|p| p.leaves_only).unwrap_or(false)
+            } else {
+                as_bool(v, false)
+            }
         },
         min_size: as_i64_inf(g("min_size"), 0),
         max_size: as_i64_inf(g("max_size"), INF),
@@ -63,11 +78,17 @@ fn spec_from(opts: &Value) -> (Spec, Option<String>) {
         delete_lemmas: as_bool(g("delete_lemmas"), false),
         delete_count: {
             let v = g("delete_count");
-            if v.is_null() { None } else { v.as_u64() }
+            if v.is_null() {
+                None
+            } else {
+                v.as_u64()
+            }
         },
         delete_uniform: as_bool(g("delete_uniform"), false),
         delete_leaves: as_bool(g("delete_leaves"), false),
         aggressive: false, // the prover-backed path is never exposed to the browser
+        corollary: as_bool(g("corollary"), false),
+        ablate_scripts: as_bool(g("ablate_scripts"), false),
     };
     (spec, difficulty)
 }
@@ -104,7 +125,11 @@ pub fn ablate_theory(text: &str, opts_json: &str, seed: f64) -> String {
             })
         })
         .collect();
-    let deleted: Vec<Value> = r.deleted.iter().map(|(nm, txt)| json!({ "name": nm, "text": txt })).collect();
+    let deleted: Vec<Value> = r
+        .deleted
+        .iter()
+        .map(|(nm, txt)| json!({ "name": nm, "text": txt }))
+        .collect();
     json!({ "text": r.text, "solution_diff": crate::diff::unified(&r.text, &r.solution), "total": r.total, "ablated": r.ablated, "holes": holes, "deleted_lemmas": deleted }).to_string()
 }
 

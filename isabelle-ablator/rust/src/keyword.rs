@@ -42,7 +42,10 @@ pub fn is_theory_goal(k: &str) -> bool {
 }
 /// prf_goal / prf_asm_goal / prf_script_goal / prf_script_asm_goal — nested goals.
 pub fn is_proof_goal(k: &str) -> bool {
-    matches!(k, PRF_GOAL | PRF_ASM_GOAL | PRF_SCRIPT_GOAL | PRF_SCRIPT_ASM_GOAL)
+    matches!(
+        k,
+        PRF_GOAL | PRF_ASM_GOAL | PRF_SCRIPT_GOAL | PRF_SCRIPT_ASM_GOAL
+    )
 }
 /// proof_close = qed ∪ {prf_close}.
 pub fn is_proof_close(k: &str) -> bool {

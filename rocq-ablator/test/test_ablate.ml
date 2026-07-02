@@ -294,17 +294,31 @@ let () =
   check "fairness: unrelated lemma still dropped" (not (contains r.text "Lemma unrelated"));
   check "fairness: the user is holed" (contains r.text "Lemma u : 1 = 1." && contains r.text "Admitted.")
 
-(* ---- --delete-lemmas-leaves: hole only leaf steps citing L, keep skeleton ---- *)
+(* ---- --delete-lemmas-leaves: hole the smallest enclosing unit citing L ---- *)
+(* bulleted proof: the citation is in a bullet segment, so hole just that bullet and
+   keep the rest of the skeleton (split, the other bullet). *)
 let () =
   let src =
     "Lemma base : 1 = 1.\nProof. reflexivity. Qed.\n\n\
-     Lemma uu : (1 = 1) /\\ (2 = 2).\nProof. split. exact base. reflexivity. Qed.\n"
+     Lemma uu : (1 = 1) /\\ (2 = 2).\nProof. split.\n  - exact base.\n  - reflexivity.\nQed.\n"
   in
   let r = ablate_full ~spec:{ Ablate.default_spec with delete_lemmas = true; delete_leaves = true; prob = 1.0 } src in
-  check "leaves: skeleton kept (split, reflexivity)" (contains r.text "split." && contains r.text "reflexivity.");
-  check "leaves: L-citing leaf holed" (contains r.text "admit." && not (contains r.text "exact base"));
-  check "leaves: terminator becomes Admitted" (contains r.text "Admitted.");
-  check "leaves: base deleted" (not (contains r.text "Lemma base"))
+  check "leaves(bullet): skeleton kept (split, reflexivity)" (contains r.text "split." && contains r.text "reflexivity.");
+  check "leaves(bullet): citing bullet holed to admit" (contains r.text "admit." && not (contains r.text "exact base"));
+  check "leaves(bullet): terminator becomes Admitted" (contains r.text "Admitted.");
+  check "leaves(bullet): base deleted" (not (contains r.text "Lemma base"))
+
+(* flat proof: the citation is a mid-sequence tactic (no enclosing bullet/brace), which
+   cannot be safely turned into [admit.] (it would leave "No such goal"), so the leaf
+   holer falls back to whole-proof ablation. *)
+let () =
+  let src =
+    "Lemma base : 1 = 1.\nProof. reflexivity. Qed.\n\n\
+     Lemma uu : 1 = 1.\nProof. rewrite base. reflexivity. Qed.\n"
+  in
+  let r = ablate_full ~spec:{ Ablate.default_spec with delete_lemmas = true; delete_leaves = true; prob = 1.0 } src in
+  check "leaves(flat): whole-proof fallback (skeleton dropped)" (contains r.text "Proof. Admitted." && not (contains r.text "rewrite base"));
+  check "leaves(flat): base deleted" (not (contains r.text "Lemma base"))
 
 (* ---- --delete-lemmas N: delete exactly N lemmas (regardless of ablation count) ---- *)
 let () =
@@ -359,6 +373,44 @@ let () =
   let dd = Diff.unified chal sol in
   check "diff: large+localized round-trip" (Diff.apply chal dd = sol);
   check "diff: large+localized is tiny" (String.length dd < String.length sol / 4)
+
+(* ---- --corollary-delete-lemmas ----
+   A single dependency chain top -> mid -> base, plus an isolated `lonely`. The only
+   theorems with a non-empty *eligible* dependency closure are `top` ({mid,base}) and
+   `mid` ({base}); whichever corollary the uniform draw lands on, every deletion must
+   come from {mid, base} — never `top` (nothing uses it) or `lonely`. *)
+let () =
+  let src =
+    "Lemma base : forall n:nat, n = n.\nProof. intros. reflexivity. Qed.\n\n\
+     Lemma mid : 3 = 3.\nProof. apply base. Qed.\n\n\
+     Lemma top : 4 = 4.\nProof. apply mid. Qed.\n\n\
+     Lemma lonely : 5 = 5.\nProof. reflexivity. Qed.\n"
+  in
+  let del1 seed =
+    let spec = { Ablate.default_spec with delete_lemmas = true; corollary = true; delete_count = Some 1 } in
+    List.map fst (ablate_full ~spec ~seed src).deleted
+  in
+  let saw_base = ref false and saw_mid = ref false and bad = ref false in
+  for s = 0 to 39 do
+    match del1 s with
+    | [ n ] ->
+        if n = "base" then saw_base := true
+        else if n = "mid" then saw_mid := true
+        else bad := true
+    | _ -> bad := true
+  done;
+  check "corollary: =1 deletes exactly one within a corollary closure" (not !bad);
+  check "corollary: both closure members (base, mid) reachable across seeds" (!saw_base && !saw_mid);
+  check "corollary: reproducible per seed" (del1 7 = del1 7);
+  (* wholesale holes the user; uniform variant draws from the closure too *)
+  let spec_w = { Ablate.default_spec with delete_lemmas = true; corollary = true; delete_count = Some 1 } in
+  let rw = ablate_full ~spec:spec_w ~seed:2 src in
+  check "corollary: user proof holed; full solution preserved"
+    (contains rw.text "Admitted" && rw.solution = src && List.length rw.deleted = 1);
+  let spec_u = { spec_w with delete_uniform = true } in
+  let du = List.map fst (ablate_full ~spec:spec_u ~seed:5 src).deleted in
+  check "corollary-uniform: deletion within the closure"
+    (List.for_all (fun n -> n = "base" || n = "mid") du)
 
 let () =
   if !failures = 0 then print_endline "\nALL TESTS PASSED"
