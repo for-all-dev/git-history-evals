@@ -138,10 +138,16 @@ def test_isabelle_discover_session(tmp_path: Path):
     _write_session(tmp_path)
     s = discover_session(tmp_path / "Top.thy")
     assert s is not None and s.name == "Demo"
-    # a theory not listed in any ROOT → no session (throwaway-HOL fallback)
+    # A theory in the session's directory but NOT listed in ROOT still belongs to the
+    # session (l4v ROOTs list only top-level theories; the rest are pulled in by imports).
     stray = tmp_path / "Stray.thy"
     stray.write_text("theory Stray\n  imports Main\nbegin\nend\n")
-    assert discover_session(stray) is None
+    s2 = discover_session(stray)
+    assert s2 is not None and s2.name == "Demo"
+    # A theory outside any session directory → no session (throwaway-HOL fallback).
+    outside = tmp_path.parent / "Outside.thy"
+    outside.write_text("theory Outside\n  imports Main\nbegin\nend\n")
+    assert discover_session(outside) is None
 
 
 def test_isabelle_deps_and_check_roots(tmp_path: Path):
@@ -153,7 +159,7 @@ def test_isabelle_deps_and_check_roots(tmp_path: Path):
     assert 'session "AblateDeps_Demo_Top" = "HOL-Library" +' in deps
     assert '"HOL-Eisbach"' in deps and '"Finite-Map-Extras"' not in deps  # pruned
     for thy in ("Base", "Mid"):
-        assert f"    {thy}\n" in deps
+        assert f"    {thy}\n" in deps  # listed by bare name
     assert "    Top\n" not in deps  # the target is not in its own deps
     # check session inherits the deps session and lists only the target
     chk = _check_root_text(s, "Top", ["HOL-Eisbach"])

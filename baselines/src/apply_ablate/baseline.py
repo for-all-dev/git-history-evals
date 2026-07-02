@@ -104,15 +104,29 @@ def run(
                 file_path=rec.file_path,
                 model=model,
             ) as sp:
-                res = solve_one(
-                    rec,
-                    src,
-                    work,
-                    model=model,
-                    max_turns=max_turns,
-                    timeout=timeout,
-                    dry_run=dry_run,
-                )
+                try:
+                    res = solve_one(
+                        rec,
+                        src,
+                        work,
+                        model=model,
+                        max_turns=max_turns,
+                        timeout=timeout,
+                        dry_run=dry_run,
+                    )
+                except Exception as e:  # noqa: BLE001
+                    # A harness-side failure on one challenge (e.g. an unsupported repo
+                    # layout) must not abort the whole batch — record it and move on.
+                    from apply_ablate.solve import SolveResult
+
+                    res = SolveResult(
+                        task_id=rec.task_id,
+                        assistant=rec.assistant,
+                        file_path=rec.file_path,
+                        succeeded=False,
+                        gave_up=False,
+                        error=f"harness-error: {type(e).__name__}: {e}",
+                    )
                 # Record what the ablator removed/holed so results are self-describing
                 # (multiple lemmas in delete/corollary mode), independent of which
                 # solve_one branch produced the result.

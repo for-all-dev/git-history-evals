@@ -583,6 +583,25 @@ fn slice_delete(
             q.push_back(o);
         }
     }
+    // Structural (non-goal) items are always kept, so any in-file lemma they cite must be
+    // kept too — else it dangles (e.g. `lemmas foo = bar [OF refl]` needs `bar`). Seed the
+    // closure with those references. (Mirrors the rocq ablator's non-goal seeding loop.)
+    for sp in spans.iter() {
+        let is_goal = sp.keyword_kind().map(kw::is_theory_goal).unwrap_or(false);
+        if is_goal {
+            continue;
+        }
+        for nm in crate::uses::names_in(&sp.content) {
+            if let Some(os) = openers_of_name.get(nm.as_str()) {
+                for &o2 in os {
+                    if !keep.contains(&o2) && by_lemma.contains_key(&o2) {
+                        keep.insert(o2);
+                        q.push_back(o2);
+                    }
+                }
+            }
+        }
+    }
     while let Some(o) = q.pop_front() {
         let l = by_lemma[&o];
         for nm in l.stmt_names.iter().chain(l.body_names.iter()) {
@@ -623,7 +642,17 @@ fn slice_delete(
             }
             i = e;
         } else {
-            buf.push_str(&spans[i].source());
+            // Structural item (e.g. a `lemmas foo = bar` bundle, `declare`, notation).
+            // In the challenge the deleted lemma is gone, so a structural item that cites
+            // it would dangle (`Undefined fact "…"`); drop it. The solution restores the
+            // lemma, so keep it there. Mirrors the rocq ablator's `struct_ok`.
+            let cites_deleted = !solution
+                && crate::uses::names_in(&spans[i].content)
+                    .iter()
+                    .any(|nm| deleted_names.contains(nm.as_str()));
+            if !cites_deleted {
+                buf.push_str(&spans[i].source());
+            }
             i += 1;
         }
     }

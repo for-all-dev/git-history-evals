@@ -154,6 +154,30 @@ private def attachedStart (toks : Array Token) (cmdIdx lower : Nat) : Nat := Id.
       return start  -- code token or ordinary comment: stop
   return start
 
+/-- Are tokens `[lo, hi)` only whitespace / doc comments / `@[ … ]` attribute groups /
+    modifiers — i.e. an attribute-or-modifier PREFIX of the command that starts at `hi`,
+    with no blank-line break? Then the boundary at `hi` is a continuation of the command
+    begun at `lo`, not a new command: a col-0 `@[simp]` (or `public`) opens its own
+    boundary but belongs to the decl below it, and without merging, deleting that decl
+    would orphan the leading `@[simp]` (→ `@[simp] end`, a syntax error). -/
+private def isAttrPrefix (toks : Array Token) (lo hi : Nat) : Bool := Id.run do
+  let mut i := lo
+  let mut depth := 0
+  let mut sawAttrMod := false
+  while i < hi do
+    let t := toks[i]!
+    if t.isSym && t.src == "[" then depth := depth + 1
+    else if t.isSym && t.src == "]" then depth := if depth == 0 then 0 else depth - 1
+    else if depth > 0 then pure ()  -- inside @[ … ]
+    else if t.isSpace then
+      if newlineCount t ≥ 2 then return false
+    else if t.isDocComment then pure ()
+    else if t.isSym && t.src == "@" then sawAttrMod := true
+    else if t.isIdent && Keyword.modifiers.contains t.src then sawAttrMod := true
+    else return false  -- a decl keyword or code token → a genuine new command
+    i := i + 1
+  return sawAttrMod
+
 /-- Split tokens into top-level command spans. -/
 def parseSpans (toks : Array Token) : Array Span := Id.run do
   let n := toks.size
@@ -164,6 +188,15 @@ def parseSpans (toks : Array Token) : Array Span := Id.run do
     if isCommandLeading toks[i]! then
       let lower := if bounds.isEmpty then 0 else bounds[bounds.size - 1]!
       bounds := bounds.push (attachedStart toks i lower)
+  -- Merge attribute/modifier-prefix boundaries into the command they annotate, so a decl
+  -- and its leading `@[…]`/`public`/… stay ONE span (deleting the decl takes them all).
+  let mut merged : Array Nat := #[]
+  for b in bounds do
+    if (!merged.isEmpty) && isAttrPrefix toks merged[merged.size - 1]! b then
+      pure ()  -- drop b: it continues the attribute-led command above
+    else
+      merged := merged.push b
+  bounds := merged
   -- assemble spans between boundaries; tokens before the first boundary are preamble
   let mut spans : Array Span := #[]
   -- always cover [0, n): if there is no column-0 command (e.g. an import-only

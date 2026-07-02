@@ -688,6 +688,15 @@ object Ablate {
       def add(o: Int): Unit =
         if (!keep.contains(o) && byOpener.contains(o)) { keep += o; q.enqueue(o) }
       seed.foreach(add)
+      // Structural (non-goal) items are always kept, so any in-file lemma they cite must
+      // be kept too — else it dangles (`lemmas foo = bar [OF refl]` needs `bar`). Seed the
+      // closure with those references. (Mirrors the rocq ablator's non-goal seeding loop.)
+      for (k <- 0 until n) {
+        val isGoal = spans(k).kind.keyword_kind.exists(Keyword.theory_goal.contains)
+        if (!isGoal)
+          for (nm <- names_in(spans(k).content); o2 <- openersOfName.getOrElse(nm, Nil))
+            add(o2)
+      }
       while (q.nonEmpty) {
         val o = q.dequeue(); val l = byOpener(o)
         for (nm <- l.stmtNames ++ l.bodyNames; o2 <- openersOfName.getOrElse(nm, Nil)) add(o2)
@@ -704,7 +713,15 @@ object Ablate {
             else sb ++= (k until e).map(src).mkString
           }
           k = e
-        } else { sb ++= src(k); k += 1 }
+        } else {
+          // Structural item (e.g. `lemmas foo = bar` bundle): in the challenge the
+          // deleted lemma is gone, so an item citing it would dangle (`Undefined fact`).
+          // Drop it from the challenge; the solution restores the lemma. (rocq struct_ok.)
+          val citesDeleted =
+            !solution && names_in(spans(k).content).exists(deletedNames.contains)
+          if (!citesDeleted) sb ++= src(k)
+          k += 1
+        }
       }
       collapse(sb.toString)
     }

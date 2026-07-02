@@ -639,6 +639,15 @@ def sliceDelete (toks : Array Token) (spans : Array Span) (spec : Spec)
   for o in seed do
     if !keep.contains o && (bySpan o).isSome then
       keep := keep.insert o; q := q.push o
+  -- Structural (non-goal) items are always kept, so any in-file decl they cite must be
+  -- kept too — else it dangles. Seed the closure with those references. (rocq parity.)
+  for si in [0:spans.size] do
+    if (bySpan si).isNone then
+      let s := spans[si]!
+      for nm in Uses.namesIn toks s.lo s.hi do
+        for o2 in openersOfName nm do
+          if !keep.contains o2 && (bySpan o2).isSome then
+            keep := keep.insert o2; q := q.push o2
   let mut qi := 0
   while qi < q.size do
     let o := q[qi]!
@@ -666,7 +675,11 @@ def sliceDelete (toks : Array Token) (spans : Array Span) (spec : Spec)
             buf := buf ++ renderUserLean toks s.lo a contentHi s.hi binderCol deletedNames spec.deleteLeaves
           | none => buf := buf ++ s.source toks
         else buf := buf ++ s.source toks
-    | none => buf := buf ++ s.source toks -- structural: always kept
+    | none =>
+      -- structural item (e.g. `attribute`/`open`): drop from the challenge if it cites a
+      -- deleted lemma (else it dangles); the solution restores the lemma. (rocq struct_ok.)
+      let citesDeleted := !solution && (Uses.namesIn toks s.lo s.hi).any deletedNames.contains
+      if !citesDeleted then buf := buf ++ s.source toks
   return collapseBlankLines buf
 
 /-- Corollary selection: pick a random theorem, take its transitive in-file

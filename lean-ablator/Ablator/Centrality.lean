@@ -23,17 +23,30 @@ namespace Centrality
 
 def minNameLen : Nat := 3
 
-/-- Identifiers cited within a token range: each ident plus, for a dotted name,
-    its last component. -/
+/-- Every name a dotted identifier could denote: the full token, each dot-separated
+    component, AND each dotted prefix. Prefixes matter for projection uses like
+    `Except.isOk_iff_exists.mp` — the lemma is the *prefix* `Except.isOk_iff_exists`
+    (`.mp` is the projection), which a "full + last-component" extraction missed, so a
+    lemma used only via `.mp`/`.mpr`/… looked unused (dropped from a minimal slice or not
+    holed as a user). Over-approximating is the safe direction: keep/hole more, never less. -/
+def dottedRefs (src : String) : Array String := Id.run do
+  let parts := src.splitOn "."
+  let mut acc := #[src]
+  let mut pre := ""
+  for p in parts do
+    acc := acc.push p                                   -- component
+    pre := if pre == "" then p else pre ++ "." ++ p
+    acc := acc.push pre                                 -- prefix
+  return acc
+
+/-- Identifiers cited within a token range (each ident expanded via `dottedRefs`). -/
 def citedNames (toks : Array Token) (lo hi : Nat) (into : HashSet String) : HashSet String := Id.run do
   let mut acc := into
   for i in [lo:hi] do
     let t := toks[i]!
     if t.isIdent then
-      acc := acc.insert t.src
-      match t.src.splitOn "." |>.getLast? with
-      | some last => if last != t.src then acc := acc.insert last
-      | none => pure ()
+      for r in dottedRefs t.src do
+        acc := acc.insert r
   return acc
 
 /-- For one theory's tokens, collect `(name, cited-set)` for every top-level
