@@ -18,6 +18,16 @@ export interface Tok {
   text: string
 }
 
+/** token class -> CSS class (shared by CodeView + CodeEditor). */
+export const TOK_CLASS: Record<TokClass, string> = {
+  comment: 'tok-comment',
+  string: 'tok-string',
+  keyword: 'tok-keyword',
+  hole: 'tok-hole',
+  name: 'tok-name',
+  plain: '',
+}
+
 const KEYWORDS: Record<Lang, Set<string>> = {
   lean: new Set([
     'theorem', 'lemma', 'def', 'abbrev', 'instance', 'example', 'namespace', 'end',

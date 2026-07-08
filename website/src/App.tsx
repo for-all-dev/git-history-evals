@@ -13,8 +13,10 @@ import {
   type Lang,
 } from './ablators'
 import { SAMPLES } from './lib/samples'
+import { fetchAfpIndex, fetchAfpEntryTheories, fetchAfpTheory, type AfpIndex, type AfpTheory } from './lib/afp'
 import { toRecord, type EvalRecord } from './lib/record'
 import { CodeView } from './components/CodeView'
+import { CodeEditor } from './components/CodeEditor'
 import { JsonView } from './components/JsonView'
 
 type Mode = 'challenge' | 'json'
@@ -81,6 +83,17 @@ export default function App() {
   const [status, setStatus] = useState<'idle' | 'loading' | 'ready' | 'error'>('idle')
   const [error, setError] = useState('')
 
+  // AFP importer (issue #113): pull a real Archive of Formal Proofs theory from
+  // our world-readable mirror into the source pane. Isabelle-only.
+  const [afp, setAfp] = useState<AfpIndex | null>(null) // lightweight entry list
+  const [afpOpen, setAfpOpen] = useState(false)
+  const [afpEntry, setAfpEntry] = useState('')
+  const [afpTheories, setAfpTheories] = useState<AfpTheory[] | null>(null) // lazy shard for afpEntry
+  const [afpFile, setAfpFile] = useState('') // currently-loaded theory (persists across setting tweaks)
+  const [afpBusy, setAfpBusy] = useState(false)
+  const [afpErr, setAfpErr] = useState('')
+  const afpCache = useRef<Map<string, AfpTheory[]>>(new Map()) // entry -> theories.json
+
   const detected = useMemo(() => detectLanguage(debounced), [debounced])
   const lang: Lang = override === 'auto' ? detected : override
   const caps = CAPS[lang]
@@ -130,11 +143,111 @@ export default function App() {
   const loadSample = (l: Lang) => {
     setOverride(l)
     setSource(SAMPLES[l])
+    setAfpFile('') // a built-in sample is now in the pane, not an AFP theory
   }
+
+  const openAfp = useCallback(async () => {
+    setAfpOpen((o) => !o)
+    if (afp) return
+    setAfpBusy(true)
+    setAfpErr('')
+    try {
+      setAfp(await fetchAfpIndex())
+    } catch (e) {
+      setAfpErr(String(e instanceof Error ? e.message : e))
+    } finally {
+      setAfpBusy(false)
+    }
+  }, [afp])
+
+  // Pick a specific theory from the currently-loaded entry shard.
+  const pickAfpTheory = useCallback(
+    async (file: string) => {
+      const theory = afpTheories?.find((t) => t.file === file)
+      if (!theory) return
+      setAfpFile(file) // reflect the selection immediately; survives setting tweaks
+      setAfpBusy(true)
+      setAfpErr('')
+      try {
+        const text = await fetchAfpTheory(theory)
+        setOverride('isabelle')
+        setSource(text)
+      } catch (e) {
+        setAfpErr(String(e instanceof Error ? e.message : e))
+      } finally {
+        setAfpBusy(false)
+      }
+    },
+    [afpTheories],
+  )
+
+  // Selecting an entry (typed/picked in the combobox) lazily fetches its theory
+  // shard and loads the first theory — keeps the flow live and the theory
+  // dropdown always pointing at real, loaded source. Ignores partial typing.
+  const selectAfpEntry = useCallback(
+    async (name: string) => {
+      setAfpEntry(name)
+      if (!afp?.entries.some((e) => e.name === name)) {
+        setAfpTheories(null)
+        setAfpFile('')
+        return
+      }
+      setAfpBusy(true)
+      setAfpErr('')
+      try {
+        let ths = afpCache.current.get(name)
+        if (!ths) {
+          ths = await fetchAfpEntryTheories(name)
+          afpCache.current.set(name, ths)
+        }
+        setAfpTheories(ths)
+        const first = ths[0]
+        setAfpFile(first?.file ?? '')
+        if (first) {
+          const text = await fetchAfpTheory(first)
+          setOverride('isabelle')
+          setSource(text)
+        }
+      } catch (e) {
+        setAfpErr(String(e instanceof Error ? e.message : e))
+        setAfpTheories(null)
+      } finally {
+        setAfpBusy(false)
+      }
+    },
+    [afp],
+  )
+
+  // The L0–L4 presets are probability/depth (selection-mode) difficulty knobs, so
+  // a preset must (a) switch off corollary mode and (b) clear deleteCount —
+  // otherwise the corollary/delete-count path pins the ablation to a fixed count
+  // (`delete_count` is emitted whenever it's non-null) and every preset yields the
+  // identical result regardless of prob/depth.
   const applyPreset = (i: number) => {
     const p = PRESETS[i]
-    up({ rateMode: 'prob', prob: p.prob, minDepth: p.minDepth, maxDepth: p.maxDepth, leavesOnly: p.leavesOnly })
+    up({
+      corollary: false,
+      deleteCount: null,
+      rateMode: 'prob',
+      prob: p.prob,
+      minDepth: p.minDepth,
+      maxDepth: p.maxDepth,
+      leavesOnly: p.leavesOnly,
+    })
   }
+  const activePreset = useMemo(
+    () =>
+      opts.corollary || opts.rateMode !== 'prob'
+        ? -1
+        : PRESETS.findIndex(
+            (p) =>
+              p.prob === opts.prob &&
+              p.minDepth === opts.minDepth &&
+              p.maxDepth === opts.maxDepth &&
+              p.leavesOnly === opts.leavesOnly,
+          ),
+    [opts.corollary, opts.rateMode, opts.prob, opts.minDepth, opts.maxDepth, opts.leavesOnly],
+  )
 
   const stats = result
     ? { ablated: result.ablated, total: result.total }
@@ -198,9 +311,13 @@ export default function App() {
         )}
 
         <div className="field">
-          <label>&nbsp;</label>
-          <button className="generate" onClick={() => up({ seed: randSeed() })}>
-            ↻ Generate
+          <label>New variant</label>
+          <button
+            className="generate"
+            title="Everything else updates live; this re-rolls the random seed for a different ablation with the current settings."
+            onClick={() => up({ seed: randSeed() })}
+          >
+            ↻ Random
           </button>
         </div>
 
@@ -214,6 +331,64 @@ export default function App() {
             ))}
           </div>
         </div>
+
+        <div className="field afp">
+          <label>Import AFP entry</label>
+          <button className={`afp-toggle${afpOpen ? ' on' : ''}`} onClick={() => void openAfp()}>
+            {afpOpen ? '▾' : '▸'} isabelle · AFP
+          </button>
+          {afpOpen && (
+            <div className="afp-pickers">
+              {afpBusy && !afp ? (
+                <span className="afp-note">loading catalog…</span>
+              ) : afp ? (
+                <>
+                  <input
+                    className="afp-entry-input"
+                    list="afp-entries"
+                    value={afpEntry}
+                    placeholder={`search ${afp.entries.length} entries…`}
+                    onChange={(e) => void selectAfpEntry(e.target.value)}
+                    aria-label="AFP entry"
+                  />
+                  <datalist id="afp-entries">
+                    {afp.entries.map((en) => (
+                      <option key={en.name} value={en.name}>
+                        {en.n_theories} thy
+                      </option>
+                    ))}
+                  </datalist>
+                  <select
+                    value={afpFile}
+                    disabled={afpBusy || !afpTheories}
+                    onChange={(e) => void pickAfpTheory(e.target.value)}
+                    aria-label="AFP theory file"
+                  >
+                    {afpFile === '' && (
+                      <option value="" disabled>
+                        {afpBusy ? 'fetching…' : afpTheories ? 'pick a theory…' : 'pick an entry first'}
+                      </option>
+                    )}
+                    {afpTheories?.map((t) => (
+                      <option key={t.file} value={t.file}>
+                        {t.file} ({Math.ceil(t.bytes / 1024)}KB)
+                      </option>
+                    ))}
+                  </select>
+                  {(() => {
+                    const en = afp.entries.find((e) => e.name === afpEntry)
+                    return en ? (
+                      <a className="afp-note" href={en.afp_url} target="_blank" rel="noreferrer">
+                        entry page ↗
+                      </a>
+                    ) : null
+                  })()}
+                </>
+              ) : null}
+              {afpErr && <span className="afp-err">{afpErr}</span>}
+            </div>
+          )}
+        </div>
       </div>
 
       <main className="panes">
@@ -222,7 +397,7 @@ export default function App() {
             <h3>Difficulty preset</h3>
             <div className="presets">
               {['L0', 'L1', 'L2', 'L3', 'L4'].map((l, i) => (
-                <button key={l} onClick={() => applyPreset(i)}>
+                <button key={l} className={activePreset === i ? 'on' : ''} onClick={() => applyPreset(i)}>
                   {l}
                 </button>
               ))}
@@ -367,7 +542,7 @@ export default function App() {
             <h2>Source</h2>
             <span className="muted">edit or paste any of the three provers</span>
           </div>
-          <textarea className="source" spellCheck={false} value={source} onChange={(e) => setSource(e.target.value)} />
+          <CodeEditor lang={lang} value={source} onChange={setSource} />
         </section>
 
         <section className="pane">

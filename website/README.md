@@ -14,7 +14,7 @@ records it becomes). Implements issue #112.
   dependency closure. A slider raises the number of theorems to delete.
 - **Output modes:** the ablated challenge file (default) or the generated JSON
   evals. In JSON mode a *repeat* slider generates N deduplicated variants.
-- **Seed** is hidden behind an **↻ Generate** button (re-rolls the seed); the raw
+- **Seed** is hidden behind an **↻ Random** button (re-rolls the seed); the raw
   seed is editable under *Advanced*.
 - **Nice-to-haves:** language auto-detection, lightweight syntax highlighting,
   collapsible JSON (challenge + solution unfolded by default), copy buttons.
@@ -49,3 +49,57 @@ Deploy: point Vercel at this directory (root `website/`); the committed
 `public/wasm/` ships as-is. It also works on any static host — on hosts that
 can't set COOP/COEP (e.g. GitHub Pages), `public/wasm/lean/coi-serviceworker.js`
 provides the isolation fallback.
+
+## AFP importer (issue #113)
+
+The **Import AFP entry** control loads a real [Archive of Formal
+Proofs](https://www.isa-afp.org/) theory into the Isabelle source pane. Because
+isa-afp.org sends no permissive CORS, a pure-static site can't fetch it
+directly; instead we **pre-mirror the whole AFP**, version-pinned, into a
+world-readable bucket we control and fetch raw `.thy` text from there
+client-side. This keeps the deploy fully static — **no server, and no DO
+credentials on Vercel** (reads are anonymous, objects are public-read). The
+current mirror is the `afp-2026-07-07` release: **1000 entries / ~10.2k
+theories / ~294 MB**.
+
+- `scripts/mirror-afp.py` mirrors the corpus. `--full` downloads the single AFP
+  release tarball once, extracts every `.thy`, and uploads (parallel `s3cmd`)
+  public-read to `s3://forall-git-evals/afp/<Entry>/…`:
+
+  ```bash
+  python scripts/mirror-afp.py --full              # whole AFP (the deliverable)
+  python scripts/mirror-afp.py --full --workers 12 # more parallel uploaders
+  python scripts/mirror-afp.py --entry Kruskal     # curated subset instead
+  python scripts/mirror-afp.py --full --dry-run    # download + stage, no upload
+  ```
+
+  (Requires `s3cmd` configured for the DO Space; not needed to *run* the site.)
+
+- **Split manifest** (keeps first paint light for 1000 entries):
+  - `afp/index.json` — lightweight: `{ schema:"afp-mirror/2", release, entries:
+    [{name, n_theories, afp_url}] }`. Loaded once when the panel opens.
+  - `afp/<Entry>/theories.json` — that entry's theory list (`{file, url, bytes}`),
+    fetched lazily when the entry is selected.
+
+- `src/lib/afp.ts` reads the manifest + theory text; the UI is a searchable
+  entry combobox (1000 entries) + theory dropdown. The mirror base URL is
+  `https://forall-git-evals.nyc3.digitaloceanspaces.com/afp` by default;
+  override with the **non-secret** build env var `VITE_AFP_BASE_URL` to point at
+  a different bucket/CDN.
+
+- **One-time bucket CORS** (required, since the browser reads cross-origin):
+
+  ```bash
+  cat > cors.xml <<'XML'
+  <CORSConfiguration>
+    <CORSRule>
+      <AllowedOrigin>*</AllowedOrigin>
+      <AllowedMethod>GET</AllowedMethod>
+      <AllowedMethod>HEAD</AllowedMethod>
+      <AllowedHeader>*</AllowedHeader>
+      <MaxAgeSeconds>3600</MaxAgeSeconds>
+    </CORSRule>
+  </CORSConfiguration>
+  XML
+  s3cmd setcors cors.xml s3://forall-git-evals
+  ```

@@ -147,6 +147,62 @@ button.generate:hover {
   filter: brightness(1.08);
 }
 
+/* AFP importer (issue #113) */
+.afp-toggle {
+  background: var(--pan);
+  color: var(--mut);
+  border: 1px solid var(--bd);
+  border-radius: 6px;
+  padding: 6px 12px;
+  font: inherit;
+  cursor: pointer;
+  text-align: left;
+}
+.afp-toggle:hover {
+  color: var(--fg);
+}
+.afp-toggle.on {
+  color: var(--acc2);
+  border-color: color-mix(in srgb, var(--acc2) 45%, transparent);
+}
+.afp-pickers {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  flex-wrap: wrap;
+  margin-top: 5px;
+}
+.afp-pickers select,
+.afp-entry-input {
+  background: var(--pan);
+  color: var(--fg);
+  border: 1px solid var(--bd);
+  border-radius: 6px;
+  padding: 6px 8px;
+  font: inherit;
+  max-width: 220px;
+}
+.afp-entry-input {
+  min-width: 180px;
+}
+.afp-entry-input:focus {
+  outline: none;
+  border-color: var(--acc2);
+}
+.afp-note {
+  font-size: 11px;
+  color: var(--mut);
+  text-decoration: none;
+}
+.afp-note:hover {
+  color: var(--fg);
+}
+.afp-err {
+  font-size: 11px;
+  color: var(--red);
+  max-width: 260px;
+}
+
 .advanced {
   padding: 8px 24px;
   border-bottom: 1px solid var(--bd);
@@ -243,6 +299,12 @@ button.generate:hover {
 .presets button:hover {
   border-color: var(--acc2);
 }
+.presets button.on {
+  background: var(--acc2);
+  color: #1e1e2e;
+  font-weight: 600;
+  border-color: var(--acc2);
+}
 .controls .chk {
   display: flex;
   align-items: flex-start;
@@ -335,18 +397,40 @@ button.generate:hover {
   color: var(--red);
 }
 
-textarea.source {
+/* Source editor: transparent-text <textarea> over a highlighted <pre>, aligned
+   pixel-for-pixel and scroll-synced (see CodeEditor.tsx). */
+.editor {
+  position: relative;
   flex: 1;
   width: 100%;
   min-height: 340px;
-  resize: none;
   background: var(--pan);
-  color: var(--fg);
+}
+.editor-hl,
+.editor-input {
+  position: absolute;
+  inset: 0;
+  margin: 0;
   border: none;
   padding: 12px 16px;
   font: 13px/1.5 ui-monospace, Menlo, Consolas, monospace;
   tab-size: 2;
   white-space: pre;
+  overflow: auto;
+}
+.editor-hl {
+  color: var(--fg); /* colour for plain (non-token) text */
+  pointer-events: none;
+  scrollbar-width: none; /* scrollbar lives on the textarea; keep them in sync */
+}
+.editor-hl::-webkit-scrollbar {
+  display: none;
+}
+.editor-input {
+  resize: none;
+  background: transparent;
+  color: transparent;
+  caret-color: var(--fg);
   outline: none;
 }
 
