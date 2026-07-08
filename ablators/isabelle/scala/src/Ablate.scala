@@ -112,6 +112,8 @@ object Ablate {
     delete_leaves: Boolean = false,    // delete-lemmas: hole only leaf steps (falls back to whole proof)
     aggressive: Boolean = false,       // delete-lemmas: relax guards (BE; needs --check-build)
     corollary: Boolean = false,        // delete-lemmas: restrict candidates to one random theorem's dep closure
+    corollary_all: Boolean = false,    // corollary: emit one ablation per eligible corollary (via ablate_all, ignoring --repeat)
+    forced_corollary: Option[Int] = None, // corollary: use ONLY the corollary at this opener index (set by ablate_all; internal)
     ablate_scripts: Boolean = false    // ablate apply-scripts whole, not the default prefix-cut
   ) {
     def uses_centrality: Boolean =
@@ -372,23 +374,24 @@ object Ablate {
     }
   }
 
-  /** --delete-lemmas: delete eligible used lemmas + whole-proof-ablate users.
-   *  Correct-by-construction (see uses.ml / uses.rs): a lemma is deletable only
-   *  when every occurrence of its name outside its block is in a proof body, it
-   *  closes normally, carries no attribute (`lemma foo [simp]:`), and has ≥1
-   *  in-file user. `aggressive` relaxes the normal-close requirement. */
-  private def ablate_delete(syntax: Outer_Syntax, text: CharSequence, spec: Spec, rng: Random): Result = {
-    val spans = syntax.parse_spans(text).toArray
-    val n = spans.length
-    def src(j: Int): String = Token.implode(spans(j).content)
-    def names_in(content: List[Token]): List[String] =
-      content.filter(t => t.is_ident || t.kind == Token.Kind.LONG_IDENT).flatMap { t =>
-        val s = t.source; val dot = s.lastIndexOf('.')
-        if (dot >= 0 && dot < s.length - 1) List(s, s.substring(dot + 1)) else List(s)
-      }
-    def has_attr(span: Command_Span.Span): Boolean =
-      span.content.filter(_.is_proper).takeWhile(t => !t.is_keyword(":")).exists(_.is_keyword("["))
+  private def names_in(content: List[Token]): List[String] =
+    content.filter(t => t.is_ident || t.kind == Token.Kind.LONG_IDENT).flatMap { t =>
+      val s = t.source; val dot = s.lastIndexOf('.')
+      if (dot >= 0 && dot < s.length - 1) List(s, s.substring(dot + 1)) else List(s)
+    }
+  private def has_attr(span: Command_Span.Span): Boolean =
+    span.content.filter(_.is_proper).takeWhile(t => !t.is_keyword(":")).exists(_.is_keyword("["))
 
+  /** A used lemma with its in-file dependency edges (delete-lemmas / corollary modes). */
+  sealed case class Lemma(name: String, opener: Int, end: Int, users: List[Int],
+    stmtNames: List[String], bodyNames: List[String], eligible: Boolean)
+
+  /** Parse `spans` into per-goal Lemma records: block bounds, in-file users, cited names,
+   *  and deletability (correct-by-construction; `aggressive` relaxes the normal-close
+   *  requirement). Mirrors uses.ml / uses.rs, shared by `ablate_delete` and the
+   *  `--corollary-*-all` enumerator so the two never drift. */
+  private def analyzeLemmas(spans: Array[Command_Span.Span], spec: Spec): List[Lemma] = {
+    val n = spans.length
     final case class Goal(opener: Int, end: Int, name: String, normal: Boolean,
       attr: Boolean, cited: Set[String])
     val goalsBuf = new mutable.ListBuffer[Goal]
@@ -420,15 +423,63 @@ object Ablate {
     }
     val goals = goalsBuf.toList
     val np = nonproof.toList
-    final case class Lemma(name: String, opener: Int, end: Int, users: List[Int],
-      stmtNames: List[String], bodyNames: List[String], eligible: Boolean)
-    val lemmas = goals.map { g =>
+    goals.map { g =>
       val users = goals.collect { case g2 if g2.opener != g.opener && g2.cited.contains(g.name) => g2.opener }
       val onlyProofs = np.forall { case (s, j) => s != g.name || (j >= g.opener && j < g.end) }
       val eligible = (g.normal || spec.aggressive) && !g.attr && g.name.length >= 3 &&
         users.nonEmpty && onlyProofs
       Lemma(g.name, g.opener, g.end, users, names_in(spans(g.opener).content), g.cited.toList, eligible)
     }
+  }
+
+  /** In-file dependency lemmas a lemma cites (statement + body names), excl. itself.
+   *  Mirrors rocq `cor_deps_of`. */
+  private def corDepsOf(byNameFirst: Map[String, Lemma], l: Lemma): List[Lemma] =
+    (l.stmtNames ++ l.bodyNames).flatMap(byNameFirst.get).filter(_.opener != l.opener).distinct
+
+  /** Eligible candidates in `start`'s transitive dependency closure (excl. itself),
+   *  sorted by opener. Mirrors rocq `cor_closure`. */
+  private def corClosure(byNameFirst: Map[String, Lemma], candOpeners: Set[Int], start: Lemma): Vector[Lemma] = {
+    val seen = mutable.Set.empty[Int]
+    val acc = new mutable.ListBuffer[Lemma]
+    var stack = corDepsOf(byNameFirst, start)
+    while (stack.nonEmpty) {
+      val l = stack.head; stack = stack.tail
+      if (l.opener != start.opener && seen.add(l.opener)) {
+        acc += l
+        stack = corDepsOf(byNameFirst, l) ::: stack
+      }
+    }
+    acc.toVector.filter(l => candOpeners.contains(l.opener)).sortBy(_.opener)
+  }
+
+  /** Openers of every lemma whose transitive in-file dependency closure contains >= 1
+   *  deletable candidate, in file order. Drives `ablate_all` for
+   *  `--corollary-delete-lemmas*-all`. Mirrors rocq `eligible_corollary_openers`. */
+  private def eligibleCorollaryOpeners(spans: Array[Command_Span.Span], spec: Spec): List[Int] = {
+    val lemmas = analyzeLemmas(spans, spec)
+    val cands = lemmas.filter(l => l.eligible &&
+      l.users.length >= spec.min_centrality && l.users.length <= spec.max_centrality)
+    if (cands.isEmpty) Nil
+    else {
+      val byNameFirst = lemmas.foldLeft(Map.empty[String, Lemma]) {
+        (m, l) => if (m.contains(l.name)) m else m + (l.name -> l)
+      }
+      val candOpeners = cands.map(_.opener).toSet
+      lemmas.filter(l => corClosure(byNameFirst, candOpeners, l).nonEmpty).map(_.opener).distinct.sorted
+    }
+  }
+
+  /** --delete-lemmas: delete eligible used lemmas + whole-proof-ablate users.
+   *  Correct-by-construction (see uses.ml / uses.rs): a lemma is deletable only
+   *  when every occurrence of its name outside its block is in a proof body, it
+   *  closes normally, carries no attribute (`lemma foo [simp]:`), and has ≥1
+   *  in-file user. `aggressive` relaxes the normal-close requirement. */
+  private def ablate_delete(syntax: Outer_Syntax, text: CharSequence, spec: Spec, rng: Random): Result = {
+    val spans = syntax.parse_spans(text).toArray
+    val n = spans.length
+    def src(j: Int): String = Token.implode(spans(j).content)
+    val lemmas = analyzeLemmas(spans, spec)
     val totalEligible = lemmas.count(_.eligible)
     val cands = lemmas.filter(l => l.eligible &&
       l.users.length >= spec.min_centrality && l.users.length <= spec.max_centrality)
@@ -467,24 +518,14 @@ object Ablate {
         val byNameFirst = lemmas.foldLeft(Map.empty[String, Lemma]) {
           (m, l) => if (m.contains(l.name)) m else m + (l.name -> l)
         }
-        def depsOf(l: Lemma): List[Lemma] =
-          (l.stmtNames ++ l.bodyNames).flatMap(byNameFirst.get)
-            .filter(_.opener != l.opener).distinct
         val candOpeners = cands.map(_.opener).toSet
-        def closureCands(start: Lemma): Vector[Lemma] = {
-          val seen = mutable.Set.empty[Int]
-          val acc = new mutable.ListBuffer[Lemma]
-          var stack = depsOf(start)
-          while (stack.nonEmpty) {
-            val l = stack.head; stack = stack.tail
-            if (l.opener != start.opener && seen.add(l.opener)) {
-              acc += l
-              stack = depsOf(l) ::: stack
-            }
-          }
-          acc.toVector.filter(l => candOpeners.contains(l.opener)).sortBy(_.opener)
+        def closureCands(start: Lemma): Vector[Lemma] = corClosure(byNameFirst, candOpeners, start)
+        // [--*-all] forces one specific corollary (via ablate_all); otherwise try every
+        // theorem in a shuffled order, re-picking only when a closure runs dry.
+        val order = spec.forced_corollary match {
+          case Some(op) => lemmas.toVector.filter(_.opener == op)
+          case None => rng.shuffle(lemmas.toVector)
         }
-        val order = rng.shuffle(lemmas.toVector)
         val del = mutable.Set.empty[Int]
         val chosen = new mutable.ListBuffer[Lemma]
         val targetDeletions = spec.delete_count
@@ -776,6 +817,26 @@ object Ablate {
       corollaries, closureOpeners.size)
   }
 
+  /** `--corollary-delete-lemmas*-all`: emit one ablation per eligible corollary — each
+   *  deletes a single ancestor lemma from that corollary's closure and holes its in-file
+   *  users (leaf-only under `delete_leaves`), in file order. Any other mode is the
+   *  singleton `List(ablate ...)`. Only non-trivial challenges are kept. Callers ignore
+   *  `--repeat` here. Mirrors rocq `ablate_all`. */
+  def ablate_all(syntax: Outer_Syntax, text: CharSequence, spec: Spec,
+    rng: Random, centrality: String => Int = (_ => 0)): List[Result] =
+    if (!spec.corollary_all) List(ablate(syntax, text, spec, rng, centrality))
+    else {
+      val spans = syntax.parse_spans(text).toArray
+      // delete N lemmas per corollary (N = --corollary-delete-lemmas-all's arg, default 1)
+      val n = spec.delete_count.filter(_ > 0).getOrElse(1)
+      eligibleCorollaryOpeners(spans, spec).flatMap { op =>
+        val sub = spec.copy(corollary_all = false, corollary = true,
+          forced_corollary = Some(op), delete_count = Some(n), count = None, truncate = false)
+        val r = ablate(syntax, text, sub, rng, centrality)
+        if (r.ablated > 0 && r.text != r.solution) Some(r) else None
+      }
+    }
+
 
   /* difficulty preset ladder (easy -> hard); raw knobs override any preset field */
 
@@ -989,6 +1050,13 @@ object Ablate {
       |                        theorem's (a "corollary") transitive in-file dependency
       |                        closure (fan-in weighted; re-picks a corollary only when the
       |                        closure runs dry). Variants: -uniform, -leaves.
+      |    --corollary-delete-lemmas-all [N]
+      |    --corollary-delete-lemmas-leaves-all [N]
+      |                        walk the file and emit ONE ablation per eligible corollary
+      |                        (each deletes N ancestor lemmas — default 1 — from that
+      |                        corollary's closure + holes their users; -leaves-all holes
+      |                        only leaf steps).
+      |                        Maximises coverage — ignores --repeat.
       |    --ablate-scripts    ablate apply-scripts whole (drop the entire script)
       |                        instead of the default prefix-cut (keep some `apply`
       |                        steps, `sorry` the rest)
@@ -1044,6 +1112,7 @@ object Ablate {
     var deleteLeaves = false
     var aggressive = false
     var corollary = false
+    var corollaryAll = false
     var ablateScripts = false
     var repeat = 1
     val paths = new mutable.ListBuffer[String]
@@ -1098,6 +1167,15 @@ object Ablate {
           deleteLemmas = true; corollary = true; deleteLeaves = true; deleteCount = n.toIntOption; rest = tl
         case "--corollary-delete-lemmas-leaves" :: tl =>
           deleteLemmas = true; corollary = true; deleteLeaves = true; rest = tl
+        // -all variants: one ablation per eligible corollary (ignores --repeat)
+        case "--corollary-delete-lemmas-all" :: n :: tl if n.toIntOption.exists(_ >= 0) =>
+          deleteLemmas = true; corollary = true; corollaryAll = true; deleteCount = n.toIntOption; rest = tl
+        case "--corollary-delete-lemmas-all" :: tl =>
+          deleteLemmas = true; corollary = true; corollaryAll = true; rest = tl
+        case "--corollary-delete-lemmas-leaves-all" :: n :: tl if n.toIntOption.exists(_ >= 0) =>
+          deleteLemmas = true; corollary = true; deleteLeaves = true; corollaryAll = true; deleteCount = n.toIntOption; rest = tl
+        case "--corollary-delete-lemmas-leaves-all" :: tl =>
+          deleteLemmas = true; corollary = true; deleteLeaves = true; corollaryAll = true; rest = tl
         case "--ablate-scripts" :: tl => ablateScripts = true; rest = tl
         case "--repeat" :: v :: tl => repeat = v.toInt; rest = tl
         case "-s" :: v :: tl => session = v; rest = tl
@@ -1151,6 +1229,7 @@ object Ablate {
       delete_leaves = deleteLeaves,
       aggressive = aggressive,
       corollary = corollary,
+      corollary_all = corollaryAll,
       ablate_scripts = ablateScripts)
 
     if (spec.min_depth < 1) { Console.err.println("--min-depth must be >= 1"); sys.exit(2) }
@@ -1232,11 +1311,11 @@ object Ablate {
       val original = File.read(thy)
       val display = display_path(thy)
       val seen = new mutable.HashSet[String]   // dedup identical ablations of this theory
-      var k = 0
       var produced = 0
-      while (k < n_repeat) {
-        val rng = new Random(mix64(base ^ thy.implode.hashCode.toLong ^ (k.toLong * 0x9E3779B97F4A7C15L)))
-        val result = ablate(syntax, original, spec, rng, centrality)
+      // Emit one ablation (deduped by challenge text, non-trivial only). A theory
+      // yielding several records — via --repeat OR --corollary-delete-lemmas*-all — gets
+      // a variant index; a sole record gets none.
+      def emitOne(result: Result): Unit = {
         // aggressive delete-lemmas: only keep challenges that actually compile
         val valid = !spec.aggressive || check_compiles(thy, result.text)
         // only emit *real* challenges: at least one hole was inserted AND the challenge
@@ -1244,17 +1323,36 @@ object Ablate {
         // ablation) otherwise yields a trivial, already-complete challenge that would
         // inflate any downstream baseline
         val nontrivial = result.ablated > 0 && result.text != result.solution
-        if (valid && nontrivial && seen.add(result.text)) {  // best-effort dedup across repeats
+        // dedup key: challenge text normally, but the (deleted lemma(s), corollary) PAIR
+        // under --corollary-delete-lemmas*-all — the same lemma deleted for different
+        // corollaries is kept; only an identical pair is dropped.
+        val key =
+          if (spec.corollary_all)
+            result.deleted.map(_.name).sorted.mkString(",") + " @@ " +
+              result.corollaries.map(_.name).sorted.mkString(",")
+          else result.text
+        if (valid && nontrivial && seen.add(key)) {  // best-effort dedup across repeats
           if (text_mode) System.out.print(result.text)   // raw ablated theory, byte-exact
           else {
-            val variant = if (n_repeat > 1) Some(produced) else None
+            val variant = if (n_repeat > 1 || spec.corollary_all) Some(produced) else None
             val obj = record(display, session, spec, base, variant, difficulty, result)
             System.out.println(if (compact) JSON.Format(obj) else JSON.Format.pretty_print(obj))
           }
           produced += 1
           emitted += 1
         }
-        k += 1
+      }
+      if (spec.corollary_all) {
+        // one ablation per eligible corollary (walked in file order); --repeat ignored
+        val rng = new Random(mix64(base ^ thy.implode.hashCode.toLong))
+        ablate_all(syntax, original, spec, rng, centrality).foreach(emitOne)
+      } else {
+        var k = 0
+        while (k < n_repeat) {
+          val rng = new Random(mix64(base ^ thy.implode.hashCode.toLong ^ (k.toLong * 0x9E3779B97F4A7C15L)))
+          emitOne(ablate(syntax, original, spec, rng, centrality))
+          k += 1
+        }
       }
     }
     System.out.flush()

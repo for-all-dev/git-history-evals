@@ -35,6 +35,10 @@ type spec = {
   delete_leaves : bool; (* delete-lemmas: hole only the leaf steps citing L, not whole proofs *)
   aggressive : bool; (* delete-lemmas: relax syntactic guards (BE; needs check-build) *)
   corollary : bool; (* delete-lemmas: restrict candidates to one random theorem's dep closure *)
+  corollary_all : bool; (* corollary: emit one ablation per eligible corollary (via ablate_all,
+                           ignoring --repeat), rather than one random corollary *)
+  forced_corollary : int option; (* corollary: use ONLY the corollary at this opener index
+                                     (set by ablate_all per corollary; internal) *)
 }
 
 let default_spec =
@@ -61,6 +65,8 @@ let default_spec =
     delete_leaves = false;
     aggressive = false;
     corollary = false;
+    corollary_all = false;
+    forced_corollary = None;
   }
 
 let uses_centrality s =
@@ -715,6 +721,33 @@ let slice_delete (spans : Span.t array) (spec : spec)
   done;
   Shape.collapse_blank_lines (Buffer.contents buf)
 
+(* Transitive in-file dependency closure of a lemma, restricted to deletable candidates.
+   Shared by [corollary_select] (random corollary) and [eligible_corollary_openers]
+   (the [--corollary-delete-lemmas*-all] enumerator) so the two never drift. *)
+let cor_deps_of (by_name : (string, Uses.lemma) Hashtbl.t) (l : Uses.lemma) : Uses.lemma list =
+  l.Uses.stmt_names @ l.Uses.body_names
+  |> List.filter_map (fun nm -> Hashtbl.find_opt by_name nm)
+  |> List.filter (fun (d : Uses.lemma) -> d.Uses.opener <> l.Uses.opener)
+
+let cor_closure (by_name : (string, Uses.lemma) Hashtbl.t)
+    (cand_openers : (int, unit) Hashtbl.t) (start : Uses.lemma) : Uses.lemma list =
+  let seen = Hashtbl.create 64 in
+  let acc = ref [] and stack = ref (cor_deps_of by_name start) in
+  while !stack <> [] do
+    match !stack with
+    | [] -> ()
+    | (l : Uses.lemma) :: tl ->
+        stack := tl;
+        if l.Uses.opener <> start.Uses.opener && not (Hashtbl.mem seen l.Uses.opener) then begin
+          Hashtbl.replace seen l.Uses.opener ();
+          acc := l :: !acc;
+          stack := cor_deps_of by_name l @ !stack
+        end
+  done;
+  !acc
+  |> List.filter (fun (l : Uses.lemma) -> Hashtbl.mem cand_openers l.Uses.opener)
+  |> List.sort (fun (a : Uses.lemma) (b : Uses.lemma) -> compare a.Uses.opener b.Uses.opener)
+
 let ablate_delete (spans : Span.t array) (spec : spec) (rng : Rng.t) : result =
   let n = Array.length spans in
   let src_range lo hi =
@@ -774,33 +807,19 @@ let ablate_delete (spans : Span.t array) (spec : spec) (rng : Rng.t) : result =
       List.iter
         (fun (l : Uses.lemma) -> if not (Hashtbl.mem by_name l.name) then Hashtbl.replace by_name l.name l)
         lemmas;
-      let deps_of (l : Uses.lemma) =
-        l.stmt_names @ l.body_names
-        |> List.filter_map (fun nm -> Hashtbl.find_opt by_name nm)
-        |> List.filter (fun (d : Uses.lemma) -> d.opener <> l.opener)
-      in
       let cand_openers = Hashtbl.create 64 in
       List.iter (fun (l : Uses.lemma) -> Hashtbl.replace cand_openers l.opener ()) cands;
-      let closure_cands (start : Uses.lemma) =
-        let seen = Hashtbl.create 64 in
-        let acc = ref [] and stack = ref (deps_of start) in
-        while !stack <> [] do
-          match !stack with
-          | [] -> ()
-          | (l : Uses.lemma) :: tl ->
-              stack := tl;
-              if l.opener <> start.opener && not (Hashtbl.mem seen l.opener) then begin
-                Hashtbl.replace seen l.opener ();
-                acc := l :: !acc;
-                stack := deps_of l @ !stack
-              end
-        done;
-        !acc
-        |> List.filter (fun (l : Uses.lemma) -> Hashtbl.mem cand_openers l.opener)
-        |> List.sort (fun (a : Uses.lemma) (b : Uses.lemma) -> compare a.opener b.opener)
+      let closure_cands = cor_closure by_name cand_openers in
+      (* [--*-all] forces one specific corollary (via ablate_all); otherwise try every
+         theorem in a shuffled order, re-picking only when a closure runs dry. *)
+      let order =
+        match spec.forced_corollary with
+        | Some op -> Array.of_list (List.filter (fun (l : Uses.lemma) -> l.opener = op) lemmas)
+        | None ->
+            let o = Array.of_list lemmas in
+            Rng.shuffle rng o;
+            o
       in
-      let order = Array.of_list lemmas in
-      Rng.shuffle rng order;
       let del = Hashtbl.create 16 and chosen = ref [] in
       let target_deletions = spec.delete_count in
       let target_ablations = if spec.delete_count = None then spec.count else None in
@@ -1179,3 +1198,57 @@ let ablate (spans : Span.t array) (spec : spec) (rng : Rng.t)
   | None ->
       let p = spec.prob in
       fst (walk_all spans spec centrality (fun _ -> Rng.next_f64 rng < p))
+
+(* Openers of every lemma that can serve as a corollary — i.e. whose transitive in-file
+   dependency closure contains at least one deletable candidate — in file order. Drives
+   [ablate_all] for [--corollary-delete-lemmas*-all]. *)
+let eligible_corollary_openers (spans : Span.t array) (spec : spec) : int list =
+  let lemmas = Uses.analyze ~aggressive:spec.aggressive spans in
+  let nusers (l : Uses.lemma) = List.length l.Uses.users in
+  let cands =
+    List.filter
+      (fun (l : Uses.lemma) ->
+        l.Uses.eligible && nusers l >= spec.min_centrality && nusers l <= spec.max_centrality)
+      lemmas
+  in
+  if cands = [] then []
+  else begin
+    let by_name : (string, Uses.lemma) Hashtbl.t = Hashtbl.create 64 in
+    List.iter
+      (fun (l : Uses.lemma) ->
+        if not (Hashtbl.mem by_name l.Uses.name) then Hashtbl.replace by_name l.Uses.name l)
+      lemmas;
+    let cand_openers = Hashtbl.create 64 in
+    List.iter (fun (l : Uses.lemma) -> Hashtbl.replace cand_openers l.Uses.opener ()) cands;
+    lemmas
+    |> List.filter (fun (l : Uses.lemma) -> cor_closure by_name cand_openers l <> [])
+    |> List.map (fun (l : Uses.lemma) -> l.Uses.opener)
+    |> List.sort_uniq compare
+  end
+
+(* [--corollary-delete-lemmas*-all]: emit one ablation per eligible corollary — each
+   deletes a single ancestor lemma from that corollary's closure and holes its in-file
+   users (leaf-only under [delete_leaves]), in file order. Any other mode is the singleton
+   [[ablate …]]. Only non-trivial challenges are kept. Callers ignore [--repeat] here. *)
+let ablate_all (spans : Span.t array) (spec : spec) (rng : Rng.t)
+    (centrality : string -> int) : result list =
+  if not spec.corollary_all then [ ablate spans spec rng centrality ]
+  else
+    eligible_corollary_openers spans spec
+    |> List.filter_map (fun op ->
+           (* delete N lemmas per corollary (N = --corollary-delete-lemmas-all[=N],
+              default 1); each corollary draws from its own closure. *)
+           let n = match spec.delete_count with Some k when k > 0 -> k | _ -> 1 in
+           let sub =
+             {
+               spec with
+               corollary_all = false;
+               corollary = true;
+               forced_corollary = Some op;
+               delete_count = Some n;
+               count = None;
+               truncate = false;
+             }
+           in
+           let r = ablate spans sub rng centrality in
+           if r.ablated > 0 && r.text <> r.solution then Some r else None)

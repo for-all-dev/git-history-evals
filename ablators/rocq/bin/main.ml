@@ -66,6 +66,12 @@ let usage =
                         theorem's (a "corollary") transitive in-file dependency
                         closure (fan-in weighted; re-picks a corollary only when the
                         closure runs dry). Variants: -uniform, -leaves.
+    --corollary-delete-lemmas-all [N]
+    --corollary-delete-lemmas-leaves-all [N]
+                        walk the file and emit ONE ablation per eligible corollary
+                        (each deletes N ancestor lemmas — default 1 — from that
+                        corollary's closure + holes their users; -leaves-all holes
+                        only leaf steps). Maximises coverage — ignores --repeat.
 
   Other:
     -s SESSION       session/library label recorded in output (default: coq)
@@ -156,6 +162,7 @@ type opts = {
   mutable delete_leaves : bool;
   mutable aggressive : bool;
   mutable corollary : bool;
+  mutable corollary_all : bool;
   mutable repeat : int;
   mutable strip_dirs : string list;
   mutable paths : string list;
@@ -170,7 +177,7 @@ let parse_args argv =
       truncate = false; shrink_challenge = false; shrink_solution = false;
       shrink_challenge_minimal = false; shrink_solution_minimal = false;
       allow_defined = false; delete_lemmas = false; delete_count = None; delete_uniform = false;
-      delete_leaves = false; aggressive = false; corollary = false;
+      delete_leaves = false; aggressive = false; corollary = false; corollary_all = false;
       repeat = 1; strip_dirs = []; paths = [] }
   in
   let n = Array.length argv in
@@ -213,6 +220,8 @@ let parse_args argv =
      | "--corollary-delete-lemmas" -> o.delete_lemmas <- true; o.corollary <- true; o.delete_count <- peek_int ()
      | "--corollary-delete-lemmas-uniform" -> o.delete_lemmas <- true; o.corollary <- true; o.delete_uniform <- true; o.delete_count <- peek_int ()
      | "--corollary-delete-lemmas-leaves" -> o.delete_lemmas <- true; o.corollary <- true; o.delete_leaves <- true; o.delete_count <- peek_int ()
+     | "--corollary-delete-lemmas-all" -> o.delete_lemmas <- true; o.corollary <- true; o.corollary_all <- true; o.delete_count <- peek_int ()
+     | "--corollary-delete-lemmas-leaves-all" -> o.delete_lemmas <- true; o.corollary <- true; o.delete_leaves <- true; o.corollary_all <- true; o.delete_count <- peek_int ()
      | "--difficulty" -> o.difficulty <- Some (next a)
      | "--min-depth" -> o.min_depth <- Some (parse_depth (next a))
      | "--max-depth" -> o.max_depth <- Some (parse_depth (next a))
@@ -272,6 +281,8 @@ let build_spec o =
       delete_leaves = o.delete_leaves;
       aggressive = o.aggressive;
       corollary = o.corollary;
+      corollary_all = o.corollary_all;
+      forced_corollary = None;
     }
 
 let count_goals text =
@@ -366,24 +377,34 @@ let () =
       let spans = Span.parse_spans original in
       let seen = Hashtbl.create 8 in
       let produced = ref 0 in
-      for k = 0 to n_repeat - 1 do
-        let pf = fnv1a display in
-        let seed =
-          Int64.logxor base_seed (Int64.logxor pf (Int64.mul (Int64.of_int k) golden))
-        in
-        let result = Ablate.ablate spans spec (Ablate.Rng.make seed) centrality in
+      (* dedup key: normally the challenge text (distinct challenges), but under
+         --corollary-delete-lemmas*-all the (deleted lemma(s), corollary) PAIR — so the
+         same lemma deleted for two different corollaries is kept (both are real
+         per-corollary challenges), only an identical lemma/corollary pair is dropped. *)
+      let dedup_key (result : Ablate.result) =
+        if spec.Ablate.corollary_all then
+          let names f xs = String.concat "," (List.sort compare (List.map f xs)) in
+          names (fun (d : Ablate.deleted_lemma) -> d.Ablate.d_name) result.Ablate.deleted
+          ^ "\x00" ^ names (fun (c : Ablate.corollary) -> c.Ablate.co_name) result.Ablate.corollaries
+        else result.Ablate.text
+      in
+      (* emit one ablation result (deduped, non-trivial only). A file yielding several
+         records — via --repeat OR --corollary-delete-lemmas*-all — gets a variant index;
+         a sole record gets none. *)
+      let emit_one (result : Ablate.result) =
         (* aggressive delete-lemmas: only keep challenges that actually compile *)
-        let valid = (not o.aggressive) || Build_check.check_compiles path result.text in
+        let valid = (not o.aggressive) || Build_check.check_compiles path result.Ablate.text in
         (* only emit *real* challenges: at least one hole was inserted AND the challenge
            differs from the solution. A file with no eligible lemmas (or a no-op
            ablation) otherwise yields a trivial, already-complete challenge that would
            inflate any downstream baseline *)
-        let nontrivial = result.ablated > 0 && result.text <> result.solution in
-        if valid && nontrivial && not (Hashtbl.mem seen result.text) then begin
-          Hashtbl.replace seen result.text ();
-          if o.text_mode then print_string result.text
+        let nontrivial = result.Ablate.ablated > 0 && result.Ablate.text <> result.Ablate.solution in
+        let key = dedup_key result in
+        if valid && nontrivial && not (Hashtbl.mem seen key) then begin
+          Hashtbl.replace seen key ();
+          if o.text_mode then print_string result.Ablate.text
           else begin
-            let variant = if n_repeat > 1 then Some !produced else None in
+            let variant = if n_repeat > 1 || spec.Ablate.corollary_all then Some !produced else None in
             let obj =
               Record.record ~file_path:display ~session:o.session ~spec
                 ~seed:(Int64.to_int base_seed) ~variant ~difficulty:o.difficulty
@@ -395,7 +416,18 @@ let () =
           incr produced;
           incr emitted
         end
-      done)
+      in
+      if spec.Ablate.corollary_all then
+        (* one ablation per eligible corollary (walked in file order); --repeat ignored *)
+        let seed = Int64.logxor base_seed (fnv1a display) in
+        List.iter emit_one (Ablate.ablate_all spans spec (Ablate.Rng.make seed) centrality)
+      else
+        for k = 0 to n_repeat - 1 do
+          let seed =
+            Int64.logxor base_seed (Int64.logxor (fnv1a display) (Int64.mul (Int64.of_int k) golden))
+          in
+          emit_one (Ablate.ablate spans spec (Ablate.Rng.make seed) centrality)
+        done)
     docs;
   if o.verbose then
     Printf.eprintf "[emitted %d %s]\n%!" !emitted (if o.text_mode then "files" else "records")

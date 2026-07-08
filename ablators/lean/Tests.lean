@@ -198,6 +198,26 @@ def corollaryTests : StateT Tally IO Unit := do
     (Rng.mk 5) (fun _ => (0:Int))).deleted.toList.map (·.name)
   check "corollary-uniform: deletion within the closure" (du.all (fun n => n == "base" || n == "mid"))
 
+-- corollary-delete-lemmas-all: two independent chains c1 -> b1 and c2 -> b2. Each of
+-- c1, c2 has a non-empty eligible closure ({b1}, {b2}), so `ablateAll` emits one record
+-- per eligible corollary, each deleting exactly one ancestor lemma. The non-all
+-- corollary path stays a singleton.
+def corollaryAllTests : StateT Tally IO Unit := do
+  let src := "theorem alpha : True := trivial\n\n\
+    theorem calpha : True := alpha\n\n\
+    theorem beta : True := trivial\n\n\
+    theorem cbeta : True := beta\n"
+  let toks := tokenize src
+  let all := ablateAll toks { deleteLemmas := true, corollary := true, corollaryAll := true }
+    (Rng.mk 0) (fun _ => (0:Int))
+  check "corollary-all: ≥ 2 results (one per eligible corollary)" (all.size ≥ 2)
+  check "corollary-all: each deletes exactly one lemma" (all.all (fun r => r.deleted.size == 1))
+  check "corollary-all: all non-trivial" (all.all (fun r => r.ablated > 0 && r.text != r.solution))
+  -- non-all corollary path is a singleton
+  let one := ablateAll toks { deleteLemmas := true, corollary := true }
+    (Rng.mk 0) (fun _ => (0:Int))
+  check "corollary-all: non-all path is a singleton" (one.size == 1)
+
 -- solution_diff: apply(challenge, unifiedDiff challenge solution) = solution.
 -- Also extracted to keep the generated C functions small (see `deleteTests`).
 def diffTests : StateT Tally IO Unit := do
@@ -323,6 +343,7 @@ def main : IO UInt32 := do
     dotNotationTests
     deleteCountArgTests
     corollaryTests
+    corollaryAllTests
     letDocTests
     diffTests
   ).run {}

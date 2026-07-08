@@ -576,6 +576,54 @@ mod tests {
         assert!(!sh.text.is_empty() && sh.text != sh.solution);
     }
 
+    // Two independent corollaries: cor_a's closure is {base1}, cor_b's is {base2}
+    // (base1/base2 have empty closures). --corollary-delete-lemmas-all must emit one
+    // ablation per eligible corollary (>= 2), each deleting exactly one lemma, each
+    // non-trivial. The non-all path is a singleton.
+    const COROLLARY_ALL_SRC: &str = "theory T\nimports Main\nbegin\n\n\
+        lemma base1: \"(1::nat) = 1\" by simp\n\n\
+        lemma base2: \"(1::nat) = 1\" by simp\n\n\
+        lemma cor_a: \"(1::nat) = 1\" using base1 by simp\n\n\
+        lemma cor_b: \"(1::nat) = 1\" using base2 by simp\n\nend\n";
+
+    #[test]
+    fn corollary_delete_all_one_per_corollary() {
+        let syn = span::Syntax::hol();
+        let spans = syn.parse_spans(COROLLARY_ALL_SRC);
+        let z = |_: &str| 0i64;
+        let spec = ablate::Spec {
+            delete_lemmas: true,
+            corollary: true,
+            corollary_all: true,
+            ..Default::default()
+        };
+        let mut rng = ablate::Rng::new(5);
+        let results = ablate::ablate_all(&spans, &spec, &mut rng, &z);
+        assert!(results.len() >= 2, "emits >= 2 distinct ablations");
+        assert!(
+            results.iter().all(|r| r.deleted.len() == 1),
+            "each result deletes exactly one lemma"
+        );
+        assert!(
+            results
+                .iter()
+                .all(|r| r.ablated > 0 && r.text != r.solution),
+            "every result is non-trivial (holes + differs from solution)"
+        );
+        // the non-all path is the singleton [ablate ...]
+        let mut rng2 = ablate::Rng::new(5);
+        let one = ablate::ablate_all(
+            &spans,
+            &ablate::Spec {
+                corollary_all: false,
+                ..spec.clone()
+            },
+            &mut rng2,
+            &z,
+        );
+        assert_eq!(one.len(), 1, "non-all: ablate_all is a singleton");
+    }
+
     #[test]
     fn shrink_challenge_and_solution() {
         let syn = span::Syntax::hol();

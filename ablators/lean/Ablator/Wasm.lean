@@ -33,7 +33,7 @@ def ablateTheoryFull
     (count : Option Nat) (byCentrality : Bool)
     (prob : Float) (truncate shrinkChallenge shrinkSolution deleteLemmas : Bool)
     (shrinkChallengeMinimal shrinkSolutionMinimal : Bool)
-    (deleteCount : Option Nat) (deleteUniform deleteLeaves corollary : Bool)
+    (deleteCount : Option Nat) (deleteUniform deleteLeaves corollary corollaryAll : Bool)
     (seed : UInt64) : String :=
   let toks := tokenize text
   let spans := parseSpans toks
@@ -46,11 +46,14 @@ def ablateTheoryFull
     shrinkChallengeMinimal := shrinkChallengeMinimal, shrinkSolutionMinimal := shrinkSolutionMinimal,
     deleteLemmas := deleteLemmas, deleteCount := deleteCount,
     deleteUniform := deleteUniform, deleteLeaves := deleteLeaves, corollary := corollary,
-    aggressive := false }
+    corollaryAll := corollaryAll, aggressive := false }
   let fan := fanIn #[(toks, spans)]
   let centrality := fun name => fan.getD name 0
-  let result := ablate toks spec (Rng.mk seed) centrality
-  (resultJson result).compact
+  -- corollaryAll: return a JSON ARRAY (one per eligible corollary); else a single object.
+  if corollaryAll then
+    (Json.arr ((ablateAll toks spec (Rng.mk seed) centrality).toList.map resultJson)).compact
+  else
+    (resultJson (ablate toks spec (Rng.mk seed) centrality)).compact
 
 private def normU32 (x : UInt32) : Int :=
   if x == u32Inf then INF else Int.ofNat x.toNat
@@ -70,7 +73,7 @@ def leanAblateTheory
     (count : UInt32) (byCentrality : Bool)
     (probPermille : UInt32) (truncate shrinkChallenge shrinkSolution deleteLemmas : Bool)
     (shrinkChallengeMinimal shrinkSolutionMinimal : Bool)
-    (deleteCount : UInt32) (deleteUniform deleteLeaves corollary : Bool)
+    (deleteCount : UInt32) (deleteUniform deleteLeaves corollary corollaryAll : Bool)
     (seed : UInt64) : String :=
   ablateTheoryFull text
     (Int.ofNat minDepth.toNat) (normU32 maxDepth) leavesOnly
@@ -79,7 +82,7 @@ def leanAblateTheory
     (if count == u32Inf then none else some count.toNat) byCentrality
     (probPermille.toNat.toFloat / 1000.0) truncate shrinkChallenge shrinkSolution deleteLemmas
     shrinkChallengeMinimal shrinkSolutionMinimal
-    (if deleteCount == u32Inf then none else some deleteCount.toNat) deleteUniform deleteLeaves corollary
+    (if deleteCount == u32Inf then none else some deleteCount.toNat) deleteUniform deleteLeaves corollary corollaryAll
     seed
 
 end Ablator

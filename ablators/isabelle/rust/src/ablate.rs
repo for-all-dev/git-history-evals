@@ -36,6 +36,12 @@ pub struct Spec {
     /// (the "corollary") transitive in-file dependency closure, re-picking a fresh
     /// corollary only when the current closure is exhausted before the target count.
     pub corollary: bool,
+    /// corollary_all: emit one ablation per eligible corollary (via `ablate_all`,
+    /// ignoring --repeat), rather than one random corollary.
+    pub corollary_all: bool,
+    /// corollary: use ONLY the corollary at this opener index (set by `ablate_all`
+    /// per corollary; internal).
+    pub forced_corollary: Option<usize>,
     /// Ablate apply-scripts whole (drop the entire script) instead of the default
     /// prefix-cut (keep some `apply` steps, `sorry` the rest).
     pub ablate_scripts: bool,
@@ -65,6 +71,8 @@ impl Default for Spec {
             delete_leaves: false,
             aggressive: false,
             corollary: false,
+            corollary_all: false,
+            forced_corollary: None,
             ablate_scripts: false,
         }
     }
@@ -867,6 +875,63 @@ fn u_pos(lemmas: &[crate::uses::Lemma], opener: usize) -> usize {
         .unwrap_or(usize::MAX)
 }
 
+/// name -> first lemma position, for resolving citation edges to in-file lemmas.
+/// (Shared by `corollary_select` and `eligible_corollary_openers`, mirroring the rocq
+/// `by_name` table, so the random-corollary and the `-all` enumerator never drift.)
+fn name_positions(lemmas: &[crate::uses::Lemma]) -> std::collections::HashMap<&str, usize> {
+    let mut m: std::collections::HashMap<&str, usize> = std::collections::HashMap::new();
+    for (p, l) in lemmas.iter().enumerate() {
+        m.entry(l.name.as_str()).or_insert(p);
+    }
+    m
+}
+
+/// In-file dependency positions a lemma cites (from its statement + body names),
+/// excluding itself. Mirrors the rocq `cor_deps_of`.
+fn cor_deps_of(
+    lemmas: &[crate::uses::Lemma],
+    idx_of: &std::collections::HashMap<&str, usize>,
+    p: usize,
+) -> Vec<usize> {
+    let l = &lemmas[p];
+    let mut s: Vec<usize> = l
+        .stmt_names
+        .iter()
+        .chain(l.body_names.iter())
+        .filter_map(|nm| idx_of.get(nm.as_str()).copied())
+        .filter(|&q| q != p)
+        .collect();
+    s.sort_unstable();
+    s.dedup();
+    s
+}
+
+/// Eligible candidate positions in `start`'s transitive in-file dependency closure
+/// (excl. itself), sorted. Mirrors the rocq `cor_closure`.
+fn cor_closure(
+    lemmas: &[crate::uses::Lemma],
+    idx_of: &std::collections::HashMap<&str, usize>,
+    cand_pos: &std::collections::HashSet<usize>,
+    start: usize,
+) -> Vec<usize> {
+    use std::collections::HashSet;
+    let mut seen: HashSet<usize> = HashSet::new();
+    let mut stack = cor_deps_of(lemmas, idx_of, start);
+    while let Some(p) = stack.pop() {
+        if seen.insert(p) {
+            for q in cor_deps_of(lemmas, idx_of, p) {
+                if !seen.contains(&q) {
+                    stack.push(q);
+                }
+            }
+        }
+    }
+    seen.remove(&start);
+    let mut v: Vec<usize> = seen.into_iter().filter(|p| cand_pos.contains(p)).collect();
+    v.sort_unstable();
+    v
+}
+
 /// Corollary selection: pick a random theorem, take its transitive in-file dependency
 /// closure, and draw deletions from the *eligible* members of that closure (fan-in
 /// weighted, or uniform). One corollary is exhausted before a fresh one is drawn, so
@@ -880,46 +945,14 @@ fn corollary_select(
     spec: &Spec,
     rng: &mut Rng,
 ) -> (Vec<usize>, Vec<usize>, std::collections::HashSet<usize>) {
-    use std::collections::{HashMap, HashSet};
+    use std::collections::HashSet;
     if cand_pos.is_empty() {
         return (Vec::new(), Vec::new(), HashSet::new());
     }
     // name -> first lemma position, for resolving citation edges to in-file lemmas.
-    let mut idx_of: HashMap<&str, usize> = HashMap::new();
-    for (p, l) in lemmas.iter().enumerate() {
-        idx_of.entry(l.name.as_str()).or_insert(p);
-    }
-    let deps_of = |p: usize| -> Vec<usize> {
-        let l = &lemmas[p];
-        let mut s: Vec<usize> = l
-            .stmt_names
-            .iter()
-            .chain(l.body_names.iter())
-            .filter_map(|nm| idx_of.get(nm.as_str()).copied())
-            .filter(|&q| q != p)
-            .collect();
-        s.sort_unstable();
-        s.dedup();
-        s
-    };
+    let idx_of = name_positions(lemmas);
     // eligible candidates in `corollary`'s transitive dependency closure (excl. itself).
-    let closure_cands = |start: usize| -> Vec<usize> {
-        let mut seen: HashSet<usize> = HashSet::new();
-        let mut stack = deps_of(start);
-        while let Some(p) = stack.pop() {
-            if seen.insert(p) {
-                for q in deps_of(p) {
-                    if !seen.contains(&q) {
-                        stack.push(q);
-                    }
-                }
-            }
-        }
-        seen.remove(&start);
-        let mut v: Vec<usize> = seen.into_iter().filter(|p| cand_pos.contains(p)).collect();
-        v.sort_unstable();
-        v
-    };
+    let closure_cands = |start: usize| -> Vec<usize> { cor_closure(lemmas, &idx_of, cand_pos, start) };
     let weight = |p: usize| -> f64 {
         if spec.delete_uniform {
             1.0
@@ -940,8 +973,21 @@ fn corollary_select(
         pool.len() - 1
     };
 
-    let mut order: Vec<usize> = (0..lemmas.len()).collect();
-    rng.shuffle(&mut order);
+    // `--*-all` forces one specific corollary (via ablate_all); otherwise try every
+    // theorem in a shuffled order, re-picking only when a closure runs dry.
+    let order: Vec<usize> = match spec.forced_corollary {
+        Some(op) => lemmas
+            .iter()
+            .enumerate()
+            .filter(|(_, l)| l.opener == op)
+            .map(|(p, _)| p)
+            .collect(),
+        None => {
+            let mut o: Vec<usize> = (0..lemmas.len()).collect();
+            rng.shuffle(&mut o);
+            o
+        }
+    };
 
     let mut del: HashSet<usize> = HashSet::new();
     let mut chosen: Vec<usize> = Vec::new();
@@ -1315,6 +1361,72 @@ pub fn ablate(
             walk_all(spans, spec, centrality, &mut decide, cut_salt).0
         }
     }
+}
+
+/// Openers of every lemma that can serve as a corollary — i.e. whose transitive in-file
+/// dependency closure contains at least one deletable candidate — in file order. Drives
+/// `ablate_all` for `--corollary-delete-lemmas*-all`. Mirrors the rocq
+/// `eligible_corollary_openers`.
+pub fn eligible_corollary_openers(spans: &[Span], spec: &Spec) -> Vec<usize> {
+    use std::collections::HashSet;
+    let lemmas = crate::uses::analyze(spans, spec.aggressive);
+    let nusers = |l: &crate::uses::Lemma| l.users.len() as i64;
+    let cand_pos: HashSet<usize> = lemmas
+        .iter()
+        .enumerate()
+        .filter(|(_, l)| {
+            l.eligible && nusers(l) >= spec.min_centrality && nusers(l) <= spec.max_centrality
+        })
+        .map(|(p, _)| p)
+        .collect();
+    if cand_pos.is_empty() {
+        return Vec::new();
+    }
+    let idx_of = name_positions(&lemmas);
+    let mut openers: Vec<usize> = lemmas
+        .iter()
+        .enumerate()
+        .filter(|(p, _)| !cor_closure(&lemmas, &idx_of, &cand_pos, *p).is_empty())
+        .map(|(_, l)| l.opener)
+        .collect();
+    openers.sort_unstable();
+    openers.dedup();
+    openers
+}
+
+/// `--corollary-delete-lemmas*-all`: emit one ablation per eligible corollary — each
+/// deletes a single ancestor lemma from that corollary's closure and holes its in-file
+/// users (leaf-only under `delete_leaves`), in file order. Any other mode is the
+/// singleton `[ablate …]`. Only non-trivial challenges are kept. Callers ignore
+/// `--repeat` here. Mirrors the rocq `ablate_all`.
+pub fn ablate_all(
+    spans: &[Span],
+    spec: &Spec,
+    rng: &mut Rng,
+    centrality: &dyn Fn(&str) -> i64,
+) -> Vec<AblationResult> {
+    if !spec.corollary_all {
+        return vec![ablate(spans, spec, rng, centrality)];
+    }
+    // delete N lemmas per corollary (N = --corollary-delete-lemmas-all's arg, default 1)
+    let n = spec.delete_count.filter(|&k| k > 0).unwrap_or(1);
+    let mut out = Vec::new();
+    for op in eligible_corollary_openers(spans, spec) {
+        let sub = Spec {
+            corollary_all: false,
+            corollary: true,
+            forced_corollary: Some(op),
+            delete_count: Some(n),
+            count: None,
+            truncate: false,
+            ..spec.clone()
+        };
+        let r = ablate(spans, &sub, rng, centrality);
+        if r.ablated > 0 && r.text != r.solution {
+            out.push(r);
+        }
+    }
+    out
 }
 
 // Drop all top-level segments after the last ablated one, keeping structural

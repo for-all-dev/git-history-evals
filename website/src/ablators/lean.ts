@@ -32,8 +32,9 @@ declare global {
 
 let mod: EmModule | null = null
 
-// text + 21 numbers, matching leanAblateTheory's argument order.
-const SIG = ['string', ...Array<string>(21).fill('number')]
+// text + 22 numbers, matching leanAblateTheory's argument order (the final knob
+// before seed is `corollaryAll`, which switches the return to a JSON array).
+const SIG = ['string', ...Array<string>(22).fill('number')]
 
 export const leanAblator: Ablator = {
   lang: 'lean',
@@ -48,42 +49,51 @@ export const leanAblator: Ablator = {
     ;(this as { ready: boolean }).ready = true
   },
   ablate(source: string, opts: AblateOptions): AblateResult {
-    if (!mod) throw new Error('lean wasm not loaded')
-    const count = opts.rateMode === 'count' ? opts.count : INF
-    const permille = opts.rateMode === 'prob' ? Math.round(opts.prob * 1000) : 0
-    // deleteCount: the `--delete-lemmas N` target; INF sentinel = unset (only
-    // meaningful in lemma-delete mode).
-    const deleteCount =
-      opts.deleteLemmas && opts.deleteCount != null ? opts.deleteCount >>> 0 : INF
-    const args = [
-      source,
-      u32(opts.minDepth),
-      u32(opts.maxDepth),
-      opts.leavesOnly ? 1 : 0,
-      u32(opts.minSize),
-      u32(opts.maxSize),
-      u32(opts.minCentrality),
-      u32(opts.maxCentrality),
-      count,
-      opts.byCentrality ? 1 : 0,
-      permille,
-      opts.truncate ? 1 : 0,
-      opts.shrinkChallenge ? 1 : 0,
-      opts.shrinkSolution ? 1 : 0,
-      opts.deleteLemmas ? 1 : 0,
-      opts.shrinkChallengeMinimal ? 1 : 0,
-      opts.shrinkSolutionMinimal ? 1 : 0,
-      deleteCount,
-      opts.deleteUniform ? 1 : 0,
-      opts.deleteLeaves ? 1 : 0,
-      opts.corollary ? 1 : 0,
-      opts.seed,
-    ]
-    const ptr = mod.ccall('ablate_json', 'number', SIG, args)
-    const json = mod.UTF8ToString(ptr)
-    mod._free(ptr)
-    const raw = JSON.parse(json)
-    const n = normalizeRaw(raw)
-    return { ...n, raw }
+    const raw = callLean(source, opts, false) as Record<string, unknown>
+    return { ...normalizeRaw(raw), raw }
   },
+  ablateAll(source: string, opts: AblateOptions): AblateResult[] {
+    // with corollaryAll=1 the wasm returns a JSON *array* (one per corollary)
+    const raw = callLean(source, opts, true)
+    const arr = (Array.isArray(raw) ? raw : [raw]) as Record<string, unknown>[]
+    return arr.map((r) => ({ ...normalizeRaw(r), raw: r }))
+  },
+}
+
+// build the 22-number arg vector + invoke `ablate_json`, returning the parsed JSON.
+function callLean(source: string, opts: AblateOptions, corollaryAll: boolean): unknown {
+  if (!mod) throw new Error('lean wasm not loaded')
+  const count = opts.rateMode === 'count' ? opts.count : INF
+  const permille = opts.rateMode === 'prob' ? Math.round(opts.prob * 1000) : 0
+  // deleteCount: the `--delete-lemmas N` target; INF sentinel = unset.
+  const deleteCount = opts.deleteLemmas && opts.deleteCount != null ? opts.deleteCount >>> 0 : INF
+  const args = [
+    source,
+    u32(opts.minDepth),
+    u32(opts.maxDepth),
+    opts.leavesOnly ? 1 : 0,
+    u32(opts.minSize),
+    u32(opts.maxSize),
+    u32(opts.minCentrality),
+    u32(opts.maxCentrality),
+    count,
+    opts.byCentrality ? 1 : 0,
+    permille,
+    opts.truncate ? 1 : 0,
+    opts.shrinkChallenge ? 1 : 0,
+    opts.shrinkSolution ? 1 : 0,
+    opts.deleteLemmas ? 1 : 0,
+    opts.shrinkChallengeMinimal ? 1 : 0,
+    opts.shrinkSolutionMinimal ? 1 : 0,
+    deleteCount,
+    opts.deleteUniform ? 1 : 0,
+    opts.deleteLeaves ? 1 : 0,
+    opts.corollary ? 1 : 0,
+    corollaryAll ? 1 : 0,
+    opts.seed,
+  ]
+  const ptr = mod.ccall('ablate_json', 'number', SIG, args)
+  const json = mod.UTF8ToString(ptr)
+  mod._free(ptr)
+  return JSON.parse(json)
 }

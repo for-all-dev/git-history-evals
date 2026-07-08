@@ -113,16 +113,32 @@ export default function App() {
       if (!ab.ready) await ab.load()
       if (token !== runToken.current) return
       if (mode === 'challenge') {
-        setResult(ab.ablate(debounced, opts))
+        // corollary-all yields many challenges; the single-challenge view shows the first
+        setResult(opts.corollaryAll ? (ab.ablateAll(debounced, opts)[0] ?? null) : ab.ablate(debounced, opts))
         setRecords(null)
       } else {
         const recs: EvalRecord[] = []
         const seen = new Set<string>()
-        for (let k = 0; k < repeat; k++) {
-          const r = ab.ablate(debounced, { ...opts, seed: opts.seed + k })
-          if (seen.has(r.text)) continue
-          seen.add(r.text)
-          recs.push(toRecord(lang, r, { ...opts, seed: opts.seed + k }))
+        if (opts.corollaryAll) {
+          // one ablation per eligible corollary; --repeat is ignored (as in the CLI).
+          // dedup by the (deleted lemma(s), corollary) PAIR — the same lemma deleted for
+          // different corollaries is kept; only an identical pair is dropped.
+          for (const r of ab.ablateAll(debounced, opts)) {
+            const dels = r.deletedLemmas.map((d) => d.name).sort().join(',')
+            const cors = ((r.raw as { corollaries?: { name: string }[] }).corollaries ?? [])
+              .map((c) => c.name).sort().join(',')
+            const key = `${dels}\x00${cors}`
+            if (seen.has(key)) continue
+            seen.add(key)
+            recs.push(toRecord(lang, r, opts))
+          }
+        } else {
+          for (let k = 0; k < repeat; k++) {
+            const r = ab.ablate(debounced, { ...opts, seed: opts.seed + k })
+            if (seen.has(r.text)) continue
+            seen.add(r.text)
+            recs.push(toRecord(lang, r, { ...opts, seed: opts.seed + k }))
+          }
         }
         setRecords(recs)
         setResult(null)
@@ -459,6 +475,13 @@ export default function App() {
               onChange={(v) => up({ corollary: v })}
               disabled={!caps.lemmaDelete}
               hint={`${LANG_LABEL[lang]} WASM ABI: whole-lemma deletion only`}
+            />
+            <Check
+              label="All eligible corollaries (one ablation each; ignores repeat)"
+              checked={opts.corollaryAll}
+              onChange={(v) => up({ corollaryAll: v })}
+              disabled={!caps.lemmaDelete || !opts.corollary}
+              hint="walk the file, deleting one ancestor lemma per corollary"
             />
             <label className={`ti${!caps.lemmaDelete ? ' gated' : ''}`} title={!caps.lemmaDelete ? `${LANG_LABEL[lang]} WASM ABI has no delete-count` : undefined}>
               <span>delete count</span>

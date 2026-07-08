@@ -88,32 +88,15 @@ fn spec_from(opts: &Value) -> (Spec, Option<String>) {
         delete_leaves: as_bool(g("delete_leaves"), false),
         aggressive: false, // the prover-backed path is never exposed to the browser
         corollary: as_bool(g("corollary"), false),
+        corollary_all: as_bool(g("corollary_all"), false),
+        forced_corollary: None,
         ablate_scripts: as_bool(g("ablate_scripts"), false),
     };
     (spec, difficulty)
 }
 
-/// Ablate one theory. `opts_json` is a JSON object of the difficulty knobs
-/// (see the website). Returns a JSON string: `{text, total, ablated, holes}`.
-/// Centrality fan-in is computed within the given text (corpus-of-one).
-#[wasm_bindgen]
-pub fn ablate_theory(text: &str, opts_json: &str, seed: f64) -> String {
-    let opts: Value = serde_json::from_str(opts_json).unwrap_or(Value::Null);
-    let (spec, _difficulty) = spec_from(&opts);
-
-    let syntax = Syntax::hol();
-    let spans = syntax.parse_spans(text);
-
-    let fan = if spec.uses_centrality() {
-        centrality::fan_in(&syntax, std::iter::once(text))
-    } else {
-        std::collections::HashMap::new()
-    };
-    let centrality_fn = |name: &str| *fan.get(name).unwrap_or(&0);
-
-    let mut rng = Rng::new(seed.to_bits());
-    let r = ablate(&spans, &spec, &mut rng, &centrality_fn);
-
+/// Serialise one ablation result to the browser JSON shape.
+fn result_json(r: &crate::ablate::AblationResult) -> Value {
     let holes: Vec<Value> = r
         .holes
         .iter()
@@ -151,7 +134,38 @@ pub fn ablate_theory(text: &str, opts_json: &str, seed: f64) -> String {
             })
         })
         .collect();
-    json!({ "text": r.text, "solution_diff": crate::diff::unified(&r.text, &r.solution), "total": r.total, "ablated": r.ablated, "holes": holes, "deleted_lemmas": deleted, "corollaries": corollaries, "closure_size": r.closure_size }).to_string()
+    json!({ "text": r.text, "solution_diff": crate::diff::unified(&r.text, &r.solution), "total": r.total, "ablated": r.ablated, "holes": holes, "deleted_lemmas": deleted, "corollaries": corollaries, "closure_size": r.closure_size })
+}
+
+/// Ablate one theory. `opts_json` is a JSON object of the difficulty knobs
+/// (see the website). Returns a JSON string: `{text, total, ablated, holes}`.
+/// Centrality fan-in is computed within the given text (corpus-of-one).
+#[wasm_bindgen]
+pub fn ablate_theory(text: &str, opts_json: &str, seed: f64) -> String {
+    let opts: Value = serde_json::from_str(opts_json).unwrap_or(Value::Null);
+    let (spec, _difficulty) = spec_from(&opts);
+
+    let syntax = Syntax::hol();
+    let spans = syntax.parse_spans(text);
+
+    let fan = if spec.uses_centrality() {
+        centrality::fan_in(&syntax, std::iter::once(text))
+    } else {
+        std::collections::HashMap::new()
+    };
+    let centrality_fn = |name: &str| *fan.get(name).unwrap_or(&0);
+
+    let mut rng = Rng::new(seed.to_bits());
+    // corollary_all: one ablation per eligible corollary -> a JSON ARRAY (so the
+    // playground can page through each corollary's challenge); otherwise a single object.
+    if spec.corollary_all {
+        let results = crate::ablate::ablate_all(&spans, &spec, &mut rng, &centrality_fn);
+        let arr: Vec<Value> = results.iter().map(result_json).collect();
+        Value::Array(arr).to_string()
+    } else {
+        let r = ablate(&spans, &spec, &mut rng, &centrality_fn);
+        result_json(&r).to_string()
+    }
 }
 
 /// Number of HOL keywords baked in (sanity check for the JS side).

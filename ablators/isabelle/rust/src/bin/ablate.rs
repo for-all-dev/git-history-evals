@@ -3,7 +3,7 @@
 //! portable/WASM ablation engine.)
 
 use clap::Parser;
-use isabelle_ablator::ablate::{ablate, preset_of, Rng, Spec, INF, LADDER};
+use isabelle_ablator::ablate::{ablate, ablate_all, preset_of, Rng, Spec, INF, LADDER};
 use isabelle_ablator::centrality;
 use isabelle_ablator::count_theory_goals;
 use isabelle_ablator::record::record;
@@ -112,6 +112,13 @@ struct Cli {
     /// like --corollary-delete-lemmas[=N] but hole only leaf steps citing L
     #[arg(long, num_args = 0..=1, require_equals = true, value_name = "N")]
     corollary_delete_lemmas_leaves: Option<Option<u64>>,
+    /// walk the file and emit ONE ablation per eligible corollary (each deletes N ancestor
+    /// lemmas — default 1 — from its closure + holes their users); maximises coverage, ignores --repeat
+    #[arg(long, num_args = 0..=1, require_equals = true, value_name = "N")]
+    corollary_delete_lemmas_all: Option<Option<u64>>,
+    /// like --corollary-delete-lemmas-all but hole only leaf steps citing the deleted lemma
+    #[arg(long, num_args = 0..=1, require_equals = true, value_name = "N")]
+    corollary_delete_lemmas_leaves_all: Option<Option<u64>>,
     /// ablate apply-scripts whole (drop the entire script) instead of the default
     /// prefix-cut (keep a prefix of `apply` steps, `sorry` the rest)
     #[arg(long)]
@@ -238,7 +245,9 @@ fn main() {
             || cli.aggressively_delete_lemmas.is_some()
             || cli.corollary_delete_lemmas.is_some()
             || cli.corollary_delete_lemmas_uniform.is_some()
-            || cli.corollary_delete_lemmas_leaves.is_some(),
+            || cli.corollary_delete_lemmas_leaves.is_some()
+            || cli.corollary_delete_lemmas_all.is_some()
+            || cli.corollary_delete_lemmas_leaves_all.is_some(),
         delete_count: cli
             .delete_lemmas
             .flatten()
@@ -247,15 +256,23 @@ fn main() {
             .or(cli.aggressively_delete_lemmas.flatten())
             .or(cli.corollary_delete_lemmas.flatten())
             .or(cli.corollary_delete_lemmas_uniform.flatten())
-            .or(cli.corollary_delete_lemmas_leaves.flatten()),
+            .or(cli.corollary_delete_lemmas_leaves.flatten())
+            .or(cli.corollary_delete_lemmas_all.flatten())
+            .or(cli.corollary_delete_lemmas_leaves_all.flatten()),
         delete_uniform: cli.delete_lemmas_uniform.is_some()
             || cli.corollary_delete_lemmas_uniform.is_some(),
         delete_leaves: cli.delete_lemmas_leaves.is_some()
-            || cli.corollary_delete_lemmas_leaves.is_some(),
+            || cli.corollary_delete_lemmas_leaves.is_some()
+            || cli.corollary_delete_lemmas_leaves_all.is_some(),
         aggressive: cli.aggressively_delete_lemmas.is_some(),
         corollary: cli.corollary_delete_lemmas.is_some()
             || cli.corollary_delete_lemmas_uniform.is_some()
-            || cli.corollary_delete_lemmas_leaves.is_some(),
+            || cli.corollary_delete_lemmas_leaves.is_some()
+            || cli.corollary_delete_lemmas_all.is_some()
+            || cli.corollary_delete_lemmas_leaves_all.is_some(),
+        corollary_all: cli.corollary_delete_lemmas_all.is_some()
+            || cli.corollary_delete_lemmas_leaves_all.is_some(),
+        forced_corollary: None,
         ablate_scripts: cli.ablate_scripts,
     };
     if spec.min_depth < 1 {
@@ -372,10 +389,22 @@ fn main() {
         let spans = syntax.parse_spans(original);
         let mut seen: HashSet<String> = HashSet::new();
         let mut produced = 0u64;
-        for k in 0..n_repeat {
-            let pf = fnv1a(&display);
-            let mut rng = Rng::new((base as u64) ^ pf ^ k.wrapping_mul(0x9E3779B97F4A7C15));
-            let result = ablate(&spans, &spec, &mut rng, &centrality_fn);
+        // A file yielding several records — via --repeat OR --corollary-delete-lemmas*-all
+        // (which ignores --repeat, walking one ablation per eligible corollary in file
+        // order) — gets a variant index; a sole record gets none.
+        let results: Vec<_> = if spec.corollary_all {
+            let mut rng = Rng::new((base as u64) ^ fnv1a(&display));
+            ablate_all(&spans, &spec, &mut rng, &centrality_fn)
+        } else {
+            (0..n_repeat)
+                .map(|k| {
+                    let pf = fnv1a(&display);
+                    let mut rng = Rng::new((base as u64) ^ pf ^ k.wrapping_mul(0x9E3779B97F4A7C15));
+                    ablate(&spans, &spec, &mut rng, &centrality_fn)
+                })
+                .collect()
+        };
+        for result in results {
             // aggressive delete-lemmas: only keep challenges that actually compile
             if cli.aggressively_delete_lemmas.is_some()
                 && !isabelle_ablator::build_check::check_compiles(path, &result.text)
@@ -389,11 +418,27 @@ fn main() {
             if result.ablated == 0 || result.text == result.solution {
                 continue;
             }
-            if seen.insert(result.text.clone()) {
+            // dedup key: challenge text normally, but the (deleted lemma(s), corollary)
+            // PAIR under --corollary-delete-lemmas*-all — so the same lemma deleted for
+            // different corollaries is kept; only an identical pair is dropped.
+            let key = if spec.corollary_all {
+                let mut dels: Vec<&str> = result.deleted.iter().map(|d| d.name.as_str()).collect();
+                dels.sort_unstable();
+                let mut cors: Vec<&str> = result.corollaries.iter().map(|c| c.name.as_str()).collect();
+                cors.sort_unstable();
+                format!("{} @@ {}", dels.join(","), cors.join(","))
+            } else {
+                result.text.clone()
+            };
+            if seen.insert(key) {
                 if cli.text {
                     print!("{}", result.text);
                 } else {
-                    let variant = if n_repeat > 1 { Some(produced) } else { None };
+                    let variant = if n_repeat > 1 || spec.corollary_all {
+                        Some(produced)
+                    } else {
+                        None
+                    };
                     let obj = record(
                         &display,
                         &cli.session,

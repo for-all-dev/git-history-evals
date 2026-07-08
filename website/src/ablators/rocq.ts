@@ -24,8 +24,15 @@ export const rocqAblator: Ablator = {
   },
   ablate(source: string, opts: AblateOptions): AblateResult {
     if (typeof globalThis.rocqAblate !== 'function') throw new Error('rocq wasm not loaded')
-    const raw = JSON.parse(globalThis.rocqAblate(source, JSON.stringify(richSpec(opts)), opts.seed))
+    const raw = JSON.parse(globalThis.rocqAblate(source, JSON.stringify(richSpec({ ...opts, corollaryAll: false })), opts.seed))
     const n = normalizeRaw(raw)
     return { ...n, raw }
+  },
+  ablateAll(source: string, opts: AblateOptions): AblateResult[] {
+    if (typeof globalThis.rocqAblate !== 'function') throw new Error('rocq wasm not loaded')
+    // with corollary_all set the wasm returns a JSON *array* (one per corollary)
+    const raw = JSON.parse(globalThis.rocqAblate(source, JSON.stringify(richSpec(opts)), opts.seed))
+    const arr = (Array.isArray(raw) ? raw : [raw]) as Record<string, unknown>[]
+    return arr.map((r) => ({ ...normalizeRaw(r), raw: r }))
   },
 }

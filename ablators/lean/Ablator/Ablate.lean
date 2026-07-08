@@ -56,6 +56,12 @@ structure Spec where
   aggressive      : Bool := false
   -- corollary mode: restrict deletion candidates to one random theorem's dep closure
   corollary       : Bool := false
+  -- corollary: emit one ablation per eligible corollary (via `ablateAll`, ignoring
+  -- `--repeat`), rather than one random corollary
+  corollaryAll    : Bool := false
+  -- corollary: use ONLY the corollary at this span index (set by `ablateAll` per
+  -- corollary; internal)
+  forcedCorollary : Option Nat := none
   deriving Inhabited
 
 def Spec.usesCentrality (s : Spec) : Bool :=
@@ -719,6 +725,45 @@ def sliceDelete (toks : Array Token) (spans : Array Span) (spec : Spec)
       if !citesDeleted then buf := buf ++ s.source toks
   return collapseBlankLines buf
 
+/-- name -> first lemma position (a name may be declared more than once; keep the
+    first, mirroring rocq `by_name`). -/
+private def buildByNamePos (lemmas : Array DeletableLemma) : HashMap String Nat := Id.run do
+  let mut byNamePos : HashMap String Nat := {}
+  for i in [0:lemmas.size] do
+    let l := lemmas[i]!
+    if !byNamePos.contains l.name then byNamePos := byNamePos.insert l.name i
+  return byNamePos
+
+/-- In-file dependency neighbours of a lemma (declared names it cites, minus itself).
+    Lifted from `corollarySelect` so `eligibleCorollaryOpeners` shares it (rocq
+    `cor_deps_of`). -/
+def corDepsOf (lemmas : Array DeletableLemma) (byNamePos : HashMap String Nat)
+    (l : DeletableLemma) : Array DeletableLemma :=
+  (l.stmtNames ++ l.bodyNames).foldl (fun acc nm =>
+    if byNamePos.contains nm then
+      let d := lemmas[byNamePos.getD nm 0]!
+      if d.spanIdx != l.spanIdx then acc.push d else acc
+    else acc) (#[] : Array DeletableLemma)
+
+/-- Transitive in-file dependency closure of a lemma, restricted to deletable candidates.
+    Shared by `corollarySelect` (random corollary) and `eligibleCorollaryOpeners` (the
+    `--corollary-delete-lemmas*-all` enumerator) so the two never drift (rocq
+    `cor_closure`). -/
+def corClosure (lemmas : Array DeletableLemma) (byNamePos : HashMap String Nat)
+    (candSet : HashSet Nat) (start : DeletableLemma) : Array DeletableLemma := Id.run do
+  let mut seen : HashSet Nat := {}
+  let mut acc : Array DeletableLemma := #[]
+  let mut stack : Array DeletableLemma := corDepsOf lemmas byNamePos start
+  while stack.size > 0 do
+    let l := stack.back!
+    stack := stack.pop
+    if l.spanIdx != start.spanIdx && !seen.contains l.spanIdx then
+      seen := seen.insert l.spanIdx
+      acc := acc.push l
+      for d in corDepsOf lemmas byNamePos l do
+        if !seen.contains d.spanIdx then stack := stack.push d
+  return (acc.filter (fun l => candSet.contains l.spanIdx)).qsort (fun a b => a.spanIdx < b.spanIdx)
+
 /-- Corollary selection: pick a random theorem, take its transitive in-file
 dependency closure, and draw deletions from the *eligible* members of that closure
 (fan-in weighted, or uniform). One corollary is exhausted before a fresh one is drawn,
@@ -730,31 +775,9 @@ def corollarySelect (lemmas : Array DeletableLemma) (cands : Array DeletableLemm
     (spec : Spec) (rng : Rng) :
     Array DeletableLemma × Array DeletableLemma × HashSet Nat × Rng := Id.run do
   if cands.isEmpty then return (#[], #[], {}, rng)
-  -- name -> first lemma position
-  let mut byNamePos : HashMap String Nat := {}
-  for i in [0:lemmas.size] do
-    let l := lemmas[i]!
-    if !byNamePos.contains l.name then byNamePos := byNamePos.insert l.name i
-  let depsOf := fun (l : DeletableLemma) =>
-    (l.stmtNames ++ l.bodyNames).foldl (fun acc nm =>
-      if byNamePos.contains nm then
-        let d := lemmas[byNamePos.getD nm 0]!
-        if d.spanIdx != l.spanIdx then acc.push d else acc
-      else acc) (#[] : Array DeletableLemma)
+  let byNamePos := buildByNamePos lemmas
   let candSet : HashSet Nat := HashSet.ofArray (cands.map (·.spanIdx))
-  let closureCands := fun (start : DeletableLemma) => Id.run do
-    let mut seen : HashSet Nat := {}
-    let mut acc : Array DeletableLemma := #[]
-    let mut stack : Array DeletableLemma := depsOf start
-    while stack.size > 0 do
-      let l := stack.back!
-      stack := stack.pop
-      if l.spanIdx != start.spanIdx && !seen.contains l.spanIdx then
-        seen := seen.insert l.spanIdx
-        acc := acc.push l
-        for d in depsOf l do
-          if !seen.contains d.spanIdx then stack := stack.push d
-    return (acc.filter (fun l => candSet.contains l.spanIdx)).qsort (fun a b => a.spanIdx < b.spanIdx)
+  let closureCands := fun (start : DeletableLemma) => corClosure lemmas byNamePos candSet start
   let weight := fun (l : DeletableLemma) => if spec.deleteUniform then 1.0 else Float.ofNat l.users.size
   let pickIdx := fun (remaining : Array DeletableLemma) (x : Float) => Id.run do
     let total := remaining.foldl (fun a l => a + weight l) 0.0
@@ -767,8 +790,13 @@ def corollarySelect (lemmas : Array DeletableLemma) (cands : Array DeletableLemm
         acc := acc + weight remaining[j]!
         if acc > target then idx := j; found := true
     return idx
-  let (orderIdx, rngAfter) := rng.shuffle (List.range lemmas.size).toArray
-  let order := orderIdx.map (fun i => lemmas[i]!)
+  -- `--*-all` forces one specific corollary (via `ablateAll`); otherwise try every
+  -- theorem in a shuffled order, re-picking only when a closure runs dry.
+  let (order, rngAfter) : Array DeletableLemma × Rng := match spec.forcedCorollary with
+    | some op => (lemmas.filter (fun l => l.spanIdx == op), rng)
+    | none =>
+      let (orderIdx, r') := rng.shuffle (List.range lemmas.size).toArray
+      (orderIdx.map (fun i => lemmas[i]!), r')
   let targetDeletions := spec.deleteCount
   let targetAblations := if spec.deleteCount.isNone then spec.count else none
   let useProb := spec.deleteCount.isNone && spec.count.isNone
@@ -1016,6 +1044,47 @@ def ablate (toks : Array Token) (spec : Spec) (rng : Rng) (centrality : String �
     { r with total := Int.ofNat cands.size }
   | none =>
     (walkAll toks spec centrality (.prob spec.prob) rng).1
+
+/-- Span indices of every lemma that can serve as a corollary — i.e. whose transitive
+    in-file dependency closure contains at least one deletable candidate — in file order.
+    Drives `ablateAll` for `--corollary-delete-lemmas*-all` (rocq
+    `eligible_corollary_openers`). -/
+def eligibleCorollaryOpeners (toks : Array Token) (spec : Spec) : Array Nat := Id.run do
+  let spans := parseSpans toks
+  let lemmas := analyzeUses toks spans spec.aggressive
+  let cands := lemmas.filter (fun l =>
+    l.eligible && Int.ofNat l.users.size ≥ spec.minCentrality
+    && Int.ofNat l.users.size ≤ spec.maxCentrality)
+  if cands.isEmpty then return #[]
+  let byNamePos := buildByNamePos lemmas
+  let candSet : HashSet Nat := HashSet.ofArray (cands.map (·.spanIdx))
+  let mut out : Array Nat := #[]
+  for l in lemmas do
+    if !(corClosure lemmas byNamePos candSet l).isEmpty then out := out.push l.spanIdx
+  return out.qsort (· < ·)
+
+/-- `--corollary-delete-lemmas*-all`: emit one ablation per eligible corollary — each
+    deletes a single ancestor lemma from that corollary's closure and holes its in-file
+    users (leaf-only under `deleteLeaves`), in file order. Any other mode is the singleton
+    `#[ablate …]`. Only non-trivial challenges are kept. Callers ignore `--repeat` here
+    (rocq `ablate_all`). -/
+def ablateAll (toks : Array Token) (spec : Spec) (rng : Rng)
+    (centrality : String → Int) : Array AblationResult := Id.run do
+  if !spec.corollaryAll then return #[ablate toks spec rng centrality]
+  -- delete N lemmas per corollary (N = --corollary-delete-lemmas-all's arg, default 1)
+  let n := match spec.deleteCount with | some k => Nat.max 1 k | none => 1
+  let mut out : Array AblationResult := #[]
+  for op in eligibleCorollaryOpeners toks spec do
+    let sub : Spec := { spec with
+      corollaryAll := false
+      corollary := true
+      forcedCorollary := some op
+      deleteCount := some n
+      count := none
+      truncate := false }
+    let r := ablate toks sub rng centrality
+    if r.ablated > 0 && r.text != r.solution then out := out.push r
+  return out
 
 /- ---------- difficulty preset ladder (easy -> hard) ---------- -/
 

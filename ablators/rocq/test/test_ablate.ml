@@ -433,6 +433,26 @@ let () =
   check "corollary-uniform: deletion within the closure"
     (List.for_all (fun n -> n = "base" || n = "mid") du)
 
+(* ---- --corollary-delete-lemmas-all: one ablation per eligible corollary ---- *)
+let () =
+  let src =
+    "Lemma base1 : True. Proof. exact I. Qed.\n\n\
+     Lemma base2 : True. Proof. exact I. Qed.\n\n\
+     Theorem cor_a : True. Proof. apply base1. Qed.\n\n\
+     Theorem cor_b : True. Proof. apply base2. Qed.\n"
+  in
+  let spans = Span.parse_spans src in
+  let spec = { Ablate.default_spec with delete_lemmas = true; corollary = true; corollary_all = true } in
+  let results = Ablate.ablate_all spans spec (Ablate.Rng.make 5L) zero in
+  check "corollary-all: emits >= 2 distinct ablations" (List.length results >= 2);
+  check "corollary-all: each result deletes exactly one lemma"
+    (List.for_all (fun (r : Ablate.result) -> List.length r.deleted = 1) results);
+  check "corollary-all: every result is non-trivial (holes + differs from solution)"
+    (List.for_all (fun (r : Ablate.result) -> r.ablated > 0 && r.text <> r.solution) results);
+  (* the non-all path is the singleton [[ablate ...]] *)
+  let one = Ablate.ablate_all spans { spec with corollary_all = false } (Ablate.Rng.make 5L) zero in
+  check "corollary (non-all): ablate_all is a singleton" (List.length one = 1)
+
 let () =
   if !failures = 0 then print_endline "\nALL TESTS PASSED"
   else begin

@@ -23,7 +23,7 @@ extern lean_object *lean_ablate_theory(
     uint8_t deleteLemmas,
     uint8_t shrinkChallengeMinimal, uint8_t shrinkSolutionMinimal,
     uint32_t deleteCount, uint8_t deleteUniform, uint8_t deleteLeaves, uint8_t corollary,
-    uint64_t seed);
+    uint8_t corollaryAll, uint64_t seed);
 
 static int g_initialized = 0;
 
@@ -58,14 +58,14 @@ char *ablate_json(const char *text,
                   uint8_t deleteLemmas,
                   uint8_t shrinkChallengeMinimal, uint8_t shrinkSolutionMinimal,
                   uint32_t deleteCount, uint8_t deleteUniform, uint8_t deleteLeaves, uint8_t corollary,
-                  double seed) {
+                  uint8_t corollaryAll, double seed) {
   ensure_init();
   lean_object *s = lean_mk_string(text);  /* ownership transferred to the call */
   lean_object *res = lean_ablate_theory(
       s, minDepth, maxDepth, leavesOnly, minSize, maxSize, minCent, maxCent,
       count, byCentrality, probPermille, truncate, shrinkChallenge, shrinkSolution,
       deleteLemmas, shrinkChallengeMinimal, shrinkSolutionMinimal,
-      deleteCount, deleteUniform, deleteLeaves, corollary, (uint64_t)seed);
+      deleteCount, deleteUniform, deleteLeaves, corollary, corollaryAll, (uint64_t)seed);
   char *out = strdup(lean_string_cstr(res));
   lean_dec(res);
   return out;
