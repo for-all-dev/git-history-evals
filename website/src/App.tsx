@@ -13,7 +13,7 @@ import {
   type Lang,
 } from './ablators'
 import { SAMPLES } from './lib/samples'
-import { fetchAfpIndex, fetchAfpTheory, type AfpIndex } from './lib/afp'
+import { fetchAfpIndex, fetchAfpEntryTheories, fetchAfpTheory, type AfpIndex, type AfpTheory } from './lib/afp'
 import { toRecord, type EvalRecord } from './lib/record'
 import { CodeView } from './components/CodeView'
 import { JsonView } from './components/JsonView'
@@ -84,12 +84,14 @@ export default function App() {
 
   // AFP importer (issue #113): pull a real Archive of Formal Proofs theory from
   // our world-readable mirror into the source pane. Isabelle-only.
-  const [afp, setAfp] = useState<AfpIndex | null>(null)
+  const [afp, setAfp] = useState<AfpIndex | null>(null) // lightweight entry list
   const [afpOpen, setAfpOpen] = useState(false)
   const [afpEntry, setAfpEntry] = useState('')
+  const [afpTheories, setAfpTheories] = useState<AfpTheory[] | null>(null) // lazy shard for afpEntry
   const [afpFile, setAfpFile] = useState('') // currently-loaded theory (persists across setting tweaks)
   const [afpBusy, setAfpBusy] = useState(false)
   const [afpErr, setAfpErr] = useState('')
+  const afpCache = useRef<Map<string, AfpTheory[]>>(new Map()) // entry -> theories.json
 
   const detected = useMemo(() => detectLanguage(debounced), [debounced])
   const lang: Lang = override === 'auto' ? detected : override
@@ -149,9 +151,7 @@ export default function App() {
     setAfpBusy(true)
     setAfpErr('')
     try {
-      const idx = await fetchAfpIndex()
-      setAfp(idx)
-      setAfpEntry(idx.entries[0]?.name ?? '')
+      setAfp(await fetchAfpIndex())
     } catch (e) {
       setAfpErr(String(e instanceof Error ? e.message : e))
     } finally {
@@ -159,10 +159,10 @@ export default function App() {
     }
   }, [afp])
 
-  const loadAfpTheory = useCallback(
-    async (entryName: string, file: string) => {
-      const entry = afp?.entries.find((e) => e.name === entryName)
-      const theory = entry?.theories.find((t) => t.file === file)
+  // Pick a specific theory from the currently-loaded entry shard.
+  const pickAfpTheory = useCallback(
+    async (file: string) => {
+      const theory = afpTheories?.find((t) => t.file === file)
       if (!theory) return
       setAfpFile(file) // reflect the selection immediately; survives setting tweaks
       setAfpBusy(true)
@@ -177,19 +177,44 @@ export default function App() {
         setAfpBusy(false)
       }
     },
-    [afp],
+    [afpTheories],
   )
 
-  // Changing entry immediately loads its first theory (keeps the flow live and
-  // the theory dropdown always pointing at real, loaded source).
+  // Selecting an entry (typed/picked in the combobox) lazily fetches its theory
+  // shard and loads the first theory — keeps the flow live and the theory
+  // dropdown always pointing at real, loaded source. Ignores partial typing.
   const selectAfpEntry = useCallback(
-    (name: string) => {
+    async (name: string) => {
       setAfpEntry(name)
-      const first = afp?.entries.find((e) => e.name === name)?.theories[0]
-      if (first) void loadAfpTheory(name, first.file)
-      else setAfpFile('')
+      if (!afp?.entries.some((e) => e.name === name)) {
+        setAfpTheories(null)
+        setAfpFile('')
+        return
+      }
+      setAfpBusy(true)
+      setAfpErr('')
+      try {
+        let ths = afpCache.current.get(name)
+        if (!ths) {
+          ths = await fetchAfpEntryTheories(name)
+          afpCache.current.set(name, ths)
+        }
+        setAfpTheories(ths)
+        const first = ths[0]
+        setAfpFile(first?.file ?? '')
+        if (first) {
+          const text = await fetchAfpTheory(first)
+          setOverride('isabelle')
+          setSource(text)
+        }
+      } catch (e) {
+        setAfpErr(String(e instanceof Error ? e.message : e))
+        setAfpTheories(null)
+      } finally {
+        setAfpBusy(false)
+      }
     },
-    [afp, loadAfpTheory],
+    [afp],
   )
 
   // The L0–L4 presets are probability/depth (selection-mode) difficulty knobs, so
@@ -307,35 +332,37 @@ export default function App() {
                 <span className="afp-note">loading catalog…</span>
               ) : afp ? (
                 <>
-                  <select
+                  <input
+                    className="afp-entry-input"
+                    list="afp-entries"
                     value={afpEntry}
-                    onChange={(e) => selectAfpEntry(e.target.value)}
+                    placeholder={`search ${afp.entries.length} entries…`}
+                    onChange={(e) => void selectAfpEntry(e.target.value)}
                     aria-label="AFP entry"
-                  >
+                  />
+                  <datalist id="afp-entries">
                     {afp.entries.map((en) => (
                       <option key={en.name} value={en.name}>
-                        {en.name} ({en.theories.length})
+                        {en.n_theories} thy
                       </option>
                     ))}
-                  </select>
+                  </datalist>
                   <select
                     value={afpFile}
-                    disabled={afpBusy}
-                    onChange={(e) => void loadAfpTheory(afpEntry, e.target.value)}
+                    disabled={afpBusy || !afpTheories}
+                    onChange={(e) => void pickAfpTheory(e.target.value)}
                     aria-label="AFP theory file"
                   >
                     {afpFile === '' && (
                       <option value="" disabled>
-                        {afpBusy ? 'fetching…' : 'pick a theory…'}
+                        {afpBusy ? 'fetching…' : afpTheories ? 'pick a theory…' : 'pick an entry first'}
                       </option>
                     )}
-                    {afp.entries
-                      .find((en) => en.name === afpEntry)
-                      ?.theories.map((t) => (
-                        <option key={t.file} value={t.file}>
-                          {t.file} ({Math.ceil(t.bytes / 1024)}KB)
-                        </option>
-                      ))}
+                    {afpTheories?.map((t) => (
+                      <option key={t.file} value={t.file}>
+                        {t.file} ({Math.ceil(t.bytes / 1024)}KB)
+                      </option>
+                    ))}
                   </select>
                   {(() => {
                     const en = afp.entries.find((e) => e.name === afpEntry)

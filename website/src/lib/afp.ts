@@ -1,8 +1,8 @@
-// AFP entry importer (issue #113). Fetches a curated, version-pinned set of
-// Archive of Formal Proofs theories that we pre-mirror into a world-readable DO
-// Space (see `website/scripts/mirror-afp.py`). isa-afp.org itself sends no
-// permissive CORS, so a pure-static site can't read it directly — the mirror
-// bucket is CORS-enabled and controlled by us, keeping this a static deploy.
+// AFP entry importer (issue #113). The full Archive of Formal Proofs is
+// pre-mirrored into a world-readable DO Space (see `website/scripts/mirror-afp.py`)
+// because isa-afp.org sends no permissive CORS. The manifest is split so the
+// site loads fast: a lightweight `index.json` (entry names + counts) up front,
+// then a per-entry `<Entry>/theories.json` fetched lazily on selection.
 
 /** Base URL of the mirror prefix (no trailing slash). Overridable for a
  *  different bucket/CDN via a *non-secret* build env var; reads are anonymous. */
@@ -17,32 +17,44 @@ export interface AfpTheory {
   bytes: number
 }
 
+/** Lightweight per-entry record in index.json (no theory list — that's lazy). */
 export interface AfpEntry {
   name: string // AFP entry short name, e.g. "Regular-Sets"
+  n_theories: number
   afp_url: string // human-facing entry page on isa-afp.org
-  theories: AfpTheory[]
 }
 
 export interface AfpIndex {
   schema: string
   base_url: string
   source: string
+  release: string
   entries: AfpEntry[]
 }
 
-/** Fetch the mirror manifest. Throws with a friendly message on failure. */
-export async function fetchAfpIndex(): Promise<AfpIndex> {
-  const url = `${AFP_BASE}/index.json`
+async function getJson<T>(url: string, what: string): Promise<T> {
   let res: Response
   try {
     res = await fetch(url, { mode: 'cors' })
   } catch (e) {
     throw new Error(`Could not reach the AFP mirror (${url}). ${(e as Error).message}`, { cause: e })
   }
-  if (!res.ok) throw new Error(`AFP mirror index HTTP ${res.status} (${url})`)
-  const idx = (await res.json()) as AfpIndex
+  if (!res.ok) throw new Error(`${what} HTTP ${res.status} (${url})`)
+  return (await res.json()) as T
+}
+
+/** Fetch the lightweight manifest listing all mirrored entries. */
+export async function fetchAfpIndex(): Promise<AfpIndex> {
+  const idx = await getJson<AfpIndex>(`${AFP_BASE}/index.json`, 'AFP mirror index')
   if (!idx || !Array.isArray(idx.entries)) throw new Error('AFP mirror index is malformed')
   return idx
+}
+
+/** Fetch one entry's theory list (lazy shard). */
+export async function fetchAfpEntryTheories(entryName: string): Promise<AfpTheory[]> {
+  const url = `${AFP_BASE}/${encodeURIComponent(entryName)}/theories.json`
+  const shard = await getJson<{ name: string; theories: AfpTheory[] }>(url, 'AFP entry')
+  return Array.isArray(shard?.theories) ? shard.theories : []
 }
 
 /** Fetch one theory's raw `.thy` source. */

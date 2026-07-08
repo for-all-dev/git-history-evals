@@ -1,65 +1,67 @@
 #!/usr/bin/env python3
-"""Mirror a curated set of AFP entries into the forall-git-evals DO Space.
+"""Mirror AFP entries into the forall-git-evals DO Space (issue #113).
 
-Issue #113. The ablation playground (`website/`) is a *pure static* Vercel
-deploy, so it cannot fetch AFP theories directly from isa-afp.org (no permissive
-CORS there). Instead we pre-mirror a curated, version-pinned set of AFP entries
-into a bucket **we** control (world-readable + CORS), and the site fetches raw
-`.thy` text from there client-side.
+The ablation playground (`website/`) is a *pure static* Vercel deploy, so it
+can't fetch AFP theories directly from isa-afp.org (no permissive CORS there).
+We pre-mirror a version-pinned copy into a bucket **we** control (world-readable
++ CORS) and the site fetches raw `.thy` text from there client-side.
 
-For each entry we download the AFP release tarball
-(`https://www.isa-afp.org/release/afp-<Entry>-current.tar.gz`), extract every
-`.thy` file, and upload it public-read to
+Two modes:
 
-    s3://forall-git-evals/afp/<Entry>/<relative/path>.thy
+  --full      Mirror the ENTIRE AFP from the single release tarball
+              (`afp-current.tar.gz`, ~1000 entries / ~10k theories / ~280 MB).
+              One download, then a parallel upload. This is the deliverable.
 
-Finally we assemble and upload `afp/index.json`, the manifest the frontend reads
-(`src/lib/afp.ts`): entry -> theory list (+ byte sizes + object keys).
+  (default)   Mirror only the small CURATED list below — handy for a quick
+              refresh or a local smoke test.
 
-Idempotent: re-running re-downloads and re-uploads (overwrites) in place.
+Layout in the bucket (both modes):
 
-Prereqs: `s3cmd` configured for the DO Space (host_base nyc3.digitaloceanspaces
-.com). CORS on the bucket is a one-time separate step (see website/README.md).
+    afp/index.json                 lightweight manifest the site loads on open:
+                                     { schema, base_url, source, release,
+                                       entries: [{name, n_theories, afp_url}] }
+    afp/<Entry>/theories.json      per-entry theory list, fetched lazily when an
+                                     entry is picked: { name, theories:[{file,
+                                     key, url, bytes}] }
+    afp/<Entry>/<path>.thy         raw theory source (public-read)
+
+Splitting the index keeps first paint light: ~1000 entries is a ~90 KB
+index.json, while the ~10k per-theory records live in the lazy shards.
+
+Idempotent: re-running overwrites in place. `s3cmd` must be configured for the
+Space. Bucket CORS is a one-time separate step (see website/README.md).
 
 Usage:
-    python scripts/mirror-afp.py                # mirror the CURATED set
-    python scripts/mirror-afp.py --entry Kruskal --entry Show   # subset
-    python scripts/mirror-afp.py --dry-run      # download+plan, no uploads
+    python scripts/mirror-afp.py --full            # whole AFP
+    python scripts/mirror-afp.py --full --workers 12
+    python scripts/mirror-afp.py                   # curated set
+    python scripts/mirror-afp.py --entry Kruskal   # a subset
+    python scripts/mirror-afp.py --full --dry-run  # download + plan, no uploads
 """
 
 from __future__ import annotations
 
 import argparse
-import io
 import json
 import subprocess
 import sys
 import tarfile
 import tempfile
 import urllib.request
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 
 BUCKET = "forall-git-evals"
-PREFIX = "afp"  # object key prefix within the bucket
-BASE_URL = f"https://{BUCKET}.nyc3.digitaloceanspaces.com"
-RELEASE_URL = "https://www.isa-afp.org/release/afp-{entry}-current.tar.gz"
+PREFIX = "afp"
+BASE_URL = f"https://{BUCKET}.nyc3.digitaloceanspaces.com/{PREFIX}"
+FULL_RELEASE_URL = "https://isa-afp.org/release/afp-current.tar.gz"
+ENTRY_RELEASE_URL = "https://www.isa-afp.org/release/afp-{entry}-current.tar.gz"
 ENTRY_PAGE = "https://www.isa-afp.org/entries/{entry}.html"
 
-# Curated set: small-to-medium, self-contained entries with several
-# cross-citing lemmas, so fan-in-weighted corollary deletion has something to
-# chew on. Byte sizes are the release tarball sizes at time of curation.
 CURATED: list[str] = [
-    "Depth-First-Search",  # ~3KB   graph DFS, tiny + classic
-    "Fisher_Yates",        # ~6KB   in-place shuffle correctness
-    "List-Index",          # ~6KB   indexed list operations
-    "Sqrt_Babylonian",     # ~20KB  Newton/Heron sqrt bounds
-    "Show",                # ~22KB  show-class, multi-theory
-    "Regular-Sets",        # ~23KB  regex derivatives, rich fan-in
-    "Bernoulli",           # ~28KB  Bernoulli numbers
-    "Stirling_Formula",    # ~28KB  Stirling's approximation
-    "Dijkstra_Shortest_Path",  # ~31KB shortest paths
-    "Amortized_Complexity",    # ~32KB amortized analysis
-    "Kruskal",             # ~37KB  MST correctness
+    "Depth-First-Search", "Fisher_Yates", "List-Index", "Sqrt_Babylonian",
+    "Show", "Regular-Sets", "Bernoulli", "Stirling_Formula",
+    "Dijkstra_Shortest_Path", "Amortized_Complexity", "Kruskal",
 ]
 
 
@@ -67,110 +69,179 @@ def log(msg: str) -> None:
     print(msg, file=sys.stderr, flush=True)
 
 
-def download_tarball(entry: str) -> bytes:
-    url = RELEASE_URL.format(entry=entry)
-    log(f"  ↓ {url}")
-    with urllib.request.urlopen(url, timeout=120) as resp:
-        if resp.status != 200:
-            raise RuntimeError(f"{entry}: HTTP {resp.status}")
-        return resp.read()
+# --------------------------------------------------------------------------- #
+# Staging: build a local `<Entry>/<path>.thy` tree + per-entry theories.json    #
+# --------------------------------------------------------------------------- #
+
+def _theory_record(entry: str, rel: str, nbytes: int) -> dict:
+    key = f"{PREFIX}/{entry}/{rel}"
+    return {"file": rel, "key": key, "url": f"{BASE_URL}/{entry}/{rel}", "bytes": nbytes}
 
 
-def s3_put(local: Path, key: str, mime: str, dry_run: bool) -> None:
-    cmd = [
-        "s3cmd", "put", str(local), f"s3://{BUCKET}/{key}",
-        "--acl-public", "--mime-type", mime, "--no-progress",
+def stage_from_full(stage: Path) -> list[dict]:
+    """Download the full release tarball and extract every entry's .thy files.
+    Returns the lightweight per-entry index records."""
+    log(f"↓ {FULL_RELEASE_URL}")
+    with tempfile.NamedTemporaryFile(suffix=".tar.gz", delete=False) as tmp:
+        with urllib.request.urlopen(FULL_RELEASE_URL, timeout=600) as resp:
+            if resp.status != 200:
+                raise RuntimeError(f"full release HTTP {resp.status}")
+            # stream to disk (tarfile needs seek for gz members on some inputs)
+            while chunk := resp.read(1 << 20):
+                tmp.write(chunk)
+        tarball = Path(tmp.name)
+    log(f"  got {tarball.stat().st_size / 1048576:.0f} MB, extracting .thy …")
+
+    release = ""
+    per_entry: dict[str, list[dict]] = {}
+    with tarfile.open(tarball, mode="r:gz") as tf:
+        for m in tf:
+            if not m.isfile() or not m.name.endswith(".thy"):
+                continue
+            # paths look like "afp-YYYY-MM-DD/thys/<Entry>/<rel>.thy"
+            parts = m.name.split("/")
+            if len(parts) < 4 or parts[1] != "thys":
+                continue
+            release = release or parts[0]
+            entry, rel = parts[2], "/".join(parts[3:])
+            data = tf.extractfile(m).read()  # type: ignore[union-attr]
+            dest = stage / entry / rel
+            dest.parent.mkdir(parents=True, exist_ok=True)
+            dest.write_bytes(data)
+            per_entry.setdefault(entry, []).append(_theory_record(entry, rel, len(data)))
+    tarball.unlink(missing_ok=True)
+
+    return _finalize_stage(stage, per_entry, release)
+
+
+def stage_from_entries(stage: Path, entries: list[str]) -> list[dict]:
+    """Per-entry tarball download path (curated / subset mode)."""
+    import io
+
+    per_entry: dict[str, list[dict]] = {}
+    for entry in entries:
+        url = ENTRY_RELEASE_URL.format(entry=entry)
+        log(f"↓ {url}")
+        try:
+            with urllib.request.urlopen(url, timeout=120) as resp:
+                raw = resp.read()
+        except Exception as exc:  # noqa: BLE001
+            log(f"  ✗ {entry}: {exc}")
+            continue
+        with tarfile.open(fileobj=io.BytesIO(raw), mode="r:gz") as tf:
+            for m in tf.getmembers():
+                if not m.isfile() or not m.name.endswith(".thy"):
+                    continue
+                parts = m.name.split("/", 1)
+                rel = parts[1] if len(parts) == 2 else m.name
+                data = tf.extractfile(m).read()  # type: ignore[union-attr]
+                dest = stage / entry / rel
+                dest.parent.mkdir(parents=True, exist_ok=True)
+                dest.write_bytes(data)
+                per_entry.setdefault(entry, []).append(_theory_record(entry, rel, len(data)))
+    return _finalize_stage(stage, per_entry, release="")
+
+
+def _finalize_stage(stage: Path, per_entry: dict[str, list[dict]], release: str) -> list[dict]:
+    """Write per-entry theories.json + top-level index.json into the stage dir."""
+    index_entries: list[dict] = []
+    for entry, theories in per_entry.items():
+        theories.sort(key=lambda t: t["file"])
+        (stage / entry / "theories.json").write_text(
+            json.dumps({"name": entry, "theories": theories}, indent=2)
+        )
+        index_entries.append({
+            "name": entry,
+            "n_theories": len(theories),
+            "afp_url": ENTRY_PAGE.format(entry=entry),
+        })
+    index_entries.sort(key=lambda e: e["name"].lower())
+    index = {
+        "schema": "afp-mirror/2",
+        "base_url": BASE_URL,
+        "source": "https://www.isa-afp.org/",
+        "release": release,
+        "entries": index_entries,
+    }
+    (stage / "index.json").write_text(json.dumps(index, indent=2))
+    return index_entries
+
+
+# --------------------------------------------------------------------------- #
+# Upload: parallel s3cmd (single-threaded per proc, so we shard across entries) #
+# --------------------------------------------------------------------------- #
+
+def _upload_entry(stage: Path, entry: str, dry_run: bool) -> str:
+    """Upload one entry dir: .thy as text/plain, theories.json as application/json."""
+    src = stage / entry
+    base = [
+        "s3cmd", "put", "--recursive", "--acl-public", "--no-progress",
+        "--no-mime-magic",
+    ]
+    thy = base + [
+        "--mime-type", "text/plain; charset=utf-8", "--exclude", "*.json",
+        f"{src}/", f"s3://{BUCKET}/{PREFIX}/{entry}/",
+    ]
+    js = [
+        "s3cmd", "put", "--acl-public", "--no-progress",
+        "--mime-type", "application/json",
+        str(src / "theories.json"), f"s3://{BUCKET}/{PREFIX}/{entry}/theories.json",
     ]
     if dry_run:
-        log(f"    [dry-run] {' '.join(cmd)}")
-        return
-    subprocess.run(cmd, check=True, capture_output=True, text=True)
+        return entry
+    subprocess.run(thy, check=True, capture_output=True, text=True)
+    subprocess.run(js, check=True, capture_output=True, text=True)
+    return entry
 
 
-def mirror_entry(entry: str, tmp: Path, dry_run: bool) -> dict | None:
-    """Download + extract + upload one entry. Returns its index record."""
-    try:
-        raw = download_tarball(entry)
-    except Exception as exc:  # noqa: BLE001 - report and skip
-        log(f"  ✗ {entry}: download failed: {exc}")
-        return None
+def upload(stage: Path, entries: list[dict], workers: int, dry_run: bool) -> None:
+    names = [e["name"] for e in entries]
+    log(f"↑ uploading {len(names)} entries with {workers} workers "
+        f"(dry_run={dry_run}) …")
+    done = 0
+    with ThreadPoolExecutor(max_workers=workers) as ex:
+        futs = {ex.submit(_upload_entry, stage, n, dry_run): n for n in names}
+        for fut in as_completed(futs):
+            name = futs[fut]
+            try:
+                fut.result()
+            except Exception as exc:  # noqa: BLE001
+                log(f"  ✗ {name}: upload failed: {exc}")
+            done += 1
+            if done % 50 == 0 or done == len(names):
+                log(f"  … {done}/{len(names)} entries")
 
-    theories: list[dict] = []
-    with tarfile.open(fileobj=io.BytesIO(raw), mode="r:gz") as tf:
-        for member in tf.getmembers():
-            if not member.isfile() or not member.name.endswith(".thy"):
-                continue
-            # member.name looks like "<Entry>/path/to/Theory.thy"; strip the
-            # leading "<Entry>/" so the object key mirrors the intra-entry path.
-            parts = member.name.split("/", 1)
-            rel = parts[1] if len(parts) == 2 else member.name
-            data = tf.extractfile(member).read()  # type: ignore[union-attr]
-            key = f"{PREFIX}/{entry}/{rel}"
-
-            local = tmp / entry / rel
-            local.parent.mkdir(parents=True, exist_ok=True)
-            local.write_bytes(data)
-            s3_put(local, key, "text/plain; charset=utf-8", dry_run)
-
-            theories.append({
-                "file": rel,                       # e.g. "Regular_Set.thy"
-                "key": key,                        # object key in the bucket
-                "url": f"{BASE_URL}/{key}",        # absolute public URL
-                "bytes": len(data),
-            })
-            log(f"    ↑ {key}  ({len(data)}b)")
-
-    if not theories:
-        log(f"  ✗ {entry}: no .thy files found in tarball")
-        return None
-
-    theories.sort(key=lambda t: t["file"])
-    return {
-        "name": entry,
-        "afp_url": ENTRY_PAGE.format(entry=entry),
-        "theories": theories,
-    }
+    # index.json last, so a partial run never advertises missing entries.
+    idx = [
+        "s3cmd", "put", "--acl-public", "--no-progress",
+        "--mime-type", "application/json",
+        str(stage / "index.json"), f"s3://{BUCKET}/{PREFIX}/index.json",
+    ]
+    if not dry_run:
+        subprocess.run(idx, check=True, capture_output=True, text=True)
+    log(f"index -> {BASE_URL}/index.json")
 
 
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
+    ap.add_argument("--full", action="store_true", help="mirror the entire AFP")
     ap.add_argument("--entry", action="append", dest="entries",
-                    help="mirror only this entry (repeatable); default: CURATED")
-    ap.add_argument("--dry-run", action="store_true",
-                    help="download + plan but do not upload")
+                    help="curated-mode: mirror only this entry (repeatable)")
+    ap.add_argument("--workers", type=int, default=8, help="parallel upload workers")
+    ap.add_argument("--dry-run", action="store_true", help="stage but don't upload")
     args = ap.parse_args()
 
-    entries = args.entries or CURATED
-    log(f"Mirroring {len(entries)} AFP entr{'y' if len(entries) == 1 else 'ies'} "
-        f"-> s3://{BUCKET}/{PREFIX}/  (dry_run={args.dry_run})")
-
-    records: list[dict] = []
     with tempfile.TemporaryDirectory(prefix="afp-mirror-") as td:
-        tmp = Path(td)
-        for entry in entries:
-            log(f"• {entry}")
-            rec = mirror_entry(entry, tmp, args.dry_run)
-            if rec is not None:
-                records.append(rec)
+        stage = Path(td)
+        if args.full:
+            entries = stage_from_full(stage)
+        else:
+            entries = stage_from_entries(stage, args.entries or CURATED)
+        n_thy = sum(e["n_theories"] for e in entries)
+        log(f"staged {len(entries)} entries / {n_thy} theories")
+        upload(stage, entries, max(1, args.workers), args.dry_run)
 
-    records.sort(key=lambda r: r["name"].lower())
-    index = {
-        "schema": "afp-mirror/1",
-        "base_url": BASE_URL,
-        "source": "https://www.isa-afp.org/",
-        "entries": records,
-    }
-    index_bytes = json.dumps(index, indent=2).encode()
-
-    with tempfile.NamedTemporaryFile("wb", suffix=".json", delete=False) as f:
-        f.write(index_bytes)
-        index_local = Path(f.name)
-    s3_put(index_local, f"{PREFIX}/index.json", "application/json", args.dry_run)
-    index_local.unlink()
-
-    log(f"\nDone: {len(records)}/{len(entries)} entries, "
-        f"{sum(len(r['theories']) for r in records)} theories.")
-    log(f"Index: {BASE_URL}/{PREFIX}/index.json")
+    log("done.")
     return 0
 
 

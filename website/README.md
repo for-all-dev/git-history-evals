@@ -55,24 +55,34 @@ provides the isolation fallback.
 The **Import AFP entry** control loads a real [Archive of Formal
 Proofs](https://www.isa-afp.org/) theory into the Isabelle source pane. Because
 isa-afp.org sends no permissive CORS, a pure-static site can't fetch it
-directly; instead we **pre-mirror** a curated, version-pinned set of entries
-into a world-readable bucket we control and fetch raw `.thy` text from there
+directly; instead we **pre-mirror the whole AFP**, version-pinned, into a
+world-readable bucket we control and fetch raw `.thy` text from there
 client-side. This keeps the deploy fully static — **no server, and no DO
-credentials on Vercel** (reads are anonymous, objects are public-read).
+credentials on Vercel** (reads are anonymous, objects are public-read). The
+current mirror is the `afp-2026-07-07` release: **1000 entries / ~10.2k
+theories / ~294 MB**.
 
-- `scripts/mirror-afp.py` downloads AFP release tarballs, extracts every `.thy`,
-  uploads them public-read to `s3://forall-git-evals/afp/<Entry>/…`, and writes
-  the manifest `afp/index.json`. Re-run to refresh or extend the curated set:
+- `scripts/mirror-afp.py` mirrors the corpus. `--full` downloads the single AFP
+  release tarball once, extracts every `.thy`, and uploads (parallel `s3cmd`)
+  public-read to `s3://forall-git-evals/afp/<Entry>/…`:
 
   ```bash
-  python scripts/mirror-afp.py                 # mirror the curated set
-  python scripts/mirror-afp.py --entry Kruskal # a subset
-  python scripts/mirror-afp.py --dry-run       # download + plan, no uploads
+  python scripts/mirror-afp.py --full              # whole AFP (the deliverable)
+  python scripts/mirror-afp.py --full --workers 12 # more parallel uploaders
+  python scripts/mirror-afp.py --entry Kruskal     # curated subset instead
+  python scripts/mirror-afp.py --full --dry-run    # download + stage, no upload
   ```
 
   (Requires `s3cmd` configured for the DO Space; not needed to *run* the site.)
 
-- `src/lib/afp.ts` reads the manifest + theory text. The mirror base URL is
+- **Split manifest** (keeps first paint light for 1000 entries):
+  - `afp/index.json` — lightweight: `{ schema:"afp-mirror/2", release, entries:
+    [{name, n_theories, afp_url}] }`. Loaded once when the panel opens.
+  - `afp/<Entry>/theories.json` — that entry's theory list (`{file, url, bytes}`),
+    fetched lazily when the entry is selected.
+
+- `src/lib/afp.ts` reads the manifest + theory text; the UI is a searchable
+  entry combobox (1000 entries) + theory dropdown. The mirror base URL is
   `https://forall-git-evals.nyc3.digitaloceanspaces.com/afp` by default;
   override with the **non-secret** build env var `VITE_AFP_BASE_URL` to point at
   a different bucket/CDN.

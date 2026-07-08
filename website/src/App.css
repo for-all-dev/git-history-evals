@@ -172,7 +172,8 @@ button.generate:hover {
   flex-wrap: wrap;
   margin-top: 5px;
 }
-.afp-pickers select {
+.afp-pickers select,
+.afp-entry-input {
   background: var(--pan);
   color: var(--fg);
   border: 1px solid var(--bd);
@@ -180,6 +181,13 @@ button.generate:hover {
   padding: 6px 8px;
   font: inherit;
   max-width: 220px;
+}
+.afp-entry-input {
+  min-width: 180px;
+}
+.afp-entry-input:focus {
+  outline: none;
+  border-color: var(--acc2);
 }
 .afp-note {
   font-size: 11px;
