@@ -32,6 +32,8 @@ def ablateTheoryFull
     (minSize maxSize : Int) (minCent maxCent : Int)
     (count : Option Nat) (byCentrality : Bool)
     (prob : Float) (truncate shrinkChallenge shrinkSolution deleteLemmas : Bool)
+    (shrinkChallengeMinimal shrinkSolutionMinimal : Bool)
+    (deleteCount : Option Nat) (deleteUniform deleteLeaves corollary : Bool)
     (seed : UInt64) : String :=
   let toks := tokenize text
   let spans := parseSpans toks
@@ -41,7 +43,10 @@ def ablateTheoryFull
     minSize := minSize, maxSize := maxSize,
     minCentrality := minCent, maxCentrality := maxCent,
     truncate := truncate, shrinkChallenge := shrinkChallenge, shrinkSolution := shrinkSolution,
-    deleteLemmas := deleteLemmas, aggressive := false }
+    shrinkChallengeMinimal := shrinkChallengeMinimal, shrinkSolutionMinimal := shrinkSolutionMinimal,
+    deleteLemmas := deleteLemmas, deleteCount := deleteCount,
+    deleteUniform := deleteUniform, deleteLeaves := deleteLeaves, corollary := corollary,
+    aggressive := false }
   let fan := fanIn #[(toks, spans)]
   let centrality := fun name => fan.getD name 0
   let result := ablate toks spec (Rng.mk seed) centrality
@@ -52,8 +57,11 @@ private def normU32 (x : UInt32) : Int :=
 
 /-- C-callable export — the symbol the emscripten shim (`wasm/shim.c`) binds to.
     Knob semantics mirror the CLI; `probPermille` is `prob * 1000` (so JS passes
-    an integer), and a `0xFFFFFFFF` `UInt32` means infinity / unset. Returns the
-    `{text, total, ablated, holes_filled}` JSON. -/
+    an integer), and a `0xFFFFFFFF` `UInt32` means infinity / unset (`max_*`,
+    `count`, `deleteCount`). Full lemma-delete + minimal-shrink knobs are exposed
+    so the browser playground has the same controls as the CLI + the other
+    backends (corollary / delete-count / uniform / leaves / minimal shrink).
+    Returns the `{text, ..., holes_filled, deleted_lemmas, corollaries}` JSON. -/
 @[export lean_ablate_theory]
 def leanAblateTheory
     (text : String)
@@ -61,12 +69,17 @@ def leanAblateTheory
     (minSize maxSize : UInt32) (minCent maxCent : UInt32)
     (count : UInt32) (byCentrality : Bool)
     (probPermille : UInt32) (truncate shrinkChallenge shrinkSolution deleteLemmas : Bool)
+    (shrinkChallengeMinimal shrinkSolutionMinimal : Bool)
+    (deleteCount : UInt32) (deleteUniform deleteLeaves corollary : Bool)
     (seed : UInt64) : String :=
   ablateTheoryFull text
     (Int.ofNat minDepth.toNat) (normU32 maxDepth) leavesOnly
     (Int.ofNat minSize.toNat) (normU32 maxSize)
     (Int.ofNat minCent.toNat) (normU32 maxCent)
     (if count == u32Inf then none else some count.toNat) byCentrality
-    (probPermille.toNat.toFloat / 1000.0) truncate shrinkChallenge shrinkSolution deleteLemmas seed
+    (probPermille.toNat.toFloat / 1000.0) truncate shrinkChallenge shrinkSolution deleteLemmas
+    shrinkChallengeMinimal shrinkSolutionMinimal
+    (if deleteCount == u32Inf then none else some deleteCount.toNat) deleteUniform deleteLeaves corollary
+    seed
 
 end Ablator

@@ -99,9 +99,10 @@ export interface Caps {
 }
 
 export const CAPS: Record<Lang, Caps> = {
-  // Lean's numeric ABI predates the corollary/delete-count knobs and has a
-  // single boolean `deleteLemmas`; no minimal-shrink either.
-  lean: { minimalShrink: false, lemmaDelete: false, allowDefined: false, ablateScripts: false },
+  // All three backends now honour the full lemma-delete + minimal-shrink knob
+  // set (Lean's numeric ABI was extended to parity). `allowDefined` is Rocq-only
+  // and `ablateScripts` is Isabelle-only (genuine language-specific knobs).
+  lean: { minimalShrink: true, lemmaDelete: true, allowDefined: false, ablateScripts: false },
   isabelle: { minimalShrink: true, lemmaDelete: true, allowDefined: false, ablateScripts: true },
   rocq: { minimalShrink: true, lemmaDelete: true, allowDefined: true, ablateScripts: false },
 }

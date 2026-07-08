@@ -3,10 +3,11 @@
 // MODULARIZE factory `createAblator()` and a C entry `ablate_json` taking the
 // source plus 15 numeric knobs (see `leanAblateTheory` in Ablator/Wasm.lean).
 //
-// ABI note: the Lean WASM entry predates the corollary / delete-count / minimal-
-// shrink knobs the Isabelle & Rocq backends grew, and has a single boolean
-// `deleteLemmas`. Those knobs are dropped here (see `CAPS.lean`); everything
-// else maps 1:1 onto the numeric argument vector.
+// ABI note: the Lean WASM entry now exposes the full knob set — corollary /
+// delete-count / delete-uniform / delete-leaves / minimal-shrink — reaching
+// parity with the Isabelle & Rocq JSON backends. Every knob maps 1:1 onto the
+// numeric argument vector below (21 numbers, matching `ablate_json` in
+// wasm/shim.c and `leanAblateTheory` in Ablator/Wasm.lean).
 
 import type { Ablator, AblateOptions, AblateResult } from './types'
 import { loadScript, normalizeRaw, wasmUrl } from './loader'
@@ -31,8 +32,8 @@ declare global {
 
 let mod: EmModule | null = null
 
-// text + 15 numbers, matching leanAblateTheory's argument order.
-const SIG = ['string', ...Array<string>(15).fill('number')]
+// text + 21 numbers, matching leanAblateTheory's argument order.
+const SIG = ['string', ...Array<string>(21).fill('number')]
 
 export const leanAblator: Ablator = {
   lang: 'lean',
@@ -50,6 +51,10 @@ export const leanAblator: Ablator = {
     if (!mod) throw new Error('lean wasm not loaded')
     const count = opts.rateMode === 'count' ? opts.count : INF
     const permille = opts.rateMode === 'prob' ? Math.round(opts.prob * 1000) : 0
+    // deleteCount: the `--delete-lemmas N` target; INF sentinel = unset (only
+    // meaningful in lemma-delete mode).
+    const deleteCount =
+      opts.deleteLemmas && opts.deleteCount != null ? opts.deleteCount >>> 0 : INF
     const args = [
       source,
       u32(opts.minDepth),
@@ -66,6 +71,12 @@ export const leanAblator: Ablator = {
       opts.shrinkChallenge ? 1 : 0,
       opts.shrinkSolution ? 1 : 0,
       opts.deleteLemmas ? 1 : 0,
+      opts.shrinkChallengeMinimal ? 1 : 0,
+      opts.shrinkSolutionMinimal ? 1 : 0,
+      deleteCount,
+      opts.deleteUniform ? 1 : 0,
+      opts.deleteLeaves ? 1 : 0,
+      opts.corollary ? 1 : 0,
       opts.seed,
     ]
     const ptr = mod.ccall('ablate_json', 'number', SIG, args)
