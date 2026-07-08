@@ -7,6 +7,7 @@ pub mod ablate;
 pub mod centrality;
 pub mod diff;
 pub mod keyword;
+pub mod metrics;
 pub mod record;
 pub mod sha1;
 pub mod span;
@@ -160,7 +161,7 @@ mod tests {
         };
         let mut rng = ablate::Rng::new(0);
         let r = ablate::ablate(&spans, &spec, &mut rng, &z);
-        let deleted: Vec<&str> = r.deleted.iter().map(|(n, _)| n.as_str()).collect();
+        let deleted: Vec<&str> = r.deleted.iter().map(|d| d.name.as_str()).collect();
         assert!(
             deleted.contains(&"helper"),
             "helper (used in a proof) deleted"
@@ -208,9 +209,12 @@ mod tests {
             r2.ablated >= 2 && r2.deleted.len() == 1,
             "count=2: >= 2 from one deletion"
         );
+        let names = |r: &ablate::AblationResult| -> Vec<String> {
+            r.deleted.iter().map(|d| d.name.clone()).collect()
+        };
         assert_eq!(
-            r2.deleted,
-            run(2, false, false, 1).deleted,
+            names(&r2),
+            names(&run(2, false, false, 1)),
             "reproducible per seed"
         );
         // count = 4 needs both lemmas (2 + 3): always 5 ablations, both deleted
@@ -235,7 +239,7 @@ mod tests {
             run(2, false, uniform, seed)
                 .deleted
                 .first()
-                .map(|(n, _)| n.clone())
+                .map(|d| d.name.clone())
                 .unwrap_or_default()
         };
         let tally = |uniform: bool| -> (i32, i32) {
@@ -494,7 +498,7 @@ mod tests {
             };
             let mut rng = ablate::Rng::new(seed);
             let r = ablate::ablate(&spans, &spec, &mut rng, &z);
-            r.deleted.into_iter().map(|(n, _)| n).collect()
+            r.deleted.into_iter().map(|d| d.name).collect()
         };
         let mut saw_base = false;
         let mut saw_mid = false;

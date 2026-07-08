@@ -122,15 +122,36 @@ pub fn ablate_theory(text: &str, opts_json: &str, seed: f64) -> String {
                 "theorem_name": h.theorem_name, "depth": h.depth, "n_commands": h.n_commands,
                 "n_lines": h.n_lines, "is_leaf": h.is_leaf, "centrality": h.centrality,
                 "method": h.method, "proof_text": h.proof_text,
+                "n_chars": h.metrics.n_chars, "n_subproofs": h.metrics.n_subproofs,
+                "n_tactics": h.metrics.n_tactics, "cyclomatic": h.metrics.cyclomatic,
             })
         })
         .collect();
     let deleted: Vec<Value> = r
         .deleted
         .iter()
-        .map(|(nm, txt)| json!({ "name": nm, "text": txt }))
+        .map(|d| {
+            json!({
+                "name": d.name, "text": d.text, "fan_in": d.fan_in,
+                "n_lines": d.metrics.n_lines, "n_chars": d.metrics.n_chars,
+                "n_subproofs": d.metrics.n_subproofs, "n_tactics": d.metrics.n_tactics,
+                "cyclomatic": d.metrics.cyclomatic,
+            })
+        })
         .collect();
-    json!({ "text": r.text, "solution_diff": crate::diff::unified(&r.text, &r.solution), "total": r.total, "ablated": r.ablated, "holes": holes, "deleted_lemmas": deleted }).to_string()
+    let corollaries: Vec<Value> = r
+        .corollaries
+        .iter()
+        .map(|c| {
+            json!({
+                "name": c.name, "fan_in": c.fan_in,
+                "n_lines": c.metrics.n_lines, "n_chars": c.metrics.n_chars,
+                "n_subproofs": c.metrics.n_subproofs, "n_tactics": c.metrics.n_tactics,
+                "cyclomatic": c.metrics.cyclomatic,
+            })
+        })
+        .collect();
+    json!({ "text": r.text, "solution_diff": crate::diff::unified(&r.text, &r.solution), "total": r.total, "ablated": r.ablated, "holes": holes, "deleted_lemmas": deleted, "corollaries": corollaries, "closure_size": r.closure_size }).to_string()
 }
 
 /// Number of HOL keywords baked in (sanity check for the JS side).

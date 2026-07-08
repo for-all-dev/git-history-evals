@@ -77,4 +77,8 @@ end Sha1
 def sha1Hex12 (s : String) : String :=
   String.mk ((Sha1.hex s.toUTF8).toList.take 12)
 
+/-- `challenge_id` digest: first 16 hex chars of SHA-1 of the UTF-8 key. -/
+def sha1Hex16 (s : String) : String :=
+  String.mk ((Sha1.hex s.toUTF8).toList.take 16)
+
 end Ablator

@@ -44,6 +44,35 @@ uv run pytest             # tests
   - `orchestrate/`: bash + docker-compose glue. `run-all.sh` spawns a detached tmux session with one window per SHA; each window runs `run-commit.sh` against a `gen-compose.py`-produced compose file. `aggregate.sh` pulls per-SHA named volumes (`results-<prefix>`) into `results/<run_id>/`. `attach.sh` attaches to a running session.
   - `summary.py`: cross-run aggregator — per-(mode, deletion_size) drift ratios (vo_bytes, compile_time, proof_chars/lines, tactic_count) vs human reference, baseline-vs-agent deltas, per-metric Pearson r vs deletion_size as a faithfulness check
   - `results/<run_id>/`: host-side mirror of the per-SHA volumes (see `experiments/results/README.md`)
+- **Ablators** (syntactic proof-ablation tools — each parses a proof file and replaces
+  selected proofs/lemmas with holes, emitting `(challenge, solution)` JSONL pairs; all
+  share the `record.py`-compatible schema). Four implementations, kept in lockstep:
+  - `./rocq-ablator/`: OCaml/dune, for Coq/Rocq `.v` (CLI `bin/main.ml` + WASM).
+  - `./lean-ablator/`: Lean 4/lake, for `.lean` (`Main.lean`, core in `Ablator/`, WASM).
+  - `./isabelle-ablator/rust/`: Rust/cargo, for Isabelle `.thy` (clap CLI + WASM).
+  - `./isabelle-ablator/scala/`: Scala on the bundled Isabelle JVM (no WASM).
+  Key flags (all four): `--delete-lemmas[=N]` / `--delete-lemmas-leaves` (delete N
+  eligible lemmas + hole their in-file users at smallest-enclosing-block granularity),
+  `--corollary-delete-lemmas[=N]` / `-uniform` / `-leaves` (same, but candidates are
+  restricted to one random theorem's — the "corollary" — transitive in-file dependency
+  closure: pick a corollary uniformly, draw deletions from its closure fan-in-weighted
+  (or uniform), re-picking a corollary only when the closure runs dry),
+  `--count N`, `--shrink-challenge-minimal` / `--shrink-solution-minimal` (slice to the
+  holes' dependency closure), `--compact` (JSONL), `--text`, `--check-build`. Ablators
+  **skip emitting a record when nothing was deleted/holed** (challenge == solution) so
+  trivial challenges never reach a baseline. (Isabelle-only: apply-scripts are
+  prefix-cut by default — keep a prefix of `apply` steps, `sorry` the rest — or dropped
+  whole with `--ablate-scripts`.)
+- `./baselines/`: uv project — the **prover-agnostic agentic baseline harness**
+  (formerly `harness/`; the older single-shot whole-file baseline is now
+  `./baselines-old/`). Package `apply_ablate`: `solve.py` is a pydantic-ai ReAct loop
+  that re-derives the deleted lemma(s) into a compiling, hole-free file; `provers/`
+  has the Coq/Isabelle/Lean backends (`coqc`, session-aware `isabelle build` with
+  prebuilt-deps + `skip_proofs`, `lake env lean`); `apply.py` splices a challenge into
+  a work copy (symlinking heavy dep dirs like `.lake`); `record.py` is the shared JSONL
+  schema; `obs.py` wires Logfire (`instrument_pydantic_ai` + per-compile/per-outcome
+  spans). Pre-flight validation marks challenges that don't compile `malformed` and
+  empty-diff ones `trivial`, both excluded from the PASS rate.
 - `./data/`: source repos as git submodules
 - `./artifacts/`: mined eval datasets as versioned bundles — `<repo>-eval/<tag>-<hash>/{manifest.json, miner/profile.json, challenges.jsonl}` per `MANIFEST_SCHEMA.md`, indexed by `_index.json`. Each dataset owns exactly one profile (at `<version>/miner/profile.json`); the blessed `<repo>-eval/profile.json` that `mine-all` reads is a relative **symlink** into the canonical version's profile, not a copy. Bulk `*.jsonl`/`*.txt` payloads are sha256 blobs declared in manifests and gitignored.
 - `./dashboard/`: Next.js app for exploring JSONL benchmark artifacts
@@ -57,6 +86,10 @@ From `./scaffold/`:
 - `uv run scaffold calibrate --bundle <version-dir>` — calibrate a **repo-specific curation prompt** (issue #84): iteratively draws fresh random samples, labels them with the decision model, evaluates candidate prompts (tier-1 scoring + mechanical threshold sweep with a 10% defer-rate cap + tier-2 escalation), and lets a persistent decision-model "writer" analyze failures and propose variants. Writes `<version>/curation/{criteria.txt, tier1_prompt.txt, tier2_prompt.txt, calibration.json}`; consume via `scaffold curate <challenges.jsonl> --calibration <version>/curation`. Model roles (cheap/mid/decision — currently Haiku/Sonnet/Opus) are configured in `model-roles.json` at the monorepo root (see `scaffold/src/scaffold/model_roles.py`).
 - `uv run scaffold` — Tier-2 deterministic mining: `mine`/`mine-all`/`dump-commits`/`enrich-commits`/`diff-enrich`/`stratify-tactics`/`group-tactics`, each taking `--profile/-p` (see `scaffold --help`)
 - `uv run quali` — qualitative trajectory analysis via LLM (reads from artifacts, writes `*-quali.jsonl`)
+
+From `./baselines/`:
+- `uv run ablate-baseline <challenges.jsonl> <src> [--model … --max-turns N --timeout S --out F]` — run the pydantic-ai ReAct agent over ablator-generated challenges, scoring each by real compilation; reports PASS / trivial / malformed / turn-limit / harness-err. Run inside the relevant prover's nix shell (so `coqc`/`isabelle`/`lake` are on PATH) with `ANTHROPIC_API_KEY` in the repo `.env`. (For Coq, use the opam `coqc` that built the `.vo`, not the rocq-ablator nix shell's Rocq.)
+- `uv run difficulty extract <challenges.jsonl> [--out-jsonl F --out-csv F]` / `uv run difficulty build-table <challenges.jsonl> <results.jsonl> [--out-* F]` — the **difficulty-classifier** feature/label layer (`apply_ablate.difficulty`). `extract` flattens each enriched ablator record into a fixed per-challenge feature vector (fan-in, sub-proof/tactic/cyclomatic aggregates over deleted lemmas + holes + corollary, sizes, closure_size); `build-table` joins those to `ablate-baseline` outcomes (PASS label + reconstructed outcome class) via the stable `challenge_id`. The proof-complexity metrics are computed *inside* the four ablators (visible in the JSONL); Python only aggregates. Model is deferred — see `apply_ablate.difficulty.model` and `docs/difficulty-features.md`.
 
 From `./experiments/`:
 - `uv run eval-baseline` — single-shot Claude baseline across slots; writes `results/<run_id>/baseline.jsonl`

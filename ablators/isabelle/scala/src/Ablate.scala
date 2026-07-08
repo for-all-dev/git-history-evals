@@ -120,10 +120,21 @@ object Ablate {
 
   /** A removed proof and its difficulty signals. */
   sealed case class Hole(theorem_name: String, depth: Int, n_commands: Int, n_lines: Int,
-    is_leaf: Boolean, centrality: Int, method: String, proof_text: String)
+    is_leaf: Boolean, centrality: Int, method: String, proof_text: String,
+    metrics: Metrics.T)
+
+  /** A lemma the ablator removed entirely (--delete-lemmas / corollary modes).
+   *  `fan_in` is its in-file user count; `metrics` covers the whole block for size and
+   *  the proof body for the tactic heuristics. */
+  sealed case class DeletedLemma(name: String, text: String, fan_in: Int, metrics: Metrics.T)
+
+  /** The theorem whose transitive in-file dependency closure seeded a corollary-mode
+   *  deletion (empty outside corollary mode). Typically also a holed theorem. */
+  sealed case class Corollary(name: String, fan_in: Int, metrics: Metrics.T)
 
   sealed case class Result(text: String, solution: String, total: Int, ablated: Int,
-    holes: List[Hole], deleted: List[(String, String)] = Nil)
+    holes: List[Hole], deleted: List[DeletedLemma] = Nil,
+    corollaries: List[Corollary] = Nil, closure_size: Int = 0)
 
   // Measured properties of a goal body.
   private sealed case class Body(end: Int, lead: String, text: String,
@@ -296,7 +307,7 @@ object Ablate {
           out ++= " sorry"
           last_sorry_end = out.length
           ablated += 1
-          holes += Hole(name, goal_depth, m.n_commands, n_lines(m.text), m.is_leaf, cent, m.method, m.text)
+          holes += Hole(name, goal_depth, m.n_commands, n_lines(m.text), m.is_leaf, cent, m.method, m.text, Metrics.hole(m.text))
           i = m.end; depth = d
         } else walk_body(d)                                  // not selected: keep, recurse deeper
       }
@@ -447,8 +458,11 @@ object Ablate {
     // weighted, or uniform). One corollary is exhausted before a fresh one is drawn, so
     // deletions stay concentrated in a single proof's subtree unless the target forces
     // spilling. Mirrors the rust ablator's corollary_select.
-    def corollarySelect(): List[Lemma] = {
-      if (cands.isEmpty) Nil
+    // Returns (chosen, corollarySeeds, closureOpeners): the lemmas to delete, the
+    // corollary seed theorems that actually yielded deletions, and the distinct
+    // eligible closure members those corollaries drew from (for the emitted record).
+    def corollarySelect(): (List[Lemma], List[Lemma], Set[Int]) = {
+      if (cands.isEmpty) (Nil, Nil, Set.empty)
       else {
         val byNameFirst = lemmas.foldLeft(Map.empty[String, Lemma]) {
           (m, l) => if (m.contains(l.name)) m else m + (l.name -> l)
@@ -482,30 +496,47 @@ object Ablate {
           case (_, Some(k))  => coveredCount >= k
           case _ => false
         }
+        // corollary-mode bookkeeping: the seed theorem(s) that actually yielded
+        // deletions, and the distinct eligible closure members drawn from.
+        val corollarySeeds = new mutable.ListBuffer[Lemma]
+        val closure = mutable.Set.empty[Int]
+        def noteCorollary(cor: Lemma, cc: Vector[Lemma]): Unit = {
+          corollarySeeds += cor
+          for (l <- cc) closure += l.opener
+        }
         var oi = 0; var stop = false
         while (oi < order.length && !stop) {
           val cor = order(oi); oi += 1
+          val cc = closureCands(cor)
           if (useProb) {
-            val pool = closureCands(cor).filterNot(l => del.contains(l.opener))
+            val pool = cc.filterNot(l => del.contains(l.opener))
             if (pool.nonEmpty) {
+              val before = chosen.length
               for (pp <- pool if rng.nextDouble() < spec.prob) { del += pp.opener; chosen += pp }
+              if (chosen.length > before) noteCorollary(cor, cc)
               stop = true
             }
           } else if (reached) stop = true
           else {
-            var pool = closureCands(cor).filterNot(l => del.contains(l.opener))
+            var pool = cc.filterNot(l => del.contains(l.opener))
+            val before = chosen.length
             while (pool.nonEmpty && !reached) {
               val idx = pickIdx(pool); val l = pool(idx)
               del += l.opener; chosen += l
               pool = pool.patch(idx, Nil, 1)
             }
+            if (chosen.length > before) noteCorollary(cor, cc)
           }
         }
-        chosen.toList
+        (chosen.toList, corollarySeeds.toList, closure.toSet)
       }
     }
-    val selected: List[Lemma] = if (spec.corollary) corollarySelect()
-    else spec.delete_count match {
+    var corollarySeeds: List[Lemma] = Nil
+    var closureOpeners: Set[Int] = Set.empty
+    val selected: List[Lemma] = if (spec.corollary) {
+      val (chosen, seeds, closure) = corollarySelect()
+      corollarySeeds = seeds; closureOpeners = closure; chosen
+    } else spec.delete_count match {
       // --delete-lemmas N: delete exactly N lemmas (weighted draw), any ablation count
       case Some(kd) =>
         val chosen = new mutable.ListBuffer[Lemma]
@@ -623,7 +654,7 @@ object Ablate {
     // --delete-lemmas-leaves, renderUser holes the smallest enclosing citing step.
     val out = new mutable.StringBuilder
     val holes = new mutable.ListBuffer[Hole]
-    val deleted = new mutable.ListBuffer[(String, String)]
+    val deleted = new mutable.ListBuffer[DeletedLemma]
     var ablated = 0
     var last_sorry_end = -1
     val chal_segs = new mutable.ListBuffer[(Int, Boolean, Boolean)]
@@ -636,13 +667,14 @@ object Ablate {
         val l = byOpener(j); val e = l.end
         val itemSrc = (j until e).map(src).mkString
         if (delSet.contains(j)) {
-          deleted += ((l.name, itemSrc))
+          val body = (j + 1 until e).map(src).mkString
+          deleted += DeletedLemma(l.name, itemSrc, l.users.length, Metrics.compute(itemSrc, body))
           orig_len += itemSrc.length; sol_segs += ((orig_len, false, false))
         } else if (userSet.contains(j)) {
           out ++= renderUser(j, e)
           last_sorry_end = out.length
           val proofText = (j + 1 until e).map(src).mkString
-          holes += Hole(l.name, 1, 0, n_lines(proofText), true, 0, "deleted-dep", proofText)
+          holes += Hole(l.name, 1, 0, n_lines(proofText), true, 0, "deleted-dep", proofText, Metrics.hole(proofText))
           ablated += 1
           chal_segs += ((out.length, false, true))
           orig_len += itemSrc.length; sol_segs += ((orig_len, false, true))
@@ -735,7 +767,13 @@ object Ablate {
       if (spec.shrink_solution_minimal) sliceDelete(true)
       else if (spec.shrink_solution) shrink(original, sol_segs.toList, spec.count)
       else original
-    Result(shaped_text, solution, totalEligible, ablated, holes.toList, deleted.toList)
+    val corollaries = corollarySeeds.map { c =>
+      val block = (c.opener until c.end).map(src).mkString
+      val body = (c.opener + 1 until c.end).map(src).mkString
+      Corollary(c.name, c.users.length, Metrics.compute(block, body))
+    }
+    Result(shaped_text, solution, totalEligible, ablated, holes.toList, deleted.toList,
+      corollaries, closureOpeners.size)
   }
 
 
@@ -788,6 +826,18 @@ object Ablate {
   private def task_id(file_path: String, variant: Option[Int]): String =
     "ablate_" + SHA1.digest(file_path).toString.substring(0, 12) + variant.map("_" + _).getOrElse("")
 
+  // Stable, unique per-challenge id (so labels join to features exactly). Derived from
+  // the inputs that fully determine a challenge; unlike task_id it does not collide
+  // across challenges mined from the same file. See docs/difficulty-features.md §1.
+  private def challenge_id(file_path: String, seed: Long, variant: Option[Int],
+    result: Result): String = {
+    val deleted = result.deleted.map(_.name).sorted.mkString(",")
+    val holed = result.holes.map(_.theorem_name).sorted.mkString(",")
+    val key = List(file_path, seed.toString, variant.map(_.toString).getOrElse(""),
+      deleted, holed).mkString("|")
+    SHA1.digest(key).toString.substring(0, 16)
+  }
+
   private def theory_name(file_path: String): String = {
     val b = file_path.split('/').lastOption.getOrElse(file_path)
     if (b.endsWith(".thy")) b.dropRight(4) else b
@@ -801,11 +851,25 @@ object Ablate {
       result.holes.map(h => ListMap[String, JSON.T](
         "theorem_name" -> h.theorem_name, "depth" -> h.depth, "n_commands" -> h.n_commands,
         "n_lines" -> h.n_lines, "is_leaf" -> h.is_leaf, "centrality" -> h.centrality,
-        "method" -> h.method, "proof_text" -> h.proof_text))
+        "method" -> h.method, "proof_text" -> h.proof_text,
+        // proof-complexity metrics (spec §2); n_lines above matches metrics.n_lines
+        "n_chars" -> h.metrics.n_chars, "n_subproofs" -> h.metrics.n_subproofs,
+        "n_tactics" -> h.metrics.n_tactics, "cyclomatic" -> h.metrics.cyclomatic))
     val deleted_lemmas: List[JSON.T] =
-      result.deleted.map { case (nm, txt) => ListMap[String, JSON.T]("name" -> nm, "text" -> txt) }
+      result.deleted.map(d => ListMap[String, JSON.T](
+        "name" -> d.name, "text" -> d.text, "fan_in" -> d.fan_in,
+        "n_lines" -> d.metrics.n_lines, "n_chars" -> d.metrics.n_chars,
+        "n_subproofs" -> d.metrics.n_subproofs, "n_tactics" -> d.metrics.n_tactics,
+        "cyclomatic" -> d.metrics.cyclomatic))
+    val corollaries: List[JSON.T] =
+      result.corollaries.map(c => ListMap[String, JSON.T](
+        "name" -> c.name, "fan_in" -> c.fan_in,
+        "n_lines" -> c.metrics.n_lines, "n_chars" -> c.metrics.n_chars,
+        "n_subproofs" -> c.metrics.n_subproofs, "n_tactics" -> c.metrics.n_tactics,
+        "cyclomatic" -> c.metrics.cyclomatic))
     ListMap[String, JSON.T](
       "task_id" -> task_id(file_path, variant),
+      "challenge_id" -> challenge_id(file_path, seed, variant, result),
       "proof_assistant" -> "isabelle",
       "session" -> session,
       "file_path" -> file_path,
@@ -828,6 +892,8 @@ object Ablate {
       "n_ablated" -> result.ablated,
       "holes_filled" -> holes,
       "deleted_lemmas" -> deleted_lemmas,
+      "corollaries" -> corollaries,
+      "closure_size" -> result.closure_size,
       "challenge_file_content" -> result.text,
       // solution stored as a diff against the challenge (apply to recover) — full
       // files are huge for big theories (issue #107)

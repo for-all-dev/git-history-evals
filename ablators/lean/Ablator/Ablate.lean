@@ -24,6 +24,7 @@ import Ablator.Token
 import Ablator.Keyword
 import Ablator.Span
 import Ablator.Uses
+import Ablator.Metrics
 
 namespace Ablator
 
@@ -60,7 +61,9 @@ structure Spec where
 def Spec.usesCentrality (s : Spec) : Bool :=
   s.minCentrality > 0 || s.maxCentrality != INF || s.byCentrality
 
-/-- A removed proof/body and the difficulty signals recorded for it. -/
+/-- A removed proof/body and the difficulty signals recorded for it. `metrics`
+    covers the proof body (`proofText`) per spec §2; its `nLines` matches the
+    separate `nLines` field. -/
 structure Hole where
   theoremName : String
   depth       : Int
@@ -70,7 +73,26 @@ structure Hole where
   centrality  : Int
   method      : String
   proofText   : String
+  metrics     : Metrics
   deriving Inhabited
+
+/-- A lemma the ablator removed entirely (`--delete-lemmas` / corollary modes).
+    `fanIn` is its in-file user count (how many proofs cited it); `metrics` covers
+    the whole block for size and the proof body for the tactic heuristics. -/
+structure DeletedLemma where
+  name    : String
+  text    : String  -- original block: statement + proof
+  fanIn   : Int
+  metrics : Metrics
+  deriving Inhabited, BEq
+
+/-- The theorem whose transitive in-file dependency closure seeded a corollary-mode
+    deletion (empty outside corollary mode). It is typically also a holed theorem. -/
+structure Corollary where
+  name    : String
+  fanIn   : Int
+  metrics : Metrics
+  deriving Inhabited, BEq
 
 structure AblationResult where
   text     : String
@@ -78,7 +100,9 @@ structure AblationResult where
   total    : Int
   ablated  : Int
   holes    : Array Hole
-  deleted  : Array (String × String) := #[] -- (name, original block) for --delete-lemmas
+  deleted  : Array DeletedLemma := #[]     -- lemmas removed for --delete-lemmas
+  corollaries : Array Corollary := #[]     -- seeds of corollary-mode deletions (else #[])
+  closureSize : Int := 0                   -- distinct eligible closure members drawn from (else 0)
   deriving Inhabited
 
 /-- How a candidate is chosen for ablation. -/
@@ -141,6 +165,9 @@ def lastProperEnd (toks : Array Token) (lo hi : Nat) : Nat := Id.run do
 
 private def nLinesOf (s : String) : Int :=
   if s.isEmpty then 0 else Int.ofNat (s.toList.foldl (fun acc c => if c == '\n' then acc + 1 else acc) 1)
+
+/-- Metrics for a holed proof, whose only available text is the proof body. -/
+private def holeMetrics (proofText : String) : Metrics := Metrics.compute proofText proofText
 
 /-- End of the indentation-delimited block opened at column `col`: the first
     later line at column ≤ `col`, else `hi`. -/
@@ -389,7 +416,8 @@ mutual
           holes := s.holes.push {
             theoremName := name, depth := depth, nCommands := m.nCommands,
             nLines := nLinesOf proofText, isLeaf := m.isLeaf, centrality := cent,
-            method := methodLabel st.toks contentLo contentHi kind, proofText := proofText } }
+            method := methodLabel st.toks contentLo contentHi kind, proofText := proofText,
+            metrics := holeMetrics proofText } }
         emitTokens contentHi trailingHi
       else
         walkBody contentLo contentHi trailingHi unitCol depth
@@ -620,8 +648,17 @@ def sliceDelete (toks : Array Token) (spans : Array Span) (spec : Spec)
   -- same lemma name inside different namespaces/sections); keeping only one — worse, an
   -- arbitrary `find?` match — can drop the definition a kept reference resolves to,
   -- leaving a dangling reference in the slice. (Mirrors rocq `openers_of_name`.)
+  -- Resolve a cited name to lemma decls by full name OR last dotted component. A
+  -- dot-notation call `x.foo` (with `x : T`, resolving to `T.foo`) or an open-namespace
+  -- reference cites only `foo`, which cannot be tied to the fully-qualified `T.foo`
+  -- declaration syntactically — matching on the last component recovers it. This
+  -- conservatively over-keeps same-suffix lemmas, which is safe: an extra kept lemma
+  -- never breaks compilation, whereas a dropped-but-needed one does (the over-cut bug
+  -- that made `--shrink-*-minimal` corrupt dot-notation-heavy files, e.g. lean4lean).
+  let lastComp := fun (s : String) => (s.splitOn ".").getLastD s
   let openersOfName := fun (nm : String) =>
-    lemmas.filterMap (fun l => if l.name == nm then some l.spanIdx else none)
+    let nc := lastComp nm
+    lemmas.filterMap (fun l => if l.name == nm || lastComp l.name == nc then some l.spanIdx else none)
   let mut deletedNames : HashSet String := {}
   for si in delSet.toList do
     match bySpan si with | some l => deletedNames := deletedNames.insert l.name | none => pure ()
@@ -686,11 +723,13 @@ def sliceDelete (toks : Array Token) (spans : Array Span) (spec : Spec)
 dependency closure, and draw deletions from the *eligible* members of that closure
 (fan-in weighted, or uniform). One corollary is exhausted before a fresh one is drawn,
 so deletions stay concentrated in a single proof's subtree unless the target forces
-spilling. Mirrors the rust ablator's `corollary_select`. Returns the chosen lemmas and
-the advanced RNG. -/
+spilling. Mirrors the rust ablator's `corollary_select`. Returns the chosen lemmas,
+the corollary seed(s) deletions were drawn from, the distinct eligible closure members
+they were drawn from, and the advanced RNG (the latter two feed the emitted record). -/
 def corollarySelect (lemmas : Array DeletableLemma) (cands : Array DeletableLemma)
-    (spec : Spec) (rng : Rng) : Array DeletableLemma × Rng := Id.run do
-  if cands.isEmpty then return (#[], rng)
+    (spec : Spec) (rng : Rng) :
+    Array DeletableLemma × Array DeletableLemma × HashSet Nat × Rng := Id.run do
+  if cands.isEmpty then return (#[], #[], {}, rng)
   -- name -> first lemma position
   let mut byNamePos : HashMap String Nat := {}
   for i in [0:lemmas.size] do
@@ -747,23 +786,35 @@ def corollarySelect (lemmas : Array DeletableLemma) (cands : Array DeletableLemm
   let mut r := rngAfter
   let mut del : HashSet Nat := {}
   let mut chosen : Array DeletableLemma := #[]
+  let mut seeds : Array DeletableLemma := #[]
+  let mut closure : HashSet Nat := {}
   let mut stop := false
+  -- record `cor` as a corollary seed and its closure as the draw neighborhood
+  let noteCorollary := fun (cor : DeletableLemma) (cc : Array DeletableLemma)
+      (seeds : Array DeletableLemma) (closure : HashSet Nat) =>
+    (seeds.push cor, cc.foldl (fun (s : HashSet Nat) l => s.insert l.spanIdx) closure)
   for cor in order do
     if !stop then
+      let cc := closureCands cor
       if useProb then
-        let pool := (closureCands cor).filter (fun l => !del.contains l.spanIdx)
+        let pool := cc.filter (fun l => !del.contains l.spanIdx)
         if !pool.isEmpty then
+          let before := chosen.size
           for pp in pool do
             let (x, r') := r.nextF64
             r := r'
             if x < spec.prob then
               del := del.insert pp.spanIdx
               chosen := chosen.push pp
+          if chosen.size > before then
+            let (s', c') := noteCorollary cor cc seeds closure
+            seeds := s'; closure := c'
           stop := true
       else if reached chosen del then
         stop := true
       else
-        let mut pool := (closureCands cor).filter (fun l => !del.contains l.spanIdx)
+        let mut pool := cc.filter (fun l => !del.contains l.spanIdx)
+        let before := chosen.size
         while pool.size > 0 && !(reached chosen del) do
           let (x, r') := r.nextF64
           r := r'
@@ -771,7 +822,10 @@ def corollarySelect (lemmas : Array DeletableLemma) (cands : Array DeletableLemm
           del := del.insert l.spanIdx
           chosen := chosen.push l
           pool := pool.filter (fun y => y.spanIdx != l.spanIdx)
-  return (chosen, r)
+        if chosen.size > before then
+          let (s', c') := noteCorollary cor cc seeds closure
+          seeds := s'; closure := c'
+  return (chosen, seeds, closure, r)
 
 /-- `--delete-lemmas`: delete eligible used lemmas + whole-proof-ablate users. -/
 def ablateDelete (toks : Array Token) (spec : Spec) (rng : Rng) : AblationResult := Id.run do
@@ -804,11 +858,15 @@ def ablateDelete (toks : Array Token) (spec : Spec) (rng : Rng) : AblationResult
     return idx
   let mut selected : Array DeletableLemma := #[]
   let mut r := rng
+  let mut corollarySeeds : Array DeletableLemma := #[]
+  let mut closureOpeners : HashSet Nat := {}
   if spec.corollary then
     -- Corollary mode restricts the candidate pool to one random theorem's dependency
     -- closure; everything downstream (user ablation, shrink, --count) is shared.
-    let (sel, r') := corollarySelect lemmas cands spec r
+    let (sel, seeds, closure, r') := corollarySelect lemmas cands spec r
     selected := sel
+    corollarySeeds := seeds
+    closureOpeners := closure
     r := r'
   else match spec.deleteCount with
   | some kd =>
@@ -865,7 +923,7 @@ def ablateDelete (toks : Array Token) (spec : Spec) (rng : Rng) : AblationResult
   -- ablator; here it falls back to whole-proof ablation, always correct.)
   let mut out := ""
   let mut holes : Array Hole := #[]
-  let mut deleted : Array (String × String) := #[]
+  let mut deleted : Array DeletedLemma := #[]
   let mut ablated : Int := 0
   let mut lastSorryEnd : Int := -1
   let mut chalSegs : Array (Nat × Bool × Bool) := #[]
@@ -878,7 +936,14 @@ def ablateDelete (toks : Array Token) (spec : Spec) (rng : Rng) : AblationResult
     let closer := s.cmd == some "end" || s.cmd == some "namespace" || s.cmd == some "section"
     let itemLen := (s.source toks).length
     if delSet.contains si then
-      deleted := deleted.push (nameOf si, s.source toks)
+      let block := s.source toks
+      let body := match findDeclBody toks s.lo s.hi with
+        | some a => implode (toks.extract (a + 1) (lastProperEnd toks (a + 1) s.hi))
+        | none => ""
+      let fanIn := match lemmas.find? (fun l => l.spanIdx == si) with
+        | some l => Int.ofNat l.users.size | none => 0
+      deleted := deleted.push {
+        name := nameOf si, text := block, fanIn := fanIn, metrics := Metrics.compute block body }
       origLen := origLen + itemLen
       solSegs := solSegs.push (origLen, false, false)
     else if userSet.contains si then
@@ -891,7 +956,8 @@ def ablateDelete (toks : Array Token) (spec : Spec) (rng : Rng) : AblationResult
         let proofText := implode (toks.extract (a + 1) contentHi)
         holes := holes.push {
           theoremName := nameOf si, depth := 1, nCommands := 0, nLines := nLinesOf proofText,
-          isLeaf := true, centrality := 0, method := "deleted-dep", proofText := proofText }
+          isLeaf := true, centrality := 0, method := "deleted-dep", proofText := proofText,
+          metrics := holeMetrics proofText }
         ablated := ablated + 1
         chalSegs := chalSegs.push (out.length, false, true)
         origLen := origLen + itemLen
@@ -917,9 +983,17 @@ def ablateDelete (toks : Array Token) (spec : Spec) (rng : Rng) : AblationResult
     if spec.shrinkSolutionMinimal then sliceDelete toks spans spec lemmas delSet userSet true
     else if spec.shrinkSolution then shrink original solSegs spec.count
     else original
+  let corollaries : Array Corollary := corollarySeeds.map (fun c =>
+    let s := spans[c.spanIdx]!
+    let block := s.source toks
+    let body := match findDeclBody toks s.lo s.hi with
+      | some a => implode (toks.extract (a + 1) (lastProperEnd toks (a + 1) s.hi))
+      | none => ""
+    { name := c.name, fanIn := Int.ofNat c.users.size, metrics := Metrics.compute block body })
   return {
     text := text, solution := solution,
-    total := Int.ofNat totalEligible, ablated := ablated, holes := holes, deleted := deleted }
+    total := Int.ofNat totalEligible, ablated := ablated, holes := holes, deleted := deleted,
+    corollaries := corollaries, closureSize := Int.ofNat closureOpeners.size }
 
 /-- Public entry. `centrality` maps a name to its corpus fan-in (0 if unused). -/
 def ablate (toks : Array Token) (spec : Spec) (rng : Rng) (centrality : String → Int) : AblationResult :=

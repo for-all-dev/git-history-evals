@@ -34,7 +34,47 @@ def holeJson (h : Hole) : Json :=
     ("is_leaf", Json.bool h.isLeaf),
     ("centrality", Json.num h.centrality),
     ("method", Json.str h.method),
-    ("proof_text", Json.str h.proofText) ]
+    ("proof_text", Json.str h.proofText),
+    -- proof-complexity metrics (spec §2); n_lines above matches metrics.nLines
+    ("n_chars", Json.num h.metrics.nChars),
+    ("n_subproofs", Json.num h.metrics.nSubproofs),
+    ("n_tactics", Json.num h.metrics.nTactics),
+    ("cyclomatic", Json.num h.metrics.cyclomatic) ]
+
+def deletedJson (d : DeletedLemma) : Json :=
+  Json.obj [
+    ("name", Json.str d.name),
+    ("text", Json.str d.text),
+    ("fan_in", Json.num d.fanIn),
+    ("n_lines", Json.num d.metrics.nLines),
+    ("n_chars", Json.num d.metrics.nChars),
+    ("n_subproofs", Json.num d.metrics.nSubproofs),
+    ("n_tactics", Json.num d.metrics.nTactics),
+    ("cyclomatic", Json.num d.metrics.cyclomatic) ]
+
+def corollaryJson (c : Corollary) : Json :=
+  Json.obj [
+    ("name", Json.str c.name),
+    ("fan_in", Json.num c.fanIn),
+    ("n_lines", Json.num c.metrics.nLines),
+    ("n_chars", Json.num c.metrics.nChars),
+    ("n_subproofs", Json.num c.metrics.nSubproofs),
+    ("n_tactics", Json.num c.metrics.nTactics),
+    ("cyclomatic", Json.num c.metrics.cyclomatic) ]
+
+/-- Stable, unique per-challenge id (so labels join to features exactly). Derived
+    from the inputs that fully determine a challenge; unlike `task_id` it does not
+    collide across challenges mined from the same file. See
+    docs/difficulty-features.md §1. -/
+private def challengeId (filePath : String) (seed : Int) (variant : Option Nat)
+    (result : AblationResult) : String :=
+  let sortJoin := fun (names : Array String) =>
+    String.intercalate "," (names.qsort (· < ·)).toList
+  let deleted := sortJoin (result.deleted.map (·.name))
+  let holed := sortJoin (result.holes.map (·.theoremName))
+  let variantStr := match variant with | some v => toString v | none => ""
+  let key := String.intercalate "|" [filePath, toString seed, variantStr, deleted, holed]
+  sha1Hex16 key
 
 /-- The lightweight `{text, total, ablated, holes}` shape returned to the
     browser playground. -/
@@ -45,8 +85,9 @@ def resultJson (result : AblationResult) : Json :=
     ("total", Json.num result.total),
     ("ablated", Json.num result.ablated),
     ("holes_filled", Json.arr (result.holes.map holeJson).toList),
-    ("deleted_lemmas", Json.arr (result.deleted.map
-      (fun (nm, txt) => Json.obj [("name", Json.str nm), ("text", Json.str txt)])).toList) ]
+    ("deleted_lemmas", Json.arr (result.deleted.map deletedJson).toList),
+    ("corollaries", Json.arr (result.corollaries.map corollaryJson).toList),
+    ("closure_size", Json.num result.closureSize) ]
 
 def record (filePath session : String) (spec : Spec) (seed : Int) (variant : Option Nat)
     (difficulty : Option String) (result : AblationResult) : Json :=
@@ -54,6 +95,7 @@ def record (filePath session : String) (spec : Spec) (seed : Int) (variant : Opt
   let optStr : Option String → Json := fun o => match o with | some s => Json.str s | none => Json.null
   Json.obj [
     ("task_id", Json.str (taskId filePath variant)),
+    ("challenge_id", Json.str (challengeId filePath seed variant result)),
     ("proof_assistant", Json.str "lean"),
     ("session", Json.str session),
     ("file_path", Json.str filePath),
@@ -75,8 +117,9 @@ def record (filePath session : String) (spec : Spec) (seed : Int) (variant : Opt
     ("n_proofs", Json.num result.total),
     ("n_ablated", Json.num result.ablated),
     ("holes_filled", Json.arr (result.holes.map holeJson).toList),
-    ("deleted_lemmas", Json.arr (result.deleted.map
-      (fun (nm, txt) => Json.obj [("name", Json.str nm), ("text", Json.str txt)])).toList),
+    ("deleted_lemmas", Json.arr (result.deleted.map deletedJson).toList),
+    ("corollaries", Json.arr (result.corollaries.map corollaryJson).toList),
+    ("closure_size", Json.num result.closureSize),
     ("challenge_file_content", Json.str result.text),
     -- the answer as a whole (shrunk) file, plus the diff for back-compat. With
     -- --shrink-solution the solution is the shrunk file, so this stays manageable.

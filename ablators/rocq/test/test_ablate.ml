@@ -18,6 +18,9 @@ let contains hay needle =
 
 let zero (_ : string) = 0
 
+(* names of the lemmas an ablation deleted (post record-schema enrichment) *)
+let del_names (ds : Ablate.deleted_lemma list) = List.map (fun (d : Ablate.deleted_lemma) -> d.d_name) ds
+
 let ablate_text ?(spec = Ablate.default_spec) ?(seed = 0) text =
   let spans = Span.parse_spans text in
   (Ablate.ablate spans spec (Ablate.Rng.make (Int64.of_int seed)) zero).text
@@ -27,6 +30,24 @@ let ablate_full ?(spec = Ablate.default_spec) ?(seed = 0) text =
   Ablate.ablate spans spec (Ablate.Rng.make (Int64.of_int seed)) zero
 
 (* ---- lexer ---- *)
+
+(* ---- proof-complexity metrics (docs/difficulty-features.md §2) ---- *)
+
+let () =
+  let body = "Proof.\n  induction n.\n  - reflexivity.\n  - simpl. rewrite IHn. reflexivity.\nQed." in
+  let m = Metrics.compute ~block:body ~body in
+  check "metrics: n_tactics counts dots" (m.Metrics.n_tactics = 7);
+  check "metrics: cyclomatic 1 + induction" (m.Metrics.cyclomatic = 2);
+  check "metrics: n_lines" (m.Metrics.n_lines = 5);
+  let body2 = "Proof. split. - try exact I. exact H; assert (K : True). Qed." in
+  let m2 = Metrics.compute ~block:body2 ~body:body2 in
+  (* branches: split (case) + try (alt) = 2 -> cyclomatic 3; ';' adds a tactic *)
+  check "metrics: cyclomatic split+try" (m2.Metrics.cyclomatic = 3);
+  check "metrics: subproofs counts assert" (m2.Metrics.n_subproofs = 1);
+  check "metrics: keywords in comments ignored"
+    (let c = "Proof. (* induction try assert *) exact I. Qed." in
+     let mc = Metrics.compute ~block:c ~body:c in
+     mc.Metrics.cyclomatic = 1 && mc.Metrics.n_subproofs = 0)
 
 let () =
   let samples =
@@ -182,7 +203,7 @@ let () =
   in
   let spec = { Ablate.default_spec with delete_lemmas = true; prob = 1.0 } in
   let r = ablate_full ~spec src in
-  let deleted_names = List.map fst r.deleted in
+  let deleted_names = del_names r.deleted in
   check "delete: helper (used in a proof) is deleted" (List.mem "helper" deleted_names);
   check "delete: unused_pub (no user) is NOT deleted" (not (List.mem "unused_pub" deleted_names));
   check "delete: helper's statement is gone from challenge" (not (contains r.text "Lemma helper"));
@@ -202,7 +223,7 @@ let () =
   let spec = { Ablate.default_spec with delete_lemmas = true; prob = 1.0 } in
   let r = ablate_full ~spec src in
   check "delete: lemma used in a Definition is NOT deleted"
-    (not (List.mem "key" (List.map fst r.deleted)) && contains r.text "Lemma key")
+    (not (List.mem "key" (del_names r.deleted)) && contains r.text "Lemma key")
 
 (* ---- --delete-lemmas + --count / --truncate ----
    `aaa` has 2 users (ua1, ua2); `bbb` has 3 (ub1..ub3); declare-before-use. In
@@ -238,7 +259,7 @@ let () =
      sometimes the tail (aaa) and sometimes the popular one (bbb); weighting (by
      user count) favours bbb, while --delete-lemmas-uniform balances them. *)
   let first_del uniform seed =
-    match (mk ~uniform ~seed 2).deleted with (n, _) :: _ -> n | [] -> "" in
+    match del_names (mk ~uniform ~seed 2).deleted with n :: _ -> n | [] -> "" in
   let tally uniform =
     List.fold_left
       (fun (a, b) s -> match first_del uniform s with "aaa" -> (a + 1, b) | "bbb" -> (a, b + 1) | _ -> (a, b))
@@ -388,7 +409,7 @@ let () =
   in
   let del1 seed =
     let spec = { Ablate.default_spec with delete_lemmas = true; corollary = true; delete_count = Some 1 } in
-    List.map fst (ablate_full ~spec ~seed src).deleted
+    del_names (ablate_full ~spec ~seed src).deleted
   in
   let saw_base = ref false and saw_mid = ref false and bad = ref false in
   for s = 0 to 39 do
@@ -408,7 +429,7 @@ let () =
   check "corollary: user proof holed; full solution preserved"
     (contains rw.text "Admitted" && rw.solution = src && List.length rw.deleted = 1);
   let spec_u = { spec_w with delete_uniform = true } in
-  let du = List.map fst (ablate_full ~spec:spec_u ~seed:5 src).deleted in
+  let du = del_names (ablate_full ~spec:spec_u ~seed:5 src).deleted in
   check "corollary-uniform: deletion within the closure"
     (List.for_all (fun n -> n = "base" || n = "mid") du)
 

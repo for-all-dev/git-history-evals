@@ -132,6 +132,9 @@ def run(
                 # solve_one branch produced the result.
                 res.deleted_lemmas = rec.deleted_lemma_names
                 res.holed_theorems = rec.holed_theorems
+                # stable join key for downstream feature<->label tables (may be None on
+                # legacy datasets that predate the enriched ablator schema)
+                res.challenge_id = rec.challenge_id
                 outcome = (
                     "pass"
                     if res.succeeded

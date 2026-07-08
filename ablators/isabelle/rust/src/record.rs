@@ -27,6 +27,31 @@ fn theory_name(file_path: &str) -> String {
     base.strip_suffix(".thy").unwrap_or(base).to_string()
 }
 
+/// Stable, unique per-challenge id (so labels join to features exactly). Derived from
+/// the inputs that fully determine a challenge; unlike `task_id` it does not collide
+/// across challenges mined from the same file. See docs/difficulty-features.md §1.
+fn challenge_id(
+    file_path: &str,
+    seed: i64,
+    variant: Option<u64>,
+    result: &AblationResult,
+) -> String {
+    let mut deleted: Vec<&str> = result.deleted.iter().map(|d| d.name.as_str()).collect();
+    deleted.sort();
+    let mut holed: Vec<&str> = result.holes.iter().map(|h| h.theorem_name.as_str()).collect();
+    holed.sort();
+    let variant = variant.map(|v| v.to_string()).unwrap_or_default();
+    let key = [
+        file_path.to_string(),
+        seed.to_string(),
+        variant,
+        deleted.join(","),
+        holed.join(","),
+    ]
+    .join("|");
+    sha1::hex(key.as_bytes())[..16].to_string()
+}
+
 #[allow(clippy::too_many_arguments)]
 pub fn record(
     file_path: &str,
@@ -50,12 +75,49 @@ pub fn record(
                 "centrality": h.centrality,
                 "method": h.method,
                 "proof_text": h.proof_text,
+                // proof-complexity metrics (spec §2); n_lines above matches metrics.n_lines
+                "n_chars": h.metrics.n_chars,
+                "n_subproofs": h.metrics.n_subproofs,
+                "n_tactics": h.metrics.n_tactics,
+                "cyclomatic": h.metrics.cyclomatic,
+            })
+        })
+        .collect();
+    let deleted_lemmas: Vec<Value> = result
+        .deleted
+        .iter()
+        .map(|d| {
+            json!({
+                "name": d.name,
+                "text": d.text,
+                "fan_in": d.fan_in,
+                "n_lines": d.metrics.n_lines,
+                "n_chars": d.metrics.n_chars,
+                "n_subproofs": d.metrics.n_subproofs,
+                "n_tactics": d.metrics.n_tactics,
+                "cyclomatic": d.metrics.cyclomatic,
+            })
+        })
+        .collect();
+    let corollaries: Vec<Value> = result
+        .corollaries
+        .iter()
+        .map(|c| {
+            json!({
+                "name": c.name,
+                "fan_in": c.fan_in,
+                "n_lines": c.metrics.n_lines,
+                "n_chars": c.metrics.n_chars,
+                "n_subproofs": c.metrics.n_subproofs,
+                "n_tactics": c.metrics.n_tactics,
+                "cyclomatic": c.metrics.cyclomatic,
             })
         })
         .collect();
 
     json!({
         "task_id": task_id(file_path, variant),
+        "challenge_id": challenge_id(file_path, seed, variant, result),
         "proof_assistant": "isabelle",
         "session": session,
         "file_path": file_path,
@@ -77,9 +139,9 @@ pub fn record(
         "n_proofs": result.total,
         "n_ablated": result.ablated,
         "holes_filled": holes,
-        "deleted_lemmas": result.deleted.iter()
-            .map(|(nm, txt)| json!({ "name": nm, "text": txt }))
-            .collect::<Vec<_>>(),
+        "deleted_lemmas": deleted_lemmas,
+        "corollaries": corollaries,
+        "closure_size": result.closure_size,
         "challenge_file_content": result.text,
         // solution stored as a diff against the challenge (apply to recover it) —
         // full files are huge for big theories (issue #107)

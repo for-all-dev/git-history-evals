@@ -53,6 +53,8 @@ class AblationRecord(BaseModel):
     deleted_lemmas: list[DeletedLemma] = Field(default_factory=list)
     # informational
     task_id: str | None = None
+    # stable, unique per-challenge id (enriched schema; None on legacy datasets)
+    challenge_id: str | None = None
     theory: str | None = None
     session: str | None = None
 
