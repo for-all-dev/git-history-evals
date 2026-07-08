@@ -2,9 +2,10 @@
 // (`--target web`), an ES module exporting `ablate_theory(text, optsJson, seed)`
 // and a default `init()` that self-locates its `_bg.wasm` via `import.meta.url`.
 //
-// Same rich JSON-opts ABI as Rocq, so the issue's default maps natively.
+// Same rich JSON-opts ABI as Rocq (plus `ablate_scripts`); shares `richSpec`.
 
 import type { Ablator, AblateOptions, AblateResult } from './types'
+import { richSpec } from './types'
 import { normalizeRaw, wasmUrl } from './loader'
 
 interface IsabelleModule {
@@ -14,17 +15,6 @@ interface IsabelleModule {
 }
 
 let mod: IsabelleModule | null = null
-
-function specOf(opts: AblateOptions): Record<string, unknown> {
-  return {
-    delete_lemmas: true,
-    corollary: opts.corollary,
-    delete_count: opts.deleteCount,
-    delete_uniform: !opts.weightedByFanIn,
-    shrink_challenge_minimal: opts.contextMinimize,
-    shrink_solution_minimal: opts.contextMinimize,
-  }
-}
 
 export const isabelleAblator: Ablator = {
   lang: 'isabelle',
@@ -39,7 +29,7 @@ export const isabelleAblator: Ablator = {
   },
   ablate(source: string, opts: AblateOptions): AblateResult {
     if (!mod) throw new Error('isabelle wasm not loaded')
-    const raw = JSON.parse(mod.ablate_theory(source, JSON.stringify(specOf(opts)), opts.seed))
+    const raw = JSON.parse(mod.ablate_theory(source, JSON.stringify(richSpec(opts)), opts.seed))
     const n = normalizeRaw(raw)
     return { ...n, raw }
   },

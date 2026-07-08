@@ -49,23 +49,138 @@ export interface AblateResult {
   raw: unknown
 }
 
+export type RateMode = 'prob' | 'count'
+
 /**
- * The knobs the demo exposes. The default challenge — "delete one theorem,
- * weighted by fan-in, for some randomly selected corollary" (issue #112) — is
- * `{ deleteCount: 1, corollary: true, weightedByFanIn: true }`. Each adapter
- * translates these into its backend's native option encoding as faithfully as
- * that backend's ABI allows (see the per-adapter notes).
+ * The full knob set the demo exposes — the union of what the three standalone
+ * playgrounds expose. `depth`/`size`/`centrality` bounds are strings so `inf`
+ * round-trips (both JSON backends and the Lean numeric ABI accept the sentinel).
+ * Each adapter maps these into its backend's native encoding, and knobs a
+ * backend's ABI can't express (see `CAPS`) are dropped for that backend.
  */
 export interface AblateOptions {
-  /** how many theorems/lemmas to remove (the deletion slider) */
-  deleteCount: number
-  /** restrict deletions to one random corollary's dependency closure */
+  // rate
+  rateMode: RateMode
+  prob: number
+  count: number
+  byCentrality: boolean
+  // selection window
+  minDepth: string
+  maxDepth: string
+  leavesOnly: boolean
+  minSize: string
+  maxSize: string
+  minCentrality: string
+  maxCentrality: string
+  // lemma deletion
+  deleteLemmas: boolean
   corollary: boolean
-  /** weight the random pick by corpus fan-in (vs. uniform) */
-  weightedByFanIn: boolean
-  /** trim the emitted files to the minimal slice around the holes */
-  contextMinimize: boolean
+  deleteCount: number | null
+  deleteUniform: boolean
+  deleteLeaves: boolean
+  // context shaping
+  truncate: boolean
+  shrinkChallenge: boolean
+  shrinkSolution: boolean
+  shrinkChallengeMinimal: boolean
+  shrinkSolutionMinimal: boolean
+  // language-specific
+  allowDefined: boolean // rocq: also ablate `Defined.` proofs
+  ablateScripts: boolean // isabelle: ablate apply-scripts
   seed: number
+}
+
+/** Which knobs each backend's WASM ABI can actually honour. */
+export interface Caps {
+  minimalShrink: boolean
+  lemmaDelete: boolean // corollary / delete_count / delete_uniform / delete_leaves
+  allowDefined: boolean
+  ablateScripts: boolean
+}
+
+export const CAPS: Record<Lang, Caps> = {
+  // Lean's numeric ABI predates the corollary/delete-count knobs and has a
+  // single boolean `deleteLemmas`; no minimal-shrink either.
+  lean: { minimalShrink: false, lemmaDelete: false, allowDefined: false, ablateScripts: false },
+  isabelle: { minimalShrink: true, lemmaDelete: true, allowDefined: false, ablateScripts: true },
+  rocq: { minimalShrink: true, lemmaDelete: true, allowDefined: true, ablateScripts: false },
+}
+
+/**
+ * Difficulty ladder L0..L4, identical across the three standalone demos. Each
+ * entry overrides the rate + depth window; other knobs are left as-is.
+ */
+export const PRESETS: { prob: number; minDepth: string; maxDepth: string; leavesOnly: boolean }[] = [
+  { prob: 0.3, minDepth: '1', maxDepth: 'inf', leavesOnly: true },
+  { prob: 1.0, minDepth: '1', maxDepth: 'inf', leavesOnly: true },
+  { prob: 1.0, minDepth: '2', maxDepth: 'inf', leavesOnly: false },
+  { prob: 0.5, minDepth: '1', maxDepth: '1', leavesOnly: false },
+  { prob: 1.0, minDepth: '1', maxDepth: '1', leavesOnly: false },
+]
+
+/**
+ * Defaults are the issue-#112 default experience: delete one fan-in-weighted
+ * theorem from one random corollary's dependency closure, context-minimized.
+ * (`seed` is replaced with a random value by the app on mount.)
+ */
+export const DEFAULT_OPTIONS: AblateOptions = {
+  rateMode: 'prob',
+  prob: 0.5,
+  count: 3,
+  byCentrality: false,
+  minDepth: '1',
+  maxDepth: '1',
+  leavesOnly: false,
+  minSize: '0',
+  maxSize: 'inf',
+  minCentrality: '0',
+  maxCentrality: 'inf',
+  deleteLemmas: true,
+  corollary: true,
+  deleteCount: 1,
+  deleteUniform: false,
+  deleteLeaves: false,
+  truncate: false,
+  shrinkChallenge: false,
+  shrinkSolution: false,
+  shrinkChallengeMinimal: true,
+  shrinkSolutionMinimal: true,
+  allowDefined: false,
+  ablateScripts: false,
+  seed: 0,
+}
+
+/** JSON-opts object shared by the Isabelle & Rocq backends (both ignore keys
+ *  their ABI doesn't know, so one builder serves both). */
+export function richSpec(o: AblateOptions): Record<string, unknown> {
+  const s: Record<string, unknown> = {
+    min_depth: o.minDepth,
+    max_depth: o.maxDepth,
+    leaves_only: o.leavesOnly,
+    min_size: o.minSize,
+    max_size: o.maxSize,
+    min_centrality: o.minCentrality,
+    max_centrality: o.maxCentrality,
+    truncate: o.truncate,
+    shrink_challenge: o.shrinkChallenge,
+    shrink_solution: o.shrinkSolution,
+    shrink_challenge_minimal: o.shrinkChallengeMinimal,
+    shrink_solution_minimal: o.shrinkSolutionMinimal,
+    delete_lemmas: o.deleteLemmas,
+    delete_uniform: o.deleteUniform,
+    delete_leaves: o.deleteLeaves,
+    corollary: o.corollary,
+    allow_defined: o.allowDefined,
+    ablate_scripts: o.ablateScripts,
+  }
+  if (o.rateMode === 'count') {
+    s.count = o.count
+    s.by_centrality = o.byCentrality
+  } else {
+    s.prob = o.prob
+  }
+  if (o.deleteLemmas && o.deleteCount != null) s.delete_count = o.deleteCount
+  return s
 }
 
 export interface Ablator {

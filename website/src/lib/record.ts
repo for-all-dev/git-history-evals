@@ -28,13 +28,35 @@ export interface EvalRecord {
   challenge_type: string
   n_total: number
   n_ablated: number
-  difficulty: {
-    delete_count: number
-    corollary: boolean
-    weighted_by: 'fan_in' | 'uniform'
-    context_minimized: boolean
-  }
+  spec: Record<string, unknown>
   seed: number
+}
+
+/** The knobs actually in effect, for the record's `spec` field. */
+function specSummary(o: AblateOptions): Record<string, unknown> {
+  const s: Record<string, unknown> = {
+    rate: o.rateMode === 'count' ? { count: o.count, by_centrality: o.byCentrality } : { prob: o.prob },
+    depth: [o.minDepth, o.maxDepth],
+    leaves_only: o.leavesOnly,
+    size: [o.minSize, o.maxSize],
+    centrality: [o.minCentrality, o.maxCentrality],
+  }
+  if (o.deleteLemmas) {
+    s.delete_lemmas = {
+      corollary: o.corollary,
+      count: o.deleteCount,
+      weighted_by: o.deleteUniform ? 'uniform' : 'fan_in',
+      leaves_only: o.deleteLeaves,
+    }
+  }
+  const shaping: string[] = []
+  if (o.truncate) shaping.push('truncate')
+  if (o.shrinkChallengeMinimal) shaping.push('shrink_challenge_minimal')
+  else if (o.shrinkChallenge) shaping.push('shrink_challenge')
+  if (o.shrinkSolutionMinimal) shaping.push('shrink_solution_minimal')
+  else if (o.shrinkSolution) shaping.push('shrink_solution')
+  if (shaping.length) s.context_shaping = shaping
+  return s
 }
 
 export function toRecord(lang: Lang, result: AblateResult, opts: AblateOptions): EvalRecord {
@@ -49,12 +71,7 @@ export function toRecord(lang: Lang, result: AblateResult, opts: AblateOptions):
     challenge_type: result.deletedLemmas.length > 0 ? 'lemma_delete' : 'proof_ablate',
     n_total: result.total,
     n_ablated: result.ablated,
-    difficulty: {
-      delete_count: opts.deleteCount,
-      corollary: opts.corollary,
-      weighted_by: opts.weightedByFanIn ? 'fan_in' : 'uniform',
-      context_minimized: opts.contextMinimize,
-    },
+    spec: specSummary(opts),
     seed: opts.seed,
   }
 }
