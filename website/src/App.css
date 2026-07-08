@@ -291,6 +291,12 @@ button.generate:hover {
 .presets button:hover {
   border-color: var(--acc2);
 }
+.presets button.on {
+  background: var(--acc2);
+  color: #1e1e2e;
+  font-weight: 600;
+  border-color: var(--acc2);
+}
 .controls .chk {
   display: flex;
   align-items: flex-start;

@@ -192,10 +192,26 @@ export default function App() {
     [afp, loadAfpTheory],
   )
 
+  // The L0–L4 presets are probability/depth (selection-mode) difficulty knobs, so
+  // a preset must switch off corollary mode — otherwise the corollary/delete-count
+  // path ignores prob/depth and every preset yields the identical ablation.
   const applyPreset = (i: number) => {
     const p = PRESETS[i]
-    up({ rateMode: 'prob', prob: p.prob, minDepth: p.minDepth, maxDepth: p.maxDepth, leavesOnly: p.leavesOnly })
+    up({ corollary: false, rateMode: 'prob', prob: p.prob, minDepth: p.minDepth, maxDepth: p.maxDepth, leavesOnly: p.leavesOnly })
   }
+  const activePreset = useMemo(
+    () =>
+      opts.corollary || opts.rateMode !== 'prob'
+        ? -1
+        : PRESETS.findIndex(
+            (p) =>
+              p.prob === opts.prob &&
+              p.minDepth === opts.minDepth &&
+              p.maxDepth === opts.maxDepth &&
+              p.leavesOnly === opts.leavesOnly,
+          ),
+    [opts.corollary, opts.rateMode, opts.prob, opts.minDepth, opts.maxDepth, opts.leavesOnly],
+  )
 
   const stats = result
     ? { ablated: result.ablated, total: result.total }
@@ -343,7 +359,7 @@ export default function App() {
             <h3>Difficulty preset</h3>
             <div className="presets">
               {['L0', 'L1', 'L2', 'L3', 'L4'].map((l, i) => (
-                <button key={l} onClick={() => applyPreset(i)}>
+                <button key={l} className={activePreset === i ? 'on' : ''} onClick={() => applyPreset(i)}>
                   {l}
                 </button>
               ))}
