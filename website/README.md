@@ -14,7 +14,7 @@ records it becomes). Implements issue #112.
   dependency closure. A slider raises the number of theorems to delete.
 - **Output modes:** the ablated challenge file (default) or the generated JSON
   evals. In JSON mode a *repeat* slider generates N deduplicated variants.
-- **Seed** is hidden behind an **↻ Generate** button (re-rolls the seed); the raw
+- **Seed** is hidden behind an **↻ Random** button (re-rolls the seed); the raw
   seed is editable under *Advanced*.
 - **Nice-to-haves:** language auto-detection, lightweight syntax highlighting,
   collapsible JSON (challenge + solution unfolded by default), copy buttons.

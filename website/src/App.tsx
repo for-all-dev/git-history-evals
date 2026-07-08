@@ -87,6 +87,7 @@ export default function App() {
   const [afp, setAfp] = useState<AfpIndex | null>(null)
   const [afpOpen, setAfpOpen] = useState(false)
   const [afpEntry, setAfpEntry] = useState('')
+  const [afpFile, setAfpFile] = useState('') // currently-loaded theory (persists across setting tweaks)
   const [afpBusy, setAfpBusy] = useState(false)
   const [afpErr, setAfpErr] = useState('')
 
@@ -139,6 +140,7 @@ export default function App() {
   const loadSample = (l: Lang) => {
     setOverride(l)
     setSource(SAMPLES[l])
+    setAfpFile('') // a built-in sample is now in the pane, not an AFP theory
   }
 
   const openAfp = useCallback(async () => {
@@ -162,6 +164,7 @@ export default function App() {
       const entry = afp?.entries.find((e) => e.name === entryName)
       const theory = entry?.theories.find((t) => t.file === file)
       if (!theory) return
+      setAfpFile(file) // reflect the selection immediately; survives setting tweaks
       setAfpBusy(true)
       setAfpErr('')
       try {
@@ -175,6 +178,18 @@ export default function App() {
       }
     },
     [afp],
+  )
+
+  // Changing entry immediately loads its first theory (keeps the flow live and
+  // the theory dropdown always pointing at real, loaded source).
+  const selectAfpEntry = useCallback(
+    (name: string) => {
+      setAfpEntry(name)
+      const first = afp?.entries.find((e) => e.name === name)?.theories[0]
+      if (first) void loadAfpTheory(name, first.file)
+      else setAfpFile('')
+    },
+    [afp, loadAfpTheory],
   )
 
   const applyPreset = (i: number) => {
@@ -244,9 +259,13 @@ export default function App() {
         )}
 
         <div className="field">
-          <label>&nbsp;</label>
-          <button className="generate" onClick={() => up({ seed: randSeed() })}>
-            ↻ Generate
+          <label>New variant</label>
+          <button
+            className="generate"
+            title="Everything else updates live; this re-rolls the random seed for a different ablation with the current settings."
+            onClick={() => up({ seed: randSeed() })}
+          >
+            ↻ Random
           </button>
         </div>
 
@@ -274,7 +293,7 @@ export default function App() {
                 <>
                   <select
                     value={afpEntry}
-                    onChange={(e) => setAfpEntry(e.target.value)}
+                    onChange={(e) => selectAfpEntry(e.target.value)}
                     aria-label="AFP entry"
                   >
                     {afp.entries.map((en) => (
@@ -284,16 +303,16 @@ export default function App() {
                     ))}
                   </select>
                   <select
-                    value=""
+                    value={afpFile}
                     disabled={afpBusy}
-                    onChange={(e) => {
-                      if (e.target.value) void loadAfpTheory(afpEntry, e.target.value)
-                    }}
+                    onChange={(e) => void loadAfpTheory(afpEntry, e.target.value)}
                     aria-label="AFP theory file"
                   >
-                    <option value="">
-                      {afpBusy ? 'fetching…' : 'pick a theory…'}
-                    </option>
+                    {afpFile === '' && (
+                      <option value="" disabled>
+                        {afpBusy ? 'fetching…' : 'pick a theory…'}
+                      </option>
+                    )}
                     {afp.entries
                       .find((en) => en.name === afpEntry)
                       ?.theories.map((t) => (
