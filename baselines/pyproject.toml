@@ -9,6 +9,10 @@ dependencies = [
     "typer>=0.12",
     "pydantic-ai>=1.76",
     "anthropic",
+    "mistralai",  # enables `--model mistral:labs-leanstral-1-5` (Leanstral) via pydantic-ai
+    "tenacity",  # 429/Retry-After backoff transport for the Mistral client (solve.make_agent)
+    "scikit-learn",  # difficulty classifier (apply_ablate.difficulty.model)
+    "joblib",
     "python-dotenv",
     "logfire[system-metrics]>=4.37.0",
 ]
@@ -16,6 +20,7 @@ dependencies = [
 [project.scripts]
 apply-ablate = "apply_ablate.cli:main"
 ablate-baseline = "apply_ablate.baseline:main"
+difficulty = "apply_ablate.difficulty.cli:main"
 
 [build-system]
 requires = ["uv_build>=0.9.22,<0.10.0"]

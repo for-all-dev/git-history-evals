@@ -88,9 +88,53 @@ fn spec_from(opts: &Value) -> (Spec, Option<String>) {
         delete_leaves: as_bool(g("delete_leaves"), false),
         aggressive: false, // the prover-backed path is never exposed to the browser
         corollary: as_bool(g("corollary"), false),
+        corollary_all: as_bool(g("corollary_all"), false),
+        forced_corollary: None,
         ablate_scripts: as_bool(g("ablate_scripts"), false),
     };
     (spec, difficulty)
+}
+
+/// Serialise one ablation result to the browser JSON shape.
+fn result_json(r: &crate::ablate::AblationResult) -> Value {
+    let holes: Vec<Value> = r
+        .holes
+        .iter()
+        .map(|h| {
+            json!({
+                "theorem_name": h.theorem_name, "depth": h.depth, "n_commands": h.n_commands,
+                "n_lines": h.n_lines, "is_leaf": h.is_leaf, "centrality": h.centrality,
+                "method": h.method, "proof_text": h.proof_text,
+                "n_chars": h.metrics.n_chars, "n_subproofs": h.metrics.n_subproofs,
+                "n_tactics": h.metrics.n_tactics, "cyclomatic": h.metrics.cyclomatic,
+            })
+        })
+        .collect();
+    let deleted: Vec<Value> = r
+        .deleted
+        .iter()
+        .map(|d| {
+            json!({
+                "name": d.name, "text": d.text, "fan_in": d.fan_in,
+                "n_lines": d.metrics.n_lines, "n_chars": d.metrics.n_chars,
+                "n_subproofs": d.metrics.n_subproofs, "n_tactics": d.metrics.n_tactics,
+                "cyclomatic": d.metrics.cyclomatic,
+            })
+        })
+        .collect();
+    let corollaries: Vec<Value> = r
+        .corollaries
+        .iter()
+        .map(|c| {
+            json!({
+                "name": c.name, "fan_in": c.fan_in,
+                "n_lines": c.metrics.n_lines, "n_chars": c.metrics.n_chars,
+                "n_subproofs": c.metrics.n_subproofs, "n_tactics": c.metrics.n_tactics,
+                "cyclomatic": c.metrics.cyclomatic,
+            })
+        })
+        .collect();
+    json!({ "text": r.text, "solution_diff": crate::diff::unified(&r.text, &r.solution), "total": r.total, "ablated": r.ablated, "holes": holes, "deleted_lemmas": deleted, "corollaries": corollaries, "closure_size": r.closure_size })
 }
 
 /// Ablate one theory. `opts_json` is a JSON object of the difficulty knobs
@@ -112,25 +156,16 @@ pub fn ablate_theory(text: &str, opts_json: &str, seed: f64) -> String {
     let centrality_fn = |name: &str| *fan.get(name).unwrap_or(&0);
 
     let mut rng = Rng::new(seed.to_bits());
-    let r = ablate(&spans, &spec, &mut rng, &centrality_fn);
-
-    let holes: Vec<Value> = r
-        .holes
-        .iter()
-        .map(|h| {
-            json!({
-                "theorem_name": h.theorem_name, "depth": h.depth, "n_commands": h.n_commands,
-                "n_lines": h.n_lines, "is_leaf": h.is_leaf, "centrality": h.centrality,
-                "method": h.method, "proof_text": h.proof_text,
-            })
-        })
-        .collect();
-    let deleted: Vec<Value> = r
-        .deleted
-        .iter()
-        .map(|(nm, txt)| json!({ "name": nm, "text": txt }))
-        .collect();
-    json!({ "text": r.text, "solution_diff": crate::diff::unified(&r.text, &r.solution), "total": r.total, "ablated": r.ablated, "holes": holes, "deleted_lemmas": deleted }).to_string()
+    // corollary_all: one ablation per eligible corollary -> a JSON ARRAY (so the
+    // playground can page through each corollary's challenge); otherwise a single object.
+    if spec.corollary_all {
+        let results = crate::ablate::ablate_all(&spans, &spec, &mut rng, &centrality_fn);
+        let arr: Vec<Value> = results.iter().map(result_json).collect();
+        Value::Array(arr).to_string()
+    } else {
+        let r = ablate(&spans, &spec, &mut rng, &centrality_fn);
+        result_json(&r).to_string()
+    }
 }
 
 /// Number of HOL keywords baked in (sanity check for the JS side).

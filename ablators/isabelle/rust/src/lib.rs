@@ -7,6 +7,7 @@ pub mod ablate;
 pub mod centrality;
 pub mod diff;
 pub mod keyword;
+pub mod metrics;
 pub mod record;
 pub mod sha1;
 pub mod span;
@@ -160,7 +161,7 @@ mod tests {
         };
         let mut rng = ablate::Rng::new(0);
         let r = ablate::ablate(&spans, &spec, &mut rng, &z);
-        let deleted: Vec<&str> = r.deleted.iter().map(|(n, _)| n.as_str()).collect();
+        let deleted: Vec<&str> = r.deleted.iter().map(|d| d.name.as_str()).collect();
         assert!(
             deleted.contains(&"helper"),
             "helper (used in a proof) deleted"
@@ -208,9 +209,12 @@ mod tests {
             r2.ablated >= 2 && r2.deleted.len() == 1,
             "count=2: >= 2 from one deletion"
         );
+        let names = |r: &ablate::AblationResult| -> Vec<String> {
+            r.deleted.iter().map(|d| d.name.clone()).collect()
+        };
         assert_eq!(
-            r2.deleted,
-            run(2, false, false, 1).deleted,
+            names(&r2),
+            names(&run(2, false, false, 1)),
             "reproducible per seed"
         );
         // count = 4 needs both lemmas (2 + 3): always 5 ablations, both deleted
@@ -235,7 +239,7 @@ mod tests {
             run(2, false, uniform, seed)
                 .deleted
                 .first()
-                .map(|(n, _)| n.clone())
+                .map(|d| d.name.clone())
                 .unwrap_or_default()
         };
         let tally = |uniform: bool| -> (i32, i32) {
@@ -494,7 +498,7 @@ mod tests {
             };
             let mut rng = ablate::Rng::new(seed);
             let r = ablate::ablate(&spans, &spec, &mut rng, &z);
-            r.deleted.into_iter().map(|(n, _)| n).collect()
+            r.deleted.into_iter().map(|d| d.name).collect()
         };
         let mut saw_base = false;
         let mut saw_mid = false;
@@ -570,6 +574,54 @@ mod tests {
             "shrunk challenge keeps structural end"
         );
         assert!(!sh.text.is_empty() && sh.text != sh.solution);
+    }
+
+    // Two independent corollaries: cor_a's closure is {base1}, cor_b's is {base2}
+    // (base1/base2 have empty closures). --corollary-delete-lemmas-all must emit one
+    // ablation per eligible corollary (>= 2), each deleting exactly one lemma, each
+    // non-trivial. The non-all path is a singleton.
+    const COROLLARY_ALL_SRC: &str = "theory T\nimports Main\nbegin\n\n\
+        lemma base1: \"(1::nat) = 1\" by simp\n\n\
+        lemma base2: \"(1::nat) = 1\" by simp\n\n\
+        lemma cor_a: \"(1::nat) = 1\" using base1 by simp\n\n\
+        lemma cor_b: \"(1::nat) = 1\" using base2 by simp\n\nend\n";
+
+    #[test]
+    fn corollary_delete_all_one_per_corollary() {
+        let syn = span::Syntax::hol();
+        let spans = syn.parse_spans(COROLLARY_ALL_SRC);
+        let z = |_: &str| 0i64;
+        let spec = ablate::Spec {
+            delete_lemmas: true,
+            corollary: true,
+            corollary_all: true,
+            ..Default::default()
+        };
+        let mut rng = ablate::Rng::new(5);
+        let results = ablate::ablate_all(&spans, &spec, &mut rng, &z);
+        assert!(results.len() >= 2, "emits >= 2 distinct ablations");
+        assert!(
+            results.iter().all(|r| r.deleted.len() == 1),
+            "each result deletes exactly one lemma"
+        );
+        assert!(
+            results
+                .iter()
+                .all(|r| r.ablated > 0 && r.text != r.solution),
+            "every result is non-trivial (holes + differs from solution)"
+        );
+        // the non-all path is the singleton [ablate ...]
+        let mut rng2 = ablate::Rng::new(5);
+        let one = ablate::ablate_all(
+            &spans,
+            &ablate::Spec {
+                corollary_all: false,
+                ..spec.clone()
+            },
+            &mut rng2,
+            &z,
+        );
+        assert_eq!(one.len(), 1, "non-all: ablate_all is a singleton");
     }
 
     #[test]

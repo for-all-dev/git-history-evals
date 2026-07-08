@@ -78,10 +78,18 @@ def analyzeUses (toks : Array Token) (spans : Array Span) (aggressive : Bool) :
     else nonproof := pushNon nonproof (Uses.namesIn toks s.lo s.hi) si
   let mut out := #[]
   for (si, nm, cited, stmtNames) in goals do
+    -- Dot-notation (`x.foo` with `x : T` -> `T.foo`) and open-namespace references cite
+    -- only the last component `foo`, which cannot be tied to the qualified decl `T.foo`
+    -- syntactically. Match on the last component so users AND non-proof uses of a dotted
+    -- decl are still detected — missing a user leaves a dangling reference after deletion
+    -- (an uncompilable challenge). Over-matching same-suffix names is safe: it over-holes
+    -- (a spurious hole never breaks compilation) or over-restricts eligibility.
+    let ncomp := (nm.splitOn ".").getLastD nm
+    let cites := fun (c : HashSet String) => c.contains nm || c.contains ncomp
     let mut users := #[]
     for (si2, _, cited2, _) in goals do
-      if si2 != si && cited2.contains nm then users := users.push si2
-    let onlyProofs := nonproof.all (fun p => p.1 != nm || p.2 == si)
+      if si2 != si && cites cited2 then users := users.push si2
+    let onlyProofs := nonproof.all (fun p => (p.1 != nm && p.1 != ncomp) || p.2 == si)
     let hasAttr := (spans[si]!.lo < toks.size) && (toks[spans[si]!.lo]!).isSymNamed "@"
     let eligible :=
       (aggressive || !hasAttr) && nm.length ≥ Centrality.minNameLen && users.size > 0 && onlyProofs

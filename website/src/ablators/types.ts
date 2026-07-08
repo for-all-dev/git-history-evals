@@ -75,6 +75,7 @@ export interface AblateOptions {
   // lemma deletion
   deleteLemmas: boolean
   corollary: boolean
+  corollaryAll: boolean // corollary: emit one ablation per eligible corollary (ignores repeat)
   deleteCount: number | null
   deleteUniform: boolean
   deleteLeaves: boolean
@@ -99,9 +100,10 @@ export interface Caps {
 }
 
 export const CAPS: Record<Lang, Caps> = {
-  // Lean's numeric ABI predates the corollary/delete-count knobs and has a
-  // single boolean `deleteLemmas`; no minimal-shrink either.
-  lean: { minimalShrink: false, lemmaDelete: false, allowDefined: false, ablateScripts: false },
+  // All three backends now honour the full lemma-delete + minimal-shrink knob
+  // set (Lean's numeric ABI was extended to parity). `allowDefined` is Rocq-only
+  // and `ablateScripts` is Isabelle-only (genuine language-specific knobs).
+  lean: { minimalShrink: true, lemmaDelete: true, allowDefined: false, ablateScripts: false },
   isabelle: { minimalShrink: true, lemmaDelete: true, allowDefined: false, ablateScripts: true },
   rocq: { minimalShrink: true, lemmaDelete: true, allowDefined: true, ablateScripts: false },
 }
@@ -137,6 +139,7 @@ export const DEFAULT_OPTIONS: AblateOptions = {
   maxCentrality: 'inf',
   deleteLemmas: true,
   corollary: true,
+  corollaryAll: false,
   deleteCount: 1,
   deleteUniform: false,
   deleteLeaves: false,
@@ -170,6 +173,7 @@ export function richSpec(o: AblateOptions): Record<string, unknown> {
     delete_uniform: o.deleteUniform,
     delete_leaves: o.deleteLeaves,
     corollary: o.corollary,
+    corollary_all: o.corollaryAll,
     allow_defined: o.allowDefined,
     ablate_scripts: o.ablateScripts,
   }
@@ -188,6 +192,10 @@ export interface Ablator {
   /** idempotent; resolves once the WASM module is ready */
   load(): Promise<void>
   ablate(source: string, opts: AblateOptions): AblateResult
+  /** `--corollary-delete-lemmas*-all`: one ablation per eligible corollary (the WASM
+   *  returns a JSON array in this mode). Falls back to `[ablate(...)]` for backends/opts
+   *  that don't produce multiple. */
+  ablateAll(source: string, opts: AblateOptions): AblateResult[]
   /** true once `load()` has resolved */
   readonly ready: boolean
 }

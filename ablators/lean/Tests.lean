@@ -57,7 +57,7 @@ def deleteTests : StateT Tally IO Unit := do
     theorem main : True := helper\n\n\
     theorem about : keydef = keydef := rfl\n"
   let dl := ablate (tokenize dlSrc) { prob := 1.0, deleteLemmas := true } (Rng.mk 0) (fun _ => (0:Int))
-  let delNames := dl.deleted.toList.map Prod.fst
+  let delNames := dl.deleted.toList.map (·.name)
   check "delete: helper deleted" (delNames.contains "helper")
   check "delete: unused (no user) not deleted" (! delNames.contains "unused")
   check "delete: helper's statement gone" (! has dl.text "theorem helper")
@@ -91,7 +91,7 @@ def deleteCountTests : StateT Tally IO Unit := do
   -- tail reachability + weighting across seeds: the sole deletion at count=2 is
   -- sometimes the tail (aaa), sometimes the popular one (bbb); weighting favours bbb
   let firstDel := fun (uniform : Bool) (seed : Nat) =>
-    match (run 2 false uniform seed).deleted.toList with | (n, _) :: _ => n | [] => ""
+    match (run 2 false uniform seed).deleted.toList with | d :: _ => d.name | [] => ""
   let tally := fun (uniform : Bool) =>
     (List.range 100).foldl (fun (ab : Nat × Nat) s =>
       match firstDel uniform s with
@@ -130,6 +130,27 @@ def deleteShrinkTests : StateT Tally IO Unit := do
   check "solution slice: base restored" (has ms.solution "theorem base")
   check "solution slice: real proof present" (has ms.solution ":= base")
 
+-- dot-notation / open-namespace: a qualified decl `N.foo` cited by its short name `foo`
+-- (as via `open N` or dot-notation `x.foo`) must still resolve — matched on the last
+-- dotted component. Regression for the over-cut / undetected-user bug that corrupted
+-- dot-notation-heavy files (lean4lean).
+def dotNotationTests : StateT Tally IO Unit := do
+  let src := "theorem N.foo : True := trivial\n\n\
+    theorem N.bar : True := foo\n\n\
+    theorem N.qux : True := N.foo\n"
+  let toks := tokenize src
+  let uses := analyzeUses toks (parseSpans toks) false
+  -- foo is used by bar (short name `foo`) AND qux (qualified `N.foo`): both detected
+  check "dot-notation: short-name + qualified users both detected"
+    (match uses.find? (fun l => l.name == "N.foo") with
+     | some l => l.users.size == 2 | none => false)
+  -- minimal slice: deleting foo + holing users keeps a compilable challenge (the short-
+  -- name user `bar` is holed, not left dangling); the solution restores foo.
+  let m := ablate toks { deleteLemmas := true, deleteCount := some 1,
+                         shrinkSolutionMinimal := true } (Rng.mk 0) (fun _ => (0:Int))
+  check "dot-notation: solution slice restores the deleted lemma"
+    (has m.solution "theorem N.foo")
+
 -- --delete-lemmas N: delete exactly N lemmas (regardless of ablation count)
 def deleteCountArgTests : StateT Tally IO Unit := do
   let src := "theorem aaa : True := trivial\n\n\
@@ -155,7 +176,7 @@ def corollaryTests : StateT Tally IO Unit := do
     theorem lonely : True := trivial\n"
   let del1 := fun (seed : Nat) =>
     (ablate (tokenize src) { deleteLemmas := true, corollary := true, deleteCount := some 1 }
-      (Rng.mk (UInt64.ofNat seed)) (fun _ => (0:Int))).deleted.toList.map Prod.fst
+      (Rng.mk (UInt64.ofNat seed)) (fun _ => (0:Int))).deleted.toList.map (·.name)
   let mut sawBase := false
   let mut sawMid := false
   let mut bad := false
@@ -174,8 +195,28 @@ def corollaryTests : StateT Tally IO Unit := do
   check "corollary: user proof holed; full solution preserved"
     (has rw.text "sorry" && rw.solution == src && rw.deleted.size == 1)
   let du := (ablate (tokenize src) { deleteLemmas := true, corollary := true, deleteUniform := true, deleteCount := some 1 }
-    (Rng.mk 5) (fun _ => (0:Int))).deleted.toList.map Prod.fst
+    (Rng.mk 5) (fun _ => (0:Int))).deleted.toList.map (·.name)
   check "corollary-uniform: deletion within the closure" (du.all (fun n => n == "base" || n == "mid"))
+
+-- corollary-delete-lemmas-all: two independent chains c1 -> b1 and c2 -> b2. Each of
+-- c1, c2 has a non-empty eligible closure ({b1}, {b2}), so `ablateAll` emits one record
+-- per eligible corollary, each deleting exactly one ancestor lemma. The non-all
+-- corollary path stays a singleton.
+def corollaryAllTests : StateT Tally IO Unit := do
+  let src := "theorem alpha : True := trivial\n\n\
+    theorem calpha : True := alpha\n\n\
+    theorem beta : True := trivial\n\n\
+    theorem cbeta : True := beta\n"
+  let toks := tokenize src
+  let all := ablateAll toks { deleteLemmas := true, corollary := true, corollaryAll := true }
+    (Rng.mk 0) (fun _ => (0:Int))
+  check "corollary-all: ≥ 2 results (one per eligible corollary)" (all.size ≥ 2)
+  check "corollary-all: each deletes exactly one lemma" (all.all (fun r => r.deleted.size == 1))
+  check "corollary-all: all non-trivial" (all.all (fun r => r.ablated > 0 && r.text != r.solution))
+  -- non-all corollary path is a singleton
+  let one := ablateAll toks { deleteLemmas := true, corollary := true }
+    (Rng.mk 0) (fun _ => (0:Int))
+  check "corollary-all: non-all path is a singleton" (one.size == 1)
 
 -- solution_diff: apply(challenge, unifiedDiff challenge solution) = solution.
 -- Also extracted to keep the generated C functions small (see `deleteTests`).
@@ -205,7 +246,7 @@ def letDocTests : StateT Tally IO Unit := do
   let letSrc := "theorem helper : True := trivial\n\n\
     theorem user : let x : Nat := 5\n    x = 5 := by\n  have := helper\n  rfl\n"
   let lt := ablate (tokenize letSrc) { prob := 1.0, deleteLemmas := true } (Rng.mk 0) (fun _ => (0:Int))
-  check "let-in-type: helper deleted" ((lt.deleted.toList.map Prod.fst).contains "helper")
+  check "let-in-type: helper deleted" ((lt.deleted.toList.map (·.name)).contains "helper")
   check "let-in-type: type's let value kept (not holed)" (has lt.text "let x : Nat := 5")
   check "let-in-type: proof holed" (has lt.text "x = 5 := sorry")
   check "let-in-type: not truncated at let" (! has lt.text "let x : Nat := sorry")
@@ -214,7 +255,7 @@ def letDocTests : StateT Tally IO Unit := do
   let docSrc := "/-- helper doc -/\ntheorem helper : True := trivial\n\n\
     theorem user : True := helper\n"
   let dc := ablate (tokenize docSrc) { prob := 1.0, deleteLemmas := true } (Rng.mk 0) (fun _ => (0:Int))
-  check "doc: helper deleted" ((dc.deleted.toList.map Prod.fst).contains "helper")
+  check "doc: helper deleted" ((dc.deleted.toList.map (·.name)).contains "helper")
   check "doc: orphaned doc comment removed" (! has dc.text "helper doc")
   check "doc: helper statement gone" (! has dc.text "theorem helper")
   check "doc: solution restores doc comment" (has dc.solution "/-- helper doc -/")
@@ -299,8 +340,10 @@ def main : IO UInt32 := do
     deleteTests
     deleteCountTests
     deleteShrinkTests
+    dotNotationTests
     deleteCountArgTests
     corollaryTests
+    corollaryAllTests
     letDocTests
     diffTests
   ).run {}

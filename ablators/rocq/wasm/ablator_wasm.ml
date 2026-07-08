@@ -65,17 +65,25 @@ let spec_from (opts : Yojson.Safe.t) : Ablate.spec =
       delete_leaves = as_bool (g "delete_leaves") false;
       aggressive = false (* the prover-backed path is never exposed to the browser *);
       corollary = as_bool (g "corollary") false;
+      corollary_all = as_bool (g "corollary_all") false;
+      forced_corollary = None;
     }
 
-(* ablate one theory; returns the {text,total,ablated,holes} JSON string. *)
+(* Ablate one theory. Returns a single {text,...,holes,deleted_lemmas,corollaries} JSON
+   object, EXCEPT under [corollary_all] where it returns a JSON ARRAY (one per eligible
+   corollary) so the playground can page through every corollary's ablation. *)
 let ablate_theory (text : string) (opts_json : string) (seed : float) : string =
   let opts = try Yojson.Safe.from_string opts_json with _ -> `Null in
   let spec = spec_from opts in
   let spans = Span.parse_spans text in
   let fan = if Ablate.uses_centrality spec then Centrality.fan_in [ text ] else Hashtbl.create 1 in
   let centrality name = match Hashtbl.find_opt fan name with Some c -> c | None -> 0 in
-  let r = Ablate.ablate spans spec (Ablate.Rng.make (Int64.bits_of_float seed)) centrality in
-  Yojson.Safe.to_string (Record.result_json r)
+  let rng = Ablate.Rng.make (Int64.bits_of_float seed) in
+  if spec.Ablate.corollary_all then
+    let results = Ablate.ablate_all spans spec rng centrality in
+    Yojson.Safe.to_string (`List (List.map Record.result_json results))
+  else
+    Yojson.Safe.to_string (Record.result_json (Ablate.ablate spans spec rng centrality))
 
 let () =
   (* Take args as explicit JS types and convert: under wasm_of_ocaml (WasmGC)

@@ -23,10 +23,22 @@ def init_logfire(service: str = "ablate-baseline") -> None:
     except ImportError:  # pragma: no cover - logfire is a declared dep
         return
     # Only ships to the cloud when a token/auth is present; otherwise a local no-op.
+    #
+    # Logfire's default scrubber redacts values matching sensitive patterns (auth,
+    # password, token, ...). Proof-engineering content trips false positives — e.g.
+    # Cedar's `Authorization`/`Authorizer` code makes a submitted solution show up as
+    # `[Scrubbed due to 'Auth']` in the trace (the persisted result is unaffected — this
+    # is display-only). Set ABLATE_LOGFIRE_NO_SCRUB=1 to disable scrubbing for readable
+    # local traces. Default keeps scrubbing on so cloud traces never leak real secrets.
+    import os
+
+    # scrubbing=None -> Logfire's default (on); scrubbing=False -> off.
+    no_scrub = bool(os.environ.get("ABLATE_LOGFIRE_NO_SCRUB"))
     logfire.configure(
         service_name=service,
         send_to_logfire="if-token-present",
         console=False,
+        scrubbing=False if no_scrub else None,
     )
     logfire.instrument_pydantic_ai()
     try:

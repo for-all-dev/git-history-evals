@@ -25,8 +25,14 @@ from apply_ablate.record import AblationRecord
 
 # proof-source extensions the agent may read (no internet / git / other files)
 PROOF_EXTS = {".thy", ".lean", ".v"}
-# a real re-derivation may not cheat with holes or new axioms
+# a real re-derivation may not cheat with holes or new axioms. Two classes, treated
+# differently at SUBMIT time: HOLES (sorry/admit/...) are legitimate scaffolding — a
+# partial submission is compiled with holes allowed for feedback, but never scored;
+# CHEATING (new axioms) is always rejected. The final PASS check (below) still requires
+# a fully hole-free file via FORBIDDEN, so allowing holes mid-iteration cannot inflate
+# the score.
 FORBIDDEN = re.compile(r"\b(sorry|admit|Admitted|oops|axiomatization|axiom|Axiom)\b")
+CHEATING = re.compile(r"\b(axiomatization|axiom|Axiom)\b")
 
 SYSTEM_PROMPT = """\
 You are a proof engineer. The following {assistant} proof contains one or more holes
@@ -34,8 +40,13 @@ that are left to be proved. Your job: edit the file so it compiles properly, der
 any helper lemmas as you need.
 
 Rules:
-- Your final file MUST compile and MUST NOT contain `sorry`, `admit`, `Admitted`,
-  `oops`, or any `axiom`/`axiomatization`. No cheating.
+- Your final (scored) file MUST compile and MUST NOT contain `sorry`, `admit`,
+  `Admitted`, `oops`, or any `axiom`/`axiomatization`. No cheating.
+- You MAY submit a PARTIAL proof with `sorry`/`admit` placeholders while iterating: it is
+  compiled with holes allowed and you get feedback — whether the rest type-checks and how
+  many holes remain — so you can lock in the structure first, then fill each hole. A file
+  with holes is never scored as solved (only a fully hole-free, compiling file is), and
+  `axiom`/`axiomatization` are rejected outright.
 - You may explore proof files (.thy/.lean/.v) to learn definitions, lemmas, and idioms:
   `list_proof_files` lists the repo's own files; `search` regex-searches the repo AND its
   vendored libraries (e.g. mathlib under `.lake`) and shows matches with surrounding
@@ -43,8 +54,9 @@ Rules:
   `.lake/packages/mathlib/...`). Prefer `search` to locate a relevant lemma, then
   `read_file` it.
 - You may NOT access the internet or git history. Work only from the files provided.
-- Iterate: call `submit_solution` with the full corrected file; it compiles it and
-  returns errors. Fix and resubmit until it passes, or `give_up` with a reason.
+- Iterate: call `submit_solution` with the full file; it compiles it and returns the
+  compiler errors (and, for a partial submission, the count of remaining holes). Fix and
+  resubmit until it compiles hole-free, or `give_up` with a reason.
 - BUDGET: you have at most {budget} model requests — every `read_file`, `list_proof_files`,
   `search`, and `submit_solution` call counts, and you are HARD-CUT-OFF when the budget is
   exhausted (no final turn). Every tool result reports your remaining budget (`turns_left`
@@ -78,6 +90,12 @@ class Verdict(BaseModel):
 
 def _forbidden(content: str) -> str | None:
     m = FORBIDDEN.search(content)
+    return m.group(0) if m else None
+
+
+def _cheating(content: str) -> str | None:
+    """A new-axiom token (always rejected), as opposed to a hole (allowed for feedback)."""
+    m = CHEATING.search(content)
     return m.group(0) if m else None
 
 
@@ -140,19 +158,68 @@ def _explore_blocked(ctx) -> str | None:  # type: ignore[no-untyped-def]
     return None
 
 
+def _retrying_async_client(max_wait: float = 90.0, attempts: int = 8):
+    """An httpx client that backs off on rate-limit / transient statuses.
+
+    Mistral's client (unlike Anthropic's `max_retries`) does not retry HTTP 429s, so a
+    single rate-limit response would abort a whole challenge. This transport retries
+    429/502/503/504, honouring the `Retry-After` header (falling back to exponential
+    backoff), so bursts of `Rate limit exceeded` self-throttle instead of erroring —
+    important on the free tier / with any concurrency.
+    """
+    import httpx
+    from pydantic_ai.retries import (
+        AsyncTenacityTransport,
+        RetryConfig,
+        wait_retry_after,
+    )
+    from tenacity import retry_if_exception_type, stop_after_attempt
+
+    def validate_response(response: httpx.Response) -> None:
+        if response.status_code in (429, 502, 503, 504):
+            response.raise_for_status()
+
+    transport = AsyncTenacityTransport(
+        config=RetryConfig(
+            retry=retry_if_exception_type(httpx.HTTPStatusError),
+            wait=wait_retry_after(max_wait=max_wait),
+            stop=stop_after_attempt(attempts),
+            reraise=True,
+        ),
+        validate_response=validate_response,
+    )
+    return httpx.AsyncClient(transport=transport, timeout=httpx.Timeout(120.0))
+
+
 def make_agent(model: str):
-    """A pydantic-ai Agent (Anthropic gets retry/backoff, mirroring experiments/)."""
+    """A pydantic-ai Agent for a `<provider>:<name>` model id.
+
+    Anthropic (the default, prefix optional) gets an explicit retry/backoff client,
+    mirroring experiments/. Mistral (`mistral:labs-leanstral-1-5`, the Lean-4 prover
+    Leanstral) is also supported — it reads `MISTRAL_API_KEY` from the env and gets a
+    429-backoff HTTP client. Any other known pydantic-ai prefix falls through.
+    """
     from pydantic_ai import Agent, ModelRetry, RunContext
 
-    name = model.removeprefix("anthropic:")
-    from anthropic import AsyncAnthropic
-    from pydantic_ai.models.anthropic import AnthropicModel
-    from pydantic_ai.providers.anthropic import AnthropicProvider
+    if model.startswith("mistral:"):
+        from pydantic_ai.models.mistral import MistralModel
+        from pydantic_ai.providers.mistral import MistralProvider
 
-    client = AsyncAnthropic(max_retries=8)
-    model_obj = AnthropicModel(
-        name, provider=AnthropicProvider(anthropic_client=client)
-    )
+        model_obj = MistralModel(
+            model.removeprefix("mistral:"),
+            provider=MistralProvider(http_client=_retrying_async_client()),
+        )
+    else:
+        # default provider is Anthropic; the prefix is optional for it
+        name = model.removeprefix("anthropic:")
+        from anthropic import AsyncAnthropic
+        from pydantic_ai.models.anthropic import AnthropicModel
+        from pydantic_ai.providers.anthropic import AnthropicProvider
+
+        client = AsyncAnthropic(max_retries=8)
+        model_obj = AnthropicModel(
+            name, provider=AnthropicProvider(anthropic_client=client)
+        )
     # Allow several tool-call validation retries: large proof files occasionally trip a
     # transient tool-arg validation error, which would otherwise abort the whole run.
     # CRUCIAL: raise max_tokens well above pydantic-ai's 4096 default — `submit_solution`
@@ -304,41 +371,62 @@ def make_agent(model: str):
 
     @agent.tool
     def submit_solution(ctx, solution: str) -> dict:  # type: ignore[no-untyped-def]
-        """Submit the full corrected file. Compiles it (no holes allowed); returns the result."""
+        """Submit the full file. It is compiled and the result returned. A hole-free file
+        that compiles cleanly is scored as solved; a file with `sorry`/`admit` is compiled
+        with holes allowed for FEEDBACK (never scored) so you can iterate on partial
+        proofs; `axiom`/`axiomatization` are rejected as cheating."""
+        n_holes = _hole_count(solution)
         _trace(
             "submit_solution",
             solution_len=len(solution),
             head=solution[:80],
             tail=solution[-80:],
-            n_sorry=_hole_count(solution),
+            n_sorry=n_holes,
         )
         ctx.deps.submitted = True
-        bad = _forbidden(solution)
-        if bad is not None:
+        left, note = _budget(ctx)
+
+        def _feedback(outcome: str, payload: dict) -> dict:
+            # Log the EXACT payload returned to the agent (the tool result it actually
+            # receives), so the feedback loop is visible in Logfire — not only the span.
             log(
-                "submit rejected: forbidden token",
-                token=bad,
+                "submit feedback",
                 assistant=ctx.deps.assistant,
+                file=str(ctx.deps.rel),
+                outcome=outcome,
+                ok=payload.get("ok"),
+                compiles=payload.get("compiles"),
+                holes_remaining=n_holes,
+                returned_error=payload.get("error", ""),
             )
-            left, note = _budget(ctx)
-            return {
-                "ok": False,
-                "error": f"forbidden token `{bad}` — re-derive it for real, no holes/axioms",
-                "turns_left": left,
-                "budget": note,
-            }
+            return payload
+
+        cheat = _cheating(solution)
+        if cheat is not None:
+            return _feedback(
+                "rejected-cheat",
+                {
+                    "ok": False,
+                    "error": f"forbidden token `{cheat}` — introducing an axiom is "
+                    "cheating; re-derive it for real",
+                    "turns_left": left,
+                    "budget": note,
+                },
+            )
+
         ctx.deps.current = solution
         ctx.deps.target.write_text(solution, encoding="utf-8")
+        has_holes = n_holes > 0
         with span(
             "compile",
             assistant=ctx.deps.assistant,
             file=str(ctx.deps.rel),
-            allow_holes=False,
+            allow_holes=has_holes,
         ) as sp:
             res = ctx.deps.prover.check(
                 ctx.deps.work_dir,
                 ctx.deps.rel,
-                allow_holes=False,
+                allow_holes=has_holes,
                 timeout=ctx.deps.timeout,
             )
             set_attrs(
@@ -348,14 +436,32 @@ def make_agent(model: str):
                 returncode=res.returncode,
                 error=("" if res.ok else res.trimmed(800)),
             )
-        log("submit compiled" if res.ok else "submit failed", ok=res.ok, note=res.note)
-        left, note = _budget(ctx)
-        return {
-            "ok": res.ok,
-            "error": "" if res.ok else res.trimmed(3000),
-            "turns_left": left,
-            "budget": note,
-        }
+
+        solved = res.ok and not has_holes
+        if not has_holes:
+            error = "" if res.ok else res.trimmed(3000)
+        elif res.ok:
+            # the non-hole parts type-check; only the placeholders remain to fill
+            error = (
+                f"Compiles with holes allowed, but {n_holes} `sorry`/`admit` hole(s) "
+                "remain — replace each with a real proof. Not scored until hole-free."
+            )
+        else:
+            error = (
+                f"{n_holes} hole(s) remain, and there are still errors even with holes "
+                f"allowed:\n{res.trimmed(3000)}"
+            )
+        return _feedback(
+            "pass" if solved else ("holes" if has_holes else "compile-error"),
+            {
+                "ok": solved,
+                "compiles": res.ok,
+                "holes_remaining": n_holes,
+                "error": error,
+                "turns_left": left,
+                "budget": note,
+            },
+        )
 
     @agent.tool
     def give_up(ctx, reason: str) -> dict:  # type: ignore[no-untyped-def]
@@ -381,6 +487,9 @@ def make_agent(model: str):
 
 class SolveResult(BaseModel):
     task_id: str | None
+    # stable, unique per-challenge id from the enriched ablator record (None on legacy
+    # datasets); the exact join key for difficulty feature<->label tables
+    challenge_id: str | None = None
     assistant: str
     file_path: str
     succeeded: bool
@@ -452,9 +561,10 @@ def _tamper_reason(
 
 def _log_solutions(record: AblationRecord, final: str, *, outcome: str) -> None:
     """Log the agent's final file and the ablator's original ground-truth solution
-    together (with a diff between them) so a human can copy both out of Logfire and
-    compare how the agent's re-derivation differs from the human proof. Emitted once
-    the agent has finished — whether it passed, failed, gave up, or ran out of turns."""
+    together (with diffs) so a human can copy them out of Logfire and compare. Emits both
+    the agent-vs-original diff (how the agent's re-derivation differs from the human proof)
+    and the agent-vs-challenge diff (what the agent actually changed/added to the ablated
+    file). Emitted once the agent finishes — pass, fail, give-up, or turn-limit."""
     original = record.solution_text()
     log(
         "solution",
@@ -466,6 +576,7 @@ def _log_solutions(record: AblationRecord, final: str, *, outcome: str) -> None:
         agent_solution=final,
         original_solution=original,
         agent_vs_original_diff=unified_or_empty(original, final),
+        agent_vs_challenge_diff=unified_or_empty(record.challenge_file_content, final),
     )
 
 

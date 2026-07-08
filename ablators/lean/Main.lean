@@ -51,6 +51,12 @@ def usage : String :=
                         theorem's (a 'corollary') transitive in-file dependency closure
                         (fan-in weighted; re-picks a corollary only when the closure
                         runs dry). Variants: -uniform, -leaves.
+    --corollary-delete-lemmas-all [N]
+    --corollary-delete-lemmas-leaves-all [N]
+                        walk the file and emit ONE ablation per eligible corollary
+                        (each deletes N ancestor lemmas — default 1 — from that
+                        corollary's closure + holes their users; -leaves-all holes
+                        only leaf steps). Maximises coverage — ignores --repeat.
 
   Context shaping (ignored by --check):
     --truncate          drop challenge text after the last inserted `sorry`
@@ -82,6 +88,7 @@ structure Opts where
   deleteLeaves : Bool := false
   aggressive   : Bool := false
   corollary    : Bool := false
+  corollaryAll : Bool := false
   compact      : Bool := false
   textMode     : Bool := false
   difficulty   : Option String := none
@@ -135,6 +142,8 @@ partial def parseArgs (args : List String) (o : Opts) : Except String Opts := do
     | "--corollary-delete-lemmas" => delLemmas (fun o => { o with deleteLemmas := true, corollary := true })
     | "--corollary-delete-lemmas-uniform" => delLemmas (fun o => { o with deleteLemmas := true, corollary := true, deleteUniform := true })
     | "--corollary-delete-lemmas-leaves" => delLemmas (fun o => { o with deleteLemmas := true, corollary := true, deleteLeaves := true })
+    | "--corollary-delete-lemmas-all" => delLemmas (fun o => { o with deleteLemmas := true, corollary := true, corollaryAll := true })
+    | "--corollary-delete-lemmas-leaves-all" => delLemmas (fun o => { o with deleteLemmas := true, corollary := true, deleteLeaves := true, corollaryAll := true })
     | "--compact"        => parseArgs rest { o with compact := true }
     | "--text"           => parseArgs rest { o with textMode := true }
     | "-v"               => parseArgs rest { o with verbose := true }
@@ -252,7 +261,9 @@ def buildSpec (o : Opts) (preset : Option Preset) : Spec :=
     deleteUniform := o.deleteUniform
     deleteLeaves := o.deleteLeaves
     aggressive := o.aggressive
-    corollary := o.corollary }
+    corollary := o.corollary
+    corollaryAll := o.corollaryAll
+    forcedCorollary := none }
 
 structure Doc where
   path : System.FilePath
@@ -402,10 +413,19 @@ def main (args : List String) : IO UInt32 := do
   for d in docs do
     let mut seen : Std.HashSet String := {}
     let mut produced := 0
-    for k in [0:nRepeat] do
-      let pf := fnv1a d.display
-      let rng := Rng.mk (seedBase ^^^ pf ^^^ (UInt64.ofNat k * golden))
-      let result := ablate d.toks spec rng centrality
+    -- A file yields several records via --repeat OR --corollary-delete-lemmas*-all. In
+    -- the latter mode we emit one ablation per eligible corollary (file order), ignoring
+    -- --repeat; otherwise one per repeat slot with a per-k seed.
+    let results : Array AblationResult :=
+      if spec.corollaryAll then
+        ablateAll d.toks spec (Rng.mk (seedBase ^^^ fnv1a d.display)) centrality
+      else Id.run do
+        let mut rs : Array AblationResult := #[]
+        for k in [0:nRepeat] do
+          let rng := Rng.mk (seedBase ^^^ fnv1a d.display ^^^ (UInt64.ofNat k * golden))
+          rs := rs.push (ablate d.toks spec rng centrality)
+        return rs
+    for result in results do
       -- aggressive delete-lemmas: only keep challenges that actually compile
       let valid ← if o.aggressive then checkCompiles d.path.toString result.text else pure true
       -- Only emit *real* challenges: at least one hole was inserted AND the challenge
@@ -413,12 +433,20 @@ def main (args : List String) : IO UInt32 := do
       -- otherwise yields a trivial challenge — already-complete, no holes to fill —
       -- which any model "passes" by doing nothing, inflating baselines. (#trivial-skip)
       let nontrivial := result.ablated > 0 && result.text != result.solution
-      if valid && nontrivial && !seen.contains result.text then
-        seen := seen.insert result.text
+      -- dedup key: challenge text normally, but the (deleted lemma(s), corollary) PAIR
+      -- under --corollary-delete-lemmas*-all, so the same lemma deleted for different
+      -- corollaries is kept — only an identical lemma/corollary pair is dropped.
+      let namesKey (arr : Array String) : String := String.intercalate "," (arr.qsort (· < ·)).toList
+      let key :=
+        if spec.corollaryAll then
+          namesKey (result.deleted.map (·.name)) ++ " @@ " ++ namesKey (result.corollaries.map (·.name))
+        else result.text
+      if valid && nontrivial && !seen.contains key then
+        seen := seen.insert key
         if o.textMode then
           IO.print result.text
         else
-          let variant := if nRepeat > 1 then some produced else none
+          let variant := if nRepeat > 1 || spec.corollaryAll then some produced else none
           let obj := Ablator.record d.display o.session spec (Int.ofNat seedBase.toNat)
                        variant o.difficulty result
           IO.println (if o.compact then obj.compact else obj.pretty)

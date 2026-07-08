@@ -2,7 +2,23 @@
 whole-file `solution_text` / `holed_theorems` plumbing on AblationRecord."""
 
 from apply_ablate.record import AblationRecord
-from apply_ablate.solve import _tamper_reason
+from apply_ablate.solve import _cheating, _forbidden, _hole_count, _tamper_reason
+
+
+# --- hole (allowed for iteration) vs cheat (always rejected) split ---
+
+
+def test_hole_vs_cheat_split():
+    # holes: allowed for partial-proof feedback, counted, but never scored
+    assert _hole_count("by sorry\n  admit\n  Admitted") == 3
+    assert _cheating("theorem t := by sorry") is None  # a hole is not a cheat
+    # cheats: new axioms, always rejected
+    assert _cheating("axiom evil : False") == "axiom"
+    assert _cheating("axiomatization where p :: bool") == "axiomatization"
+    # the final-scoring guard still rejects BOTH holes and axioms
+    assert _forbidden("proof with sorry") == "sorry"
+    assert _forbidden("axiom evil") == "axiom"
+    assert _forbidden("a clean real proof") is None
 
 
 # --- Lean: exact-statement comparison (up to the `:=` proof delimiter) ---

@@ -22,16 +22,60 @@ let theory_name (file_path : string) : string =
 
 let hole_json (h : Ablate.hole) : Yojson.Safe.t =
   `Assoc
+    ([
+       ("theorem_name", `String h.theorem_name);
+       ("depth", `Int h.depth);
+       ("n_commands", `Int h.n_commands);
+       ("n_lines", `Int h.n_lines);
+       ("is_leaf", `Bool h.is_leaf);
+       ("centrality", `Int h.centrality);
+       ("method", `String h.method_);
+       ("proof_text", `String h.proof_text);
+       (* proof-complexity metrics (spec §2); n_lines above matches metrics.n_lines *)
+       ("n_chars", `Int h.metrics.Metrics.n_chars);
+       ("n_subproofs", `Int h.metrics.Metrics.n_subproofs);
+       ("n_tactics", `Int h.metrics.Metrics.n_tactics);
+       ("cyclomatic", `Int h.metrics.Metrics.cyclomatic);
+     ])
+
+let deleted_json (d : Ablate.deleted_lemma) : Yojson.Safe.t =
+  `Assoc
     [
-      ("theorem_name", `String h.theorem_name);
-      ("depth", `Int h.depth);
-      ("n_commands", `Int h.n_commands);
-      ("n_lines", `Int h.n_lines);
-      ("is_leaf", `Bool h.is_leaf);
-      ("centrality", `Int h.centrality);
-      ("method", `String h.method_);
-      ("proof_text", `String h.proof_text);
+      ("name", `String d.d_name);
+      ("text", `String d.d_text);
+      ("fan_in", `Int d.d_fan_in);
+      ("n_lines", `Int d.d_metrics.Metrics.n_lines);
+      ("n_chars", `Int d.d_metrics.Metrics.n_chars);
+      ("n_subproofs", `Int d.d_metrics.Metrics.n_subproofs);
+      ("n_tactics", `Int d.d_metrics.Metrics.n_tactics);
+      ("cyclomatic", `Int d.d_metrics.Metrics.cyclomatic);
     ]
+
+let corollary_json (c : Ablate.corollary) : Yojson.Safe.t =
+  `Assoc
+    [
+      ("name", `String c.co_name);
+      ("fan_in", `Int c.co_fan_in);
+      ("n_lines", `Int c.co_metrics.Metrics.n_lines);
+      ("n_chars", `Int c.co_metrics.Metrics.n_chars);
+      ("n_subproofs", `Int c.co_metrics.Metrics.n_subproofs);
+      ("n_tactics", `Int c.co_metrics.Metrics.n_tactics);
+      ("cyclomatic", `Int c.co_metrics.Metrics.cyclomatic);
+    ]
+
+(* Stable, unique per-challenge id (so labels join to features exactly). Derived from
+   the inputs that fully determine a challenge; unlike [task_id] it does not collide
+   across challenges mined from the same file. See docs/difficulty-features.md §1. *)
+let challenge_id (file_path : string) (seed : int) (variant : int option)
+    (result : Ablate.result) : string =
+  let sorted names = List.sort compare names |> String.concat "," in
+  let deleted = sorted (List.map (fun (d : Ablate.deleted_lemma) -> d.d_name) result.deleted) in
+  let holed = sorted (List.map (fun (h : Ablate.hole) -> h.theorem_name) result.holes) in
+  let variant = match variant with Some v -> string_of_int v | None -> "" in
+  let key =
+    String.concat "|" [ file_path; string_of_int seed; variant; deleted; holed ]
+  in
+  String.sub (Sha1.hex key) 0 16
 
 (* lightweight {text,total,ablated,holes} shape returned to the browser demo *)
 let result_json (r : Ablate.result) : Yojson.Safe.t =
@@ -42,8 +86,9 @@ let result_json (r : Ablate.result) : Yojson.Safe.t =
       ("total", `Int r.total);
       ("ablated", `Int r.ablated);
       ("holes", `List (List.map hole_json r.holes));
-      ( "deleted_lemmas",
-        `List (List.map (fun (nm, txt) -> `Assoc [ ("name", `String nm); ("text", `String txt) ]) r.deleted) );
+      ("deleted_lemmas", `List (List.map deleted_json r.deleted));
+      ("corollaries", `List (List.map corollary_json r.corollaries));
+      ("closure_size", `Int r.closure_size);
     ]
 
 let record ~(file_path : string) ~(session : string) ~(spec : Ablate.spec)
@@ -54,6 +99,7 @@ let record ~(file_path : string) ~(session : string) ~(spec : Ablate.spec)
   `Assoc
     [
       ("task_id", `String (task_id file_path variant));
+      ("challenge_id", `String (challenge_id file_path seed variant result));
       ("proof_assistant", `String "coq");
       ("session", `String session);
       ("file_path", `String file_path);
@@ -76,11 +122,9 @@ let record ~(file_path : string) ~(session : string) ~(spec : Ablate.spec)
       ("n_proofs", `Int result.total);
       ("n_ablated", `Int result.ablated);
       ("holes_filled", `List (List.map hole_json result.holes));
-      ( "deleted_lemmas",
-        `List
-          (List.map
-             (fun (nm, txt) -> `Assoc [ ("name", `String nm); ("text", `String txt) ])
-             result.deleted) );
+      ("deleted_lemmas", `List (List.map deleted_json result.deleted));
+      ("corollaries", `List (List.map corollary_json result.corollaries));
+      ("closure_size", `Int result.closure_size);
       ("challenge_file_content", `String result.text);
       (* the solution is stored as a diff against the challenge (apply to recover
          the full solution) — full files are huge for big theories (issue #107) *)
