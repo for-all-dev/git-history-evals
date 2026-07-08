@@ -218,11 +218,21 @@ export default function App() {
   )
 
   // The L0–L4 presets are probability/depth (selection-mode) difficulty knobs, so
-  // a preset must switch off corollary mode — otherwise the corollary/delete-count
-  // path ignores prob/depth and every preset yields the identical ablation.
+  // a preset must (a) switch off corollary mode and (b) clear deleteCount —
+  // otherwise the corollary/delete-count path pins the ablation to a fixed count
+  // (`delete_count` is emitted whenever it's non-null) and every preset yields the
+  // identical result regardless of prob/depth.
   const applyPreset = (i: number) => {
     const p = PRESETS[i]
-    up({ corollary: false, rateMode: 'prob', prob: p.prob, minDepth: p.minDepth, maxDepth: p.maxDepth, leavesOnly: p.leavesOnly })
+    up({
+      corollary: false,
+      deleteCount: null,
+      rateMode: 'prob',
+      prob: p.prob,
+      minDepth: p.minDepth,
+      maxDepth: p.maxDepth,
+      leavesOnly: p.leavesOnly,
+    })
   }
   const activePreset = useMemo(
     () =>
