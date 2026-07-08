@@ -19,7 +19,8 @@ extern lean_object *lean_ablate_theory(
     lean_object *text, uint32_t minDepth, uint32_t maxDepth, uint8_t leavesOnly,
     uint32_t minSize, uint32_t maxSize, uint32_t minCent, uint32_t maxCent,
     uint32_t count, uint8_t byCentrality, uint32_t probPermille,
-    uint8_t truncate, uint8_t shrinkContext, uint64_t seed);
+    uint8_t truncate, uint8_t shrinkChallenge, uint8_t shrinkSolution,
+    uint8_t deleteLemmas, uint64_t seed);
 
 static int g_initialized = 0;
 
@@ -40,18 +41,23 @@ static void ensure_init(void) {
 /* Ablate `text` and return a freshly malloc'd UTF-8 JSON string
  * `{text,total,ablated,holes_filled}`. The caller (JS) must `_free` it.
  * `seed` is a double so the JS<->wasm boundary never needs i64; `maxDepth`,
- * `maxSize`, `maxCent`, `count` use 0xFFFFFFFF as the infinity/unset sentinel. */
+ * `maxSize`, `maxCent`, `count` use 0xFFFFFFFF as the infinity/unset sentinel.
+ * The knob list mirrors `lean_ablate_theory`'s exported signature in
+ * Ablator/Wasm.lean (separate `shrinkChallenge`/`shrinkSolution`/`deleteLemmas`
+ * bools) and the 15-number `ccall` argument order on the JS side. */
 EMSCRIPTEN_KEEPALIVE
 char *ablate_json(const char *text,
                   uint32_t minDepth, uint32_t maxDepth, uint8_t leavesOnly,
                   uint32_t minSize, uint32_t maxSize, uint32_t minCent, uint32_t maxCent,
                   uint32_t count, uint8_t byCentrality, uint32_t probPermille,
-                  uint8_t truncate, uint8_t shrinkContext, double seed) {
+                  uint8_t truncate, uint8_t shrinkChallenge, uint8_t shrinkSolution,
+                  uint8_t deleteLemmas, double seed) {
   ensure_init();
   lean_object *s = lean_mk_string(text);  /* ownership transferred to the call */
   lean_object *res = lean_ablate_theory(
       s, minDepth, maxDepth, leavesOnly, minSize, maxSize, minCent, maxCent,
-      count, byCentrality, probPermille, truncate, shrinkContext, (uint64_t)seed);
+      count, byCentrality, probPermille, truncate, shrinkChallenge, shrinkSolution,
+      deleteLemmas, (uint64_t)seed);
   char *out = strdup(lean_string_cstr(res));
   lean_dec(res);
   return out;
