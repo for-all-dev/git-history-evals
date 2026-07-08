@@ -147,6 +147,54 @@ button.generate:hover {
   filter: brightness(1.08);
 }
 
+/* AFP importer (issue #113) */
+.afp-toggle {
+  background: var(--pan);
+  color: var(--mut);
+  border: 1px solid var(--bd);
+  border-radius: 6px;
+  padding: 6px 12px;
+  font: inherit;
+  cursor: pointer;
+  text-align: left;
+}
+.afp-toggle:hover {
+  color: var(--fg);
+}
+.afp-toggle.on {
+  color: var(--acc2);
+  border-color: color-mix(in srgb, var(--acc2) 45%, transparent);
+}
+.afp-pickers {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  flex-wrap: wrap;
+  margin-top: 5px;
+}
+.afp-pickers select {
+  background: var(--pan);
+  color: var(--fg);
+  border: 1px solid var(--bd);
+  border-radius: 6px;
+  padding: 6px 8px;
+  font: inherit;
+  max-width: 220px;
+}
+.afp-note {
+  font-size: 11px;
+  color: var(--mut);
+  text-decoration: none;
+}
+.afp-note:hover {
+  color: var(--fg);
+}
+.afp-err {
+  font-size: 11px;
+  color: var(--red);
+  max-width: 260px;
+}
+
 .advanced {
   padding: 8px 24px;
   border-bottom: 1px solid var(--bd);

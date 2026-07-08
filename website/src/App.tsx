@@ -13,6 +13,7 @@ import {
   type Lang,
 } from './ablators'
 import { SAMPLES } from './lib/samples'
+import { fetchAfpIndex, fetchAfpTheory, type AfpIndex } from './lib/afp'
 import { toRecord, type EvalRecord } from './lib/record'
 import { CodeView } from './components/CodeView'
 import { JsonView } from './components/JsonView'
@@ -81,6 +82,14 @@ export default function App() {
   const [status, setStatus] = useState<'idle' | 'loading' | 'ready' | 'error'>('idle')
   const [error, setError] = useState('')
 
+  // AFP importer (issue #113): pull a real Archive of Formal Proofs theory from
+  // our world-readable mirror into the source pane. Isabelle-only.
+  const [afp, setAfp] = useState<AfpIndex | null>(null)
+  const [afpOpen, setAfpOpen] = useState(false)
+  const [afpEntry, setAfpEntry] = useState('')
+  const [afpBusy, setAfpBusy] = useState(false)
+  const [afpErr, setAfpErr] = useState('')
+
   const detected = useMemo(() => detectLanguage(debounced), [debounced])
   const lang: Lang = override === 'auto' ? detected : override
   const caps = CAPS[lang]
@@ -131,6 +140,43 @@ export default function App() {
     setOverride(l)
     setSource(SAMPLES[l])
   }
+
+  const openAfp = useCallback(async () => {
+    setAfpOpen((o) => !o)
+    if (afp) return
+    setAfpBusy(true)
+    setAfpErr('')
+    try {
+      const idx = await fetchAfpIndex()
+      setAfp(idx)
+      setAfpEntry(idx.entries[0]?.name ?? '')
+    } catch (e) {
+      setAfpErr(String(e instanceof Error ? e.message : e))
+    } finally {
+      setAfpBusy(false)
+    }
+  }, [afp])
+
+  const loadAfpTheory = useCallback(
+    async (entryName: string, file: string) => {
+      const entry = afp?.entries.find((e) => e.name === entryName)
+      const theory = entry?.theories.find((t) => t.file === file)
+      if (!theory) return
+      setAfpBusy(true)
+      setAfpErr('')
+      try {
+        const text = await fetchAfpTheory(theory)
+        setOverride('isabelle')
+        setSource(text)
+      } catch (e) {
+        setAfpErr(String(e instanceof Error ? e.message : e))
+      } finally {
+        setAfpBusy(false)
+      }
+    },
+    [afp],
+  )
+
   const applyPreset = (i: number) => {
     const p = PRESETS[i]
     up({ rateMode: 'prob', prob: p.prob, minDepth: p.minDepth, maxDepth: p.maxDepth, leavesOnly: p.leavesOnly })
@@ -213,6 +259,62 @@ export default function App() {
               </button>
             ))}
           </div>
+        </div>
+
+        <div className="field afp">
+          <label>Import AFP entry</label>
+          <button className={`afp-toggle${afpOpen ? ' on' : ''}`} onClick={() => void openAfp()}>
+            {afpOpen ? '▾' : '▸'} isabelle · AFP
+          </button>
+          {afpOpen && (
+            <div className="afp-pickers">
+              {afpBusy && !afp ? (
+                <span className="afp-note">loading catalog…</span>
+              ) : afp ? (
+                <>
+                  <select
+                    value={afpEntry}
+                    onChange={(e) => setAfpEntry(e.target.value)}
+                    aria-label="AFP entry"
+                  >
+                    {afp.entries.map((en) => (
+                      <option key={en.name} value={en.name}>
+                        {en.name} ({en.theories.length})
+                      </option>
+                    ))}
+                  </select>
+                  <select
+                    value=""
+                    disabled={afpBusy}
+                    onChange={(e) => {
+                      if (e.target.value) void loadAfpTheory(afpEntry, e.target.value)
+                    }}
+                    aria-label="AFP theory file"
+                  >
+                    <option value="">
+                      {afpBusy ? 'fetching…' : 'pick a theory…'}
+                    </option>
+                    {afp.entries
+                      .find((en) => en.name === afpEntry)
+                      ?.theories.map((t) => (
+                        <option key={t.file} value={t.file}>
+                          {t.file} ({Math.ceil(t.bytes / 1024)}KB)
+                        </option>
+                      ))}
+                  </select>
+                  {(() => {
+                    const en = afp.entries.find((e) => e.name === afpEntry)
+                    return en ? (
+                      <a className="afp-note" href={en.afp_url} target="_blank" rel="noreferrer">
+                        entry page ↗
+                      </a>
+                    ) : null
+                  })()}
+                </>
+              ) : null}
+              {afpErr && <span className="afp-err">{afpErr}</span>}
+            </div>
+          )}
         </div>
       </div>
 
