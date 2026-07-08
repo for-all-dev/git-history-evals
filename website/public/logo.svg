@@ -1,0 +1,13 @@
+<svg width="100%" viewBox="0 0 640 640" role="img" xmlns="http://www.w3.org/2000/svg">
+  <title>Forall &amp;D</title>
+  <desc>Guiding AI safety orgs through the formal methods explosion.</desc>
+  <g transform="translate(-81, 151)">
+    <text x="455" y="112" font-family="monospace" font-size="52"
+          font-weight="500" fill="currentColor">R&amp;D</text>
+    <g stroke="currentColor" stroke-width="17" stroke-linecap="butt"
+       stroke-linejoin="miter" fill="none">
+      <path d="M250 60 L340 260 L430 60"/>
+      <line x1="285" y1="140" x2="560" y2="140"/>
+    </g>
+  </g>
+</svg>
