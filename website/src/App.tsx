@@ -16,6 +16,7 @@ import { SAMPLES } from './lib/samples'
 import { fetchAfpIndex, fetchAfpEntryTheories, fetchAfpTheory, type AfpIndex, type AfpTheory } from './lib/afp'
 import { toRecord, type EvalRecord } from './lib/record'
 import { CodeView } from './components/CodeView'
+import { CodeEditor } from './components/CodeEditor'
 import { JsonView } from './components/JsonView'
 
 type Mode = 'challenge' | 'json'
@@ -541,7 +542,7 @@ export default function App() {
             <h2>Source</h2>
             <span className="muted">edit or paste any of the three provers</span>
           </div>
-          <textarea className="source" spellCheck={false} value={source} onChange={(e) => setSource(e.target.value)} />
+          <CodeEditor lang={lang} value={source} onChange={setSource} />
         </section>
 
         <section className="pane">

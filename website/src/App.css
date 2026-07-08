@@ -397,18 +397,40 @@ button.generate:hover {
   color: var(--red);
 }
 
-textarea.source {
+/* Source editor: transparent-text <textarea> over a highlighted <pre>, aligned
+   pixel-for-pixel and scroll-synced (see CodeEditor.tsx). */
+.editor {
+  position: relative;
   flex: 1;
   width: 100%;
   min-height: 340px;
-  resize: none;
   background: var(--pan);
-  color: var(--fg);
+}
+.editor-hl,
+.editor-input {
+  position: absolute;
+  inset: 0;
+  margin: 0;
   border: none;
   padding: 12px 16px;
   font: 13px/1.5 ui-monospace, Menlo, Consolas, monospace;
   tab-size: 2;
   white-space: pre;
+  overflow: auto;
+}
+.editor-hl {
+  color: var(--fg); /* colour for plain (non-token) text */
+  pointer-events: none;
+  scrollbar-width: none; /* scrollbar lives on the textarea; keep them in sync */
+}
+.editor-hl::-webkit-scrollbar {
+  display: none;
+}
+.editor-input {
+  resize: none;
+  background: transparent;
+  color: transparent;
+  caret-color: var(--fg);
   outline: none;
 }
 
