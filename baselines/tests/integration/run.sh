@@ -52,23 +52,23 @@ run_prover() {
 want() { for p in "${PROVERS[@]}"; do [ "$p" = "$1" ] && return 0; done; return 1; }
 
 if want coq; then
-  run_prover coq "$REPO/rocq-ablator" '
-    cd "$REPO/rocq-ablator"
+  run_prover coq "$REPO/ablators/rocq" '
+    cd "$REPO/ablators/rocq"
     dune exec bin/main.exe -- --all --compact -d "$SRC" "$SRC/Sample.v" > "$JSONL"
   '
 fi
 
 if want isabelle; then
-  run_prover isabelle "$REPO/isabelle-ablator/rust" '
-    cd "$REPO/isabelle-ablator/rust"
+  run_prover isabelle "$REPO/ablators/isabelle/rust" '
+    cd "$REPO/ablators/isabelle/rust"
     cargo build --quiet --bin ablate --features cli
     ./target/debug/ablate --all --compact -d "$SRC" "$SRC/Sample.thy" > "$JSONL"
   '
 fi
 
 if want lean; then
-  run_prover lean "$REPO/lean-ablator" '
-    cd "$REPO/lean-ablator"
+  run_prover lean "$REPO/ablators/lean" '
+    cd "$REPO/ablators/lean"
     [ -x ./.lake/build/bin/ablate ] || lake build
     ./.lake/build/bin/ablate --all --compact -d "$SRC" "$SRC/Sample.lean" > "$JSONL"
   '

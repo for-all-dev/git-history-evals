@@ -7,12 +7,12 @@ selected proof/definition bodies with `sorry`, preserving everything else
 *challenge* side of a proof-synthesis training/eval pair; the originals are the
 ground truth.
 
-It realises the [seL4-ablate-bench](../docs/SoW.md) idea — "progressively delete
+It realises the [seL4-ablate-bench](../../docs/SoW.md) idea — "progressively delete
 proofs and see how much an agent can reconstruct," with a slider on how much to
 delete — for Lean, with the engine itself programmed in Lean. The design borrows
-the proven module layout of the sibling [Isabelle ablator](../isabelle-ablator)
+the proven module layout of the sibling [Isabelle ablator](../isabelle)
 (a native Scala tool plus a Rust/WASM port), and records share the field schema
-of the git-history datasets in [`../artifacts`](../artifacts) (with
+of the git-history datasets in [`../../artifacts`](../../artifacts) (with
 `proof_assistant: "lean"`).
 
 ## Why a pure-Lean tool (and not `import Lean`)

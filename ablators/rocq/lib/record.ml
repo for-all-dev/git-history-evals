@@ -1,5 +1,5 @@
 (* The (challenge, solution) JSON record. Its schema and field order match the
-   git-history datasets in [../artifacts] and the sibling Isabelle/Lean
+   git-history datasets in [../../artifacts] and the sibling Isabelle/Lean
    ablators, with [proof_assistant: "coq"], so a single dump lines up
    field-for-field with the existing data. JSON via yojson ([`Assoc] preserves
    insertion order). *)

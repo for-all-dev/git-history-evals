@@ -1,6 +1,6 @@
 /-
 The (challenge, solution) JSON record. Its schema and field order match the
-git-history datasets in `../artifacts` (and the sibling Isabelle ablator), with
+git-history datasets in `../../artifacts` (and the sibling Isabelle ablator), with
 `proof_assistant: "lean"`, so a single dump can be stratified by difficulty
 post-hoc and lines up field-for-field with the existing data.
 -/

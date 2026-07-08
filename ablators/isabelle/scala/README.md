@@ -9,7 +9,7 @@ proof-synthesis training/eval pair; the original theories are the ground truth.
 This is the "ablate" complement to the git-history miner in this repo: instead
 of harvesting `(commit, file)` holes from history, it manufactures holes
 *synthetically* from any theory at a tunable rate — the
-[seL4-ablate-bench](../docs/SoW.md) idea of "progressively delete proofs and see
+[seL4-ablate-bench](../../docs/SoW.md) idea of "progressively delete proofs and see
 how much an agent can reconstruct," with a slider on how much to delete.
 
 ## Why a Scala tool
@@ -80,7 +80,7 @@ truth), the difficulty knobs used, and `holes_filled` — the removed proofs, ea
 with `theorem_name`, `depth`, `n_commands`, `n_lines`, `is_leaf`, `centrality`
 (corpus fan-in), and `method` (e.g. `by:simp`, `apply`, `structured`), so a
 single dump can be **stratified by difficulty post-hoc**. Field names mirror the
-git-history datasets in `../artifacts`.
+git-history datasets in `../../artifacts`.
 
 Or via the flake directly: `nix run .# -- --all theory.thy`.
 

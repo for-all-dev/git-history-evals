@@ -1,8 +1,8 @@
 # rocq-ablator (OCaml / WASM)
 
 A syntactic proof ablator for **Coq/Rocq**, in the spirit of the sibling
-[`../isabelle-ablator`](../isabelle-ablator) (Rust) and
-[`../lean-ablator`](../lean-ablator) (Lean). It tokenizes a `.v` file, replaces
+[`../isabelle`](../isabelle) (Rust) and
+[`../lean`](../lean) (Lean). It tokenizes a `.v` file, replaces
 selected proofs with an *admit-style hole*, and preserves everything else
 (statements, definitions, comments, whitespace) **byte-for-byte**. There is **no
 Coq / prover at runtime**, so the whole core compiles to a small WebAssembly
@@ -37,7 +37,7 @@ centrality, context shaping) and the **L0–L4 preset ladder**.
 
 ## Validation — lossless over real Coq
 
-Run over the entire **fiat-crypto** source tree (`../data/fiat-crypto`):
+Run over the entire **fiat-crypto** source tree (`../../data/fiat-crypto`):
 
 | | rocq-ablator |
 |---|---|
@@ -59,7 +59,7 @@ dune build                                   # -> _build/default/bin/main.exe
 dune exec bin/main.exe -- theory.v           # JSONL (challenge, solution)
 dune exec bin/main.exe -- --all --text t.v   # just the ablated theory
 dune exec bin/main.exe -- --difficulty L2 src/   # preset ladder L0..L4 (nested)
-dune exec bin/main.exe -- --check ../data/fiat-crypto   # corpus self-test
+dune exec bin/main.exe -- --check ../../data/fiat-crypto   # corpus self-test
 dune exec bin/main.exe -- --check-build src/Foo.v       # compile-test with coqc
 ```
 
@@ -164,5 +164,5 @@ client-side — nothing is uploaded.
 
 Walking a proof and inspecting goal state between tactics (to ablate mid-tactic)
 requires *executing* Coq — a job for `coq-lsp`/petanque or SerAPI, run offline
-in the mining pipeline (cf. `../experiments/docker`), not in WASM. Staying in
+in the mining pipeline (cf. `../../experiments/docker`), not in WASM. Staying in
 OCaml here keeps that pivot cheap.
