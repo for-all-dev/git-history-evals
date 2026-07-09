@@ -1,7 +1,7 @@
-<svg width="100%" viewBox="0 0 640 640" role="img" xmlns="http://www.w3.org/2000/svg">
+<svg width="100%" height="auto" viewBox="0 0 640 640" role="img" xmlns="http://www.w3.org/2000/svg">
   <title>Forall &amp;D</title>
   <desc>Guiding AI safety orgs through the formal methods explosion.</desc>
-  <g transform="translate(-81, 151)">
+  <g transform="translate(320, 320) scale(1.6) translate(-390, -160)">
     <text x="455" y="112" font-family="monospace" font-size="52"
           font-weight="500" fill="currentColor">R&amp;D</text>
     <g stroke="currentColor" stroke-width="17" stroke-linecap="butt"
