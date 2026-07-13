@@ -90,7 +90,7 @@ def resultJson (result : AblationResult) : Json :=
     ("closure_size", Json.num result.closureSize) ]
 
 def record (filePath session : String) (spec : Spec) (seed : Int) (variant : Option Nat)
-    (difficulty : Option String) (result : AblationResult) : Json :=
+    (difficulty : Option String) (repo revision : Option String) (result : AblationResult) : Json :=
   let optNat : Option Nat → Json := fun o => match o with | some n => Json.num (Int.ofNat n) | none => Json.null
   let optStr : Option String → Json := fun o => match o with | some s => Json.str s | none => Json.null
   Json.obj [
@@ -98,6 +98,11 @@ def record (filePath session : String) (spec : Spec) (seed : Int) (variant : Opt
     ("challenge_id", Json.str (challengeId filePath seed variant result)),
     ("proof_assistant", Json.str "lean"),
     ("session", Json.str session),
+    -- provenance: the git repo + commit the source file was ablated from, so a
+    -- consumer can reproduce/pin the exact ground truth. `null` when undetectable
+    -- (e.g. a non-git source tree).
+    ("repo", optStr repo),
+    ("revision", optStr revision),
     ("file_path", Json.str filePath),
     ("theory", Json.str (theoryName filePath)),
     ("variant", optNat variant),

@@ -1,0 +1,24 @@
+{
+  "repo": "verity",
+  "git_repo": "github.com/lfglabs-dev/verity",
+  "revision": "eeb7a3abe85dd88cc8ee2ece5a77da9b2aba2978",
+  "lean_toolchain": "leanprover/lean4:v4.22.0",
+  "proof_assistant": "lean",
+  "ablator": "ablators/lean (corollary-delete-lemmas-all)",
+  "ablator_flags": [
+    "--corollary-delete-lemmas-all",
+    "--shrink-solution-minimal",
+    "--compact",
+    "--seed",
+    "42"
+  ],
+  "seed": 42,
+  "validation": "ablate-baseline --dry-run (preflight compile of challenge + solution)",
+  "counts": {
+    "mined_total": 1838,
+    "good_kept": 1290,
+    "well_formed": 1290,
+    "malformed": 489,
+    "sol_bad": 59
+  }
+}

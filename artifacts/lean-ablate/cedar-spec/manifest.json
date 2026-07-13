@@ -1,0 +1,23 @@
+{
+  "repo": "cedar-spec",
+  "git_repo": "github.com/cedar-policy/cedar-spec",
+  "revision": "795ddccff61c83aeb5d6a7ccd22abf5e00164c73",
+  "lean_toolchain": "leanprover/lean4:v4.31.0",
+  "proof_assistant": "lean",
+  "ablator": "ablators/lean (corollary-delete-lemmas-leaves-all)",
+  "ablator_flags": [
+    "--corollary-delete-lemmas-leaves-all",
+    "--shrink-solution-minimal",
+    "--compact",
+    "--seed",
+    "42"
+  ],
+  "seed": 42,
+  "validation": "ablate-baseline --dry-run (preflight compile of challenge + solution)",
+  "counts": {
+    "mined_total": 1167,
+    "good_kept": 1116,
+    "well_formed": 1116,
+    "malformed": 51
+  }
+}

@@ -1,0 +1,24 @@
+{
+  "repo": "cslib",
+  "git_repo": "github.com/leanprover/cslib",
+  "revision": "c0120dddfe75d4ab913691c0c184fc436927b19d",
+  "lean_toolchain": "leanprover/lean4:v4.32.0-rc1",
+  "proof_assistant": "lean",
+  "ablator": "ablators/lean (corollary-delete-lemmas-leaves-all)",
+  "ablator_flags": [
+    "--corollary-delete-lemmas-leaves-all",
+    "--shrink-solution-minimal",
+    "--compact",
+    "--seed",
+    "42"
+  ],
+  "seed": 42,
+  "validation": "ablate-baseline --dry-run (preflight compile of challenge + solution)",
+  "counts": {
+    "mined_total": 504,
+    "good_kept": 322,
+    "malformed": 137,
+    "well_formed": 322,
+    "sol_bad": 45
+  }
+}

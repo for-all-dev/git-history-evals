@@ -60,6 +60,9 @@ pub fn record(
     seed: i64,
     variant: Option<u64>,
     difficulty: Option<&str>,
+    repo: Option<&str>,
+    revision: Option<&str>,
+    isabelle_version: Option<&str>,
     result: &AblationResult,
 ) -> Value {
     let holes: Vec<Value> = result
@@ -120,6 +123,13 @@ pub fn record(
         "challenge_id": challenge_id(file_path, seed, variant, result),
         "proof_assistant": "isabelle",
         "session": session,
+        // provenance: git repo + commit the source was ablated from. For the packaged
+        // AFP there is no local git checkout, so these come from --repo/--revision
+        // (e.g. the isabelle-prover/mirror-afp-devel mirror) and `isabelle_version`
+        // pins the Isabelle release the session was built against.
+        "repo": repo.map(Value::from).unwrap_or(Value::Null),
+        "revision": revision.map(Value::from).unwrap_or(Value::Null),
+        "isabelle_version": isabelle_version.map(Value::from).unwrap_or(Value::Null),
         "file_path": file_path,
         "theory": theory_name(file_path),
         "variant": variant.map(Value::from).unwrap_or(Value::Null),

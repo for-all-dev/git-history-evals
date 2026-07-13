@@ -1,0 +1,23 @@
+{
+  "repo": "formal-snarks-project",
+  "git_repo": "github.com/BoltonBailey/formal-snarks-project",
+  "revision": "67ccc51f80693fce005979a333972b358dfbe83d",
+  "lean_toolchain": "leanprover/lean4:v4.30.0",
+  "proof_assistant": "lean",
+  "ablator": "ablators/lean (corollary-delete-lemmas-leaves-all)",
+  "ablator_flags": [
+    "--corollary-delete-lemmas-leaves-all",
+    "--shrink-solution-minimal",
+    "--compact",
+    "--seed",
+    "42"
+  ],
+  "seed": 42,
+  "validation": "ablate-baseline --dry-run (preflight compile of challenge + solution)",
+  "counts": {
+    "mined_total": 12,
+    "good_kept": 11,
+    "well_formed": 11,
+    "malformed": 1
+  }
+}

@@ -1,0 +1,22 @@
+{
+  "repo": "yul-semantics",
+  "git_repo": "github.com/powdr-labs/yul-semantics",
+  "revision": "f4e6187d684c0ebaee751750c5c368a4226abb73",
+  "lean_toolchain": "leanprover/lean4:v4.31.0",
+  "proof_assistant": "lean",
+  "ablator": "ablators/lean (corollary-delete-lemmas-all)",
+  "ablator_flags": [
+    "--corollary-delete-lemmas-all",
+    "--shrink-solution-minimal",
+    "--compact",
+    "--seed",
+    "42"
+  ],
+  "seed": 42,
+  "validation": "ablate-baseline --dry-run (preflight compile of challenge + solution)",
+  "counts": {
+    "mined_total": 27,
+    "good_kept": 27,
+    "well_formed": 27
+  }
+}

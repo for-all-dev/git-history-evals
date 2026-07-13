@@ -1,0 +1,24 @@
+{
+  "repo": "SizzLean",
+  "git_repo": "github.com/etheorem/etheorem",
+  "revision": "032ab6c6d67186ba60b734e0f2c44ba1bb8b6fb0",
+  "lean_toolchain": "leanprover/lean4:v4.29.1",
+  "proof_assistant": "lean",
+  "ablator": "ablators/lean (corollary-delete-lemmas-all)",
+  "ablator_flags": [
+    "--corollary-delete-lemmas-all",
+    "--shrink-solution-minimal",
+    "--compact",
+    "--seed",
+    "42"
+  ],
+  "seed": 42,
+  "validation": "ablate-baseline --dry-run (preflight compile of challenge + solution)",
+  "counts": {
+    "mined_total": 40,
+    "good_kept": 9,
+    "malformed": 27,
+    "well_formed": 9,
+    "sol_bad": 4
+  }
+}

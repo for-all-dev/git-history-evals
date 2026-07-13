@@ -1,0 +1,23 @@
+{
+  "repo": "Clear",
+  "git_repo": "github.com/NethermindEth/Clear",
+  "revision": "6ef2e7eda01080e5d5fd7474354c1a71adab5071",
+  "lean_toolchain": "leanprover/lean4:v4.9.1",
+  "proof_assistant": "lean",
+  "ablator": "ablators/lean (corollary-delete-lemmas-leaves-all)",
+  "ablator_flags": [
+    "--corollary-delete-lemmas-leaves-all",
+    "--shrink-solution-minimal",
+    "--compact",
+    "--seed",
+    "42"
+  ],
+  "seed": 42,
+  "validation": "ablate-baseline --dry-run (preflight compile of challenge + solution)",
+  "counts": {
+    "mined_total": 54,
+    "good_kept": 45,
+    "well_formed": 45,
+    "malformed": 9
+  }
+}

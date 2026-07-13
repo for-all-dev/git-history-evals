@@ -1,0 +1,24 @@
+{
+  "repo": "clean",
+  "git_repo": "github.com/Verified-zkEVM/clean",
+  "revision": "1e563b9c27991b3795eb440c1ee0757edb4ce8b1",
+  "lean_toolchain": "leanprover/lean4:v4.30.0",
+  "proof_assistant": "lean",
+  "ablator": "ablators/lean (corollary-delete-lemmas-all)",
+  "ablator_flags": [
+    "--corollary-delete-lemmas-all",
+    "--shrink-solution-minimal",
+    "--compact",
+    "--seed",
+    "42"
+  ],
+  "seed": 42,
+  "validation": "ablate-baseline --dry-run (preflight compile of challenge + solution)",
+  "counts": {
+    "mined_total": 454,
+    "good_kept": 355,
+    "malformed": 70,
+    "well_formed": 355,
+    "sol_bad": 29
+  }
+}

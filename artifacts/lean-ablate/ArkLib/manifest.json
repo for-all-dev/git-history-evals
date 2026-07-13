@@ -1,0 +1,24 @@
+{
+  "repo": "ArkLib",
+  "git_repo": "github.com/Verified-zkEVM/ArkLib",
+  "revision": "5a83bfb4383503d70d7b5a05355d396855b3151b",
+  "lean_toolchain": "leanprover/lean4:v4.30.0",
+  "proof_assistant": "lean",
+  "ablator": "ablators/lean (corollary-delete-lemmas-leaves-all)",
+  "ablator_flags": [
+    "--corollary-delete-lemmas-leaves-all",
+    "--shrink-solution-minimal",
+    "--compact",
+    "--seed",
+    "42"
+  ],
+  "seed": 42,
+  "validation": "ablate-baseline --dry-run (preflight compile of challenge + solution)",
+  "counts": {
+    "mined_total": 656,
+    "good_kept": 336,
+    "well_formed": 336,
+    "sol_bad": 161,
+    "malformed": 159
+  }
+}

@@ -1,0 +1,24 @@
+{
+  "repo": "iris-lean",
+  "git_repo": "github.com/leanprover-community/iris-lean",
+  "revision": "5a790aed0dcad30219aa218c88a7fd306c092fae",
+  "lean_toolchain": null,
+  "proof_assistant": "lean",
+  "ablator": "ablators/lean (corollary-delete-lemmas-leaves-all)",
+  "ablator_flags": [
+    "--corollary-delete-lemmas-leaves-all",
+    "--shrink-solution-minimal",
+    "--compact",
+    "--seed",
+    "42"
+  ],
+  "seed": 42,
+  "validation": "ablate-baseline --dry-run (preflight compile of challenge + solution)",
+  "counts": {
+    "mined_total": 814,
+    "good_kept": 671,
+    "well_formed": 671,
+    "sol_bad": 64,
+    "malformed": 79
+  }
+}

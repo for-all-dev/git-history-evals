@@ -73,7 +73,18 @@ uv run pytest             # tests
   schema; `obs.py` wires Logfire (`instrument_pydantic_ai` + per-compile/per-outcome
   spans). Pre-flight validation marks challenges that don't compile `malformed` and
   empty-diff ones `trivial`, both excluded from the PASS rate.
-- `./data/`: source repos as git submodules
+- `./data/`: source repos, **organised by language**: `data/lean/<repo>` (50 mined Lean repos +
+  `_triage/` of unmined candidates), `data/isabelle/l4v`, `data/rocq/{CompCert,fiat-crypto,BRiCk}`.
+  Only the 4 Rocq/Isabelle repos are git submodules; the Lean checkouts are pinned in
+  `pipeline/repos.tsv` (url + revision + toolchain) and materialised by `pipeline/clone_repos.sh`
+  — they are multi-GB once built, so they are gitignored rather than vendored.
+- `./pipeline/`: the ablation pipeline — mine -> build -> validate -> publish. See
+  `pipeline/README.md`; **read its "Validation is a build problem" section before trusting any
+  `malformed` count**, since an incompletely-built source tree reports every challenge as
+  malformed (this understated hex-dev by 2,881 challenges).
+- `./flake.nix`: the pipeline toolchain — a `cc` wrapper adding `-D_GNU_SOURCE` (Lean C FFI),
+  elan/lake, s3cmd, and a uv2nix-built python env exposing `ablate-baseline` with no uv at
+  runtime (`nix run .#ablate-baseline`).
 - `./artifacts/`: mined eval datasets as versioned bundles — `<repo>-eval/<tag>-<hash>/{manifest.json, miner/profile.json, challenges.jsonl}` per `MANIFEST_SCHEMA.md`, indexed by `_index.json`. Each dataset owns exactly one profile (at `<version>/miner/profile.json`); the blessed `<repo>-eval/profile.json` that `mine-all` reads is a relative **symlink** into the canonical version's profile, not a copy. Bulk `*.jsonl`/`*.txt` payloads are sha256 blobs declared in manifests and gitignored.
 - `./dashboard/`: Next.js app for exploring JSONL benchmark artifacts
 - `./docs/`: changelog for the pattern detector (`PatternDetectorChanges.md`) + agent task template

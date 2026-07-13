@@ -1,13 +1,13 @@
 [submodule "data/CompCert"]
-	path = data/CompCert
+	path = data/rocq/CompCert
 	url = https://github.com/AbsInt/CompCert.git
 [submodule "data/BRiCk"]
-	path = data/BRiCk
+	path = data/rocq/BRiCk
 	url = https://github.com/bluerock-io/BRiCk.git
 [submodule "data/l4v"]
-	path = data/l4v
+	path = data/isabelle/l4v
 	url = https://github.com/seL4/l4v.git
 	ignore = untracked
 [submodule "data/fiat-crypto"]
-	path = data/fiat-crypto
+	path = data/rocq/fiat-crypto
 	url = https://github.com/mit-plv/fiat-crypto.git

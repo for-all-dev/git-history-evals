@@ -1,0 +1,23 @@
+{
+  "repo": "btc-verified",
+  "git_repo": "github.com/ProofOfKeags/btc-verified",
+  "revision": "251ae35b2caf564608f0c6bc35933d7837bfe0c4",
+  "lean_toolchain": "leanprover/lean4:v4.30.0-rc2",
+  "proof_assistant": "lean",
+  "ablator": "ablators/lean (corollary-delete-lemmas-leaves-all)",
+  "ablator_flags": [
+    "--corollary-delete-lemmas-leaves-all",
+    "--shrink-solution-minimal",
+    "--compact",
+    "--seed",
+    "42"
+  ],
+  "seed": 42,
+  "validation": "ablate-baseline --dry-run (preflight compile of challenge + solution)",
+  "counts": {
+    "mined_total": 27,
+    "good_kept": 25,
+    "sol_bad": 2,
+    "well_formed": 25
+  }
+}

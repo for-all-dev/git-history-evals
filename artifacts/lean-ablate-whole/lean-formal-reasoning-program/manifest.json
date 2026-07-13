@@ -1,0 +1,24 @@
+{
+  "repo": "lean-formal-reasoning-program",
+  "git_repo": "github.com/andaraiwin/lean-formal-reasoning-program",
+  "revision": "4a12da01571e50e52075d52808f76e029be0e7c9",
+  "lean_toolchain": "leanprover/lean4:v4.9.0-rc2",
+  "proof_assistant": "lean",
+  "ablator": "ablators/lean (corollary-delete-lemmas-all)",
+  "ablator_flags": [
+    "--corollary-delete-lemmas-all",
+    "--shrink-solution-minimal",
+    "--compact",
+    "--seed",
+    "42"
+  ],
+  "seed": 42,
+  "validation": "ablate-baseline --dry-run (preflight compile of challenge + solution)",
+  "counts": {
+    "mined_total": 51,
+    "good_kept": 13,
+    "well_formed": 13,
+    "sol_bad": 24,
+    "malformed": 14
+  }
+}

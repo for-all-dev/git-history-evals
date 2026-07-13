@@ -1,0 +1,23 @@
+{
+  "repo": "nickelean",
+  "git_repo": "github.com/lexicone42/nickelean",
+  "revision": "9938f56b642143ad18af83b8851a7a1b04f50a91",
+  "lean_toolchain": "leanprover/lean4:v4.29.0-rc6",
+  "proof_assistant": "lean",
+  "ablator": "ablators/lean (corollary-delete-lemmas-all)",
+  "ablator_flags": [
+    "--corollary-delete-lemmas-all",
+    "--shrink-solution-minimal",
+    "--compact",
+    "--seed",
+    "42"
+  ],
+  "seed": 42,
+  "validation": "ablate-baseline --dry-run (preflight compile of challenge + solution)",
+  "counts": {
+    "mined_total": 66,
+    "good_kept": 15,
+    "well_formed": 15,
+    "malformed": 51
+  }
+}

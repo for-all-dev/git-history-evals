@@ -1,0 +1,23 @@
+{
+  "repo": "SampCert",
+  "git_repo": "github.com/leanprover/SampCert",
+  "revision": "6e2392c165652063fefc628d8f047b77ca393b0f",
+  "lean_toolchain": "leanprover/lean4:v4.29.0",
+  "proof_assistant": "lean",
+  "ablator": "ablators/lean (corollary-delete-lemmas-leaves-all)",
+  "ablator_flags": [
+    "--corollary-delete-lemmas-leaves-all",
+    "--shrink-solution-minimal",
+    "--compact",
+    "--seed",
+    "42"
+  ],
+  "seed": 42,
+  "validation": "ablate-baseline --dry-run (preflight compile of challenge + solution)",
+  "counts": {
+    "mined_total": 240,
+    "good_kept": 220,
+    "well_formed": 220,
+    "malformed": 20
+  }
+}

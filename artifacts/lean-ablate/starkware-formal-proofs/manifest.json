@@ -1,0 +1,24 @@
+{
+  "repo": "starkware-formal-proofs",
+  "git_repo": "github.com/starkware-libs/formal-proofs",
+  "revision": "d0dd8279612a248cbc6bf6d286030bf0bb2a37ff",
+  "lean_toolchain": "leanprover/lean4:v4.13.0-rc3",
+  "proof_assistant": "lean",
+  "ablator": "ablators/lean (corollary-delete-lemmas-leaves-all)",
+  "ablator_flags": [
+    "--corollary-delete-lemmas-leaves-all",
+    "--shrink-solution-minimal",
+    "--compact",
+    "--seed",
+    "42"
+  ],
+  "seed": 42,
+  "validation": "ablate-baseline --dry-run (preflight compile of challenge + solution)",
+  "counts": {
+    "mined_total": 968,
+    "good_kept": 508,
+    "malformed": 395,
+    "well_formed": 508,
+    "sol_bad": 65
+  }
+}

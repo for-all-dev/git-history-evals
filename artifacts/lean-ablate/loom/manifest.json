@@ -1,0 +1,23 @@
+{
+  "repo": "loom",
+  "git_repo": "github.com/verse-lab/loom",
+  "revision": "78928abc9054b31d0bea85985496490baae95244",
+  "lean_toolchain": "leanprover/lean4:v4.24.0",
+  "proof_assistant": "lean",
+  "ablator": "ablators/lean (corollary-delete-lemmas-leaves-all)",
+  "ablator_flags": [
+    "--corollary-delete-lemmas-leaves-all",
+    "--shrink-solution-minimal",
+    "--compact",
+    "--seed",
+    "42"
+  ],
+  "seed": 42,
+  "validation": "ablate-baseline --dry-run (preflight compile of challenge + solution)",
+  "counts": {
+    "mined_total": 46,
+    "good_kept": 33,
+    "well_formed": 33,
+    "malformed": 13
+  }
+}

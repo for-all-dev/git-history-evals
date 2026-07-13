@@ -1,0 +1,24 @@
+{
+  "repo": "TorchLean",
+  "git_repo": "github.com/lean-dojo/TorchLean",
+  "revision": "a0c5bdf2bb02c25b270a2c89a12ad2335c86c530",
+  "lean_toolchain": "leanprover/lean4:v4.31.0",
+  "proof_assistant": "lean",
+  "ablator": "ablators/lean (corollary-delete-lemmas-leaves-all)",
+  "ablator_flags": [
+    "--corollary-delete-lemmas-leaves-all",
+    "--shrink-solution-minimal",
+    "--compact",
+    "--seed",
+    "42"
+  ],
+  "seed": 42,
+  "validation": "ablate-baseline --dry-run (preflight compile of challenge + solution)",
+  "counts": {
+    "mined_total": 728,
+    "good_kept": 680,
+    "well_formed": 680,
+    "malformed": 35,
+    "sol_bad": 13
+  }
+}

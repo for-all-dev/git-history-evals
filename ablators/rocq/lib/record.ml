@@ -93,6 +93,7 @@ let result_json (r : Ablate.result) : Yojson.Safe.t =
 
 let record ~(file_path : string) ~(session : string) ~(spec : Ablate.spec)
     ~(seed : int) ~(variant : int option) ~(difficulty : string option)
+    ~(repo : string option) ~(revision : string option)
     ~(result : Ablate.result) : Yojson.Safe.t =
   let opt_int = function Some n -> `Int n | None -> `Null in
   let opt_str = function Some s -> `String s | None -> `Null in
@@ -102,6 +103,10 @@ let record ~(file_path : string) ~(session : string) ~(spec : Ablate.spec)
       ("challenge_id", `String (challenge_id file_path seed variant result));
       ("proof_assistant", `String "coq");
       ("session", `String session);
+      (* provenance: git repo + commit the source was ablated from (null when
+         undetectable). Mirrors the Lean/Isabelle ablators. *)
+      ("repo", opt_str repo);
+      ("revision", opt_str revision);
       ("file_path", `String file_path);
       ("theory", `String (theory_name file_path));
       ("variant", opt_int variant);

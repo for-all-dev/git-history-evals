@@ -161,6 +161,17 @@ private def firstProperIdx (toks : Array Token) (lo hi : Nat) : Option Nat := Id
     if toks[i]!.isProper then return some i
   return none
 
+/-- Does the decl in `[lo, hi)` carry an attribute (`@[…]`)? The span parser merges a
+    leading `@[…]` attribute block into the decl span, so the first proper token is `@`.
+    Attribute-tagged decls (`@[simp]`, `@[grind]`, instances, `@[ext]`, …) can be
+    depended on *implicitly* — a `simp` call cites none of its simp-set members by name —
+    so a syntactic dependency closure cannot see those edges. The minimal slicer therefore
+    keeps every attributed decl unconditionally (see `sliceDelete`). -/
+private def spanHasAttr (toks : Array Token) (lo hi : Nat) : Bool :=
+  match firstProperIdx toks lo hi with
+  | some i => toks[i]!.src == "@"
+  | none => false
+
 /-- Index just after the last *proper* token in `[lo, hi)` (so trailing
     whitespace/comments can be preserved verbatim). -/
 def lastProperEnd (toks : Array Token) (lo hi : Nat) : Nat := Id.run do
@@ -649,22 +660,29 @@ def renderUserLean (toks : Array Token) (lo a contentHi hi parentCol : Nat) (del
     name; solution keeps everything real (restoring the deleted lemma + deps). -/
 def sliceDelete (toks : Array Token) (spans : Array Span) (spec : Spec)
     (lemmas : Array DeletableLemma) (delSet userSet : HashSet Nat) (solution : Bool) : String := Id.run do
-  let bySpan := fun (si : Nat) => lemmas.find? (fun l => l.spanIdx == si)
-  -- name -> ALL openers that define it. A name may be declared more than once (e.g. the
-  -- same lemma name inside different namespaces/sections); keeping only one — worse, an
-  -- arbitrary `find?` match — can drop the definition a kept reference resolves to,
-  -- leaving a dangling reference in the slice. (Mirrors rocq `openers_of_name`.)
-  -- Resolve a cited name to lemma decls by full name OR last dotted component. A
-  -- dot-notation call `x.foo` (with `x : T`, resolving to `T.foo`) or an open-namespace
-  -- reference cites only `foo`, which cannot be tied to the fully-qualified `T.foo`
-  -- declaration syntactically — matching on the last component recovers it. This
-  -- conservatively over-keeps same-suffix lemmas, which is safe: an extra kept lemma
-  -- never breaks compilation, whereas a dropped-but-needed one does (the over-cut bug
-  -- that made `--shrink-*-minimal` corrupt dot-notation-heavy files, e.g. lean4lean).
   let lastComp := fun (s : String) => (s.splitOn ".").getLastD s
-  let openersOfName := fun (nm : String) =>
-    let nc := lastComp nm
-    lemmas.filterMap (fun l => if l.name == nm || lastComp l.name == nc then some l.spanIdx else none)
+  -- Precompute lookup indices ONCE. `bySpan` and `openersOfName` were each an O(lemmas)
+  -- scan; called per-name inside the closure BFS and per-slice by `ablateAll`, that made
+  -- `--shrink-*-minimal` ~O(n³) on large corollary-rich files (a 1200-line VCV-io theory
+  -- took 25 s). spanToLemma / byLastComp turn both into O(1) lookups.
+  let mut spanToLemma : HashMap Nat DeletableLemma := {}
+  -- name -> ALL openers that define it. A name may be declared more than once (same lemma
+  -- name in different namespaces/sections); keeping only one — worse, an arbitrary match —
+  -- can drop the definition a kept reference resolves to, leaving a dangle. (rocq
+  -- `openers_of_name`.) Resolve a cited name to decls by *last dotted component*: a
+  -- dot-notation call `x.foo` (`x : T` → `T.foo`) or an open-namespace reference cites only
+  -- `foo`, unrecoverable from the fully-qualified `T.foo` decl by full name — matching the
+  -- last component recovers it. A full-name match `l.name == nm` *implies* a last-component
+  -- match (`lastComp l.name == lastComp nm`), so a single last-component index is complete.
+  -- Over-keeps same-suffix lemmas, which is safe (an extra kept lemma never breaks the
+  -- build; a dropped-but-needed one does — the over-cut bug that corrupted dot-heavy files).
+  let mut byLastComp : HashMap String (Array Nat) := {}
+  for l in lemmas do
+    spanToLemma := spanToLemma.insert l.spanIdx l
+    let nc := lastComp l.name
+    byLastComp := byLastComp.insert nc ((byLastComp.getD nc #[]).push l.spanIdx)
+  let bySpan := fun (si : Nat) => spanToLemma.get? si
+  let openersOfName := fun (nm : String) => byLastComp.getD (lastComp nm) #[]
   let mut deletedNames : HashSet String := {}
   for si in delSet.toList do
     match bySpan si with | some l => deletedNames := deletedNames.insert l.name | none => pure ()
@@ -691,6 +709,18 @@ def sliceDelete (toks : Array Token) (spans : Array Span) (spec : Spec)
         for o2 in openersOfName nm do
           if !keep.contains o2 && (bySpan o2).isSome then
             keep := keep.insert o2; q := q.push o2
+  -- Attribute-tagged decls (`@[simp]`, `@[grind]`, instances, …) can be depended on
+  -- implicitly by a *kept* proof (a `simp` names none of its simp-set members), so the
+  -- syntactic closure below can't reach them. Dropping one silently breaks kept proofs
+  -- ("unsolved goals" with no unknown-identifier). Keep them all — over-keeping an extra
+  -- lemma never breaks compilation, whereas a dropped-but-needed one does.
+  for si in [0:spans.size] do
+    match bySpan si with
+    | some _ =>
+      let s := spans[si]!
+      if !keep.contains si && spanHasAttr toks s.lo s.hi then
+        keep := keep.insert si; q := q.push si
+    | none => pure ()
   let mut qi := 0
   while qi < q.size do
     let o := q[qi]!

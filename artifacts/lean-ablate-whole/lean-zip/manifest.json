@@ -1,0 +1,23 @@
+{
+  "repo": "lean-zip",
+  "git_repo": "github.com/kim-em/lean-zip",
+  "revision": "9e62f214671be676cc580110c9b8ca74eac21b3d",
+  "lean_toolchain": "leanprover/lean4:v4.30.0-rc2",
+  "proof_assistant": "lean",
+  "ablator": "ablators/lean (corollary-delete-lemmas-all)",
+  "ablator_flags": [
+    "--corollary-delete-lemmas-all",
+    "--shrink-solution-minimal",
+    "--compact",
+    "--seed",
+    "42"
+  ],
+  "seed": 42,
+  "validation": "ablate-baseline --dry-run (preflight compile of challenge + solution)",
+  "counts": {
+    "mined_total": 725,
+    "good_kept": 724,
+    "well_formed": 724,
+    "malformed": 1
+  }
+}

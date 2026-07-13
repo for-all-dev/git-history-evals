@@ -1,0 +1,24 @@
+{
+  "repo": "FLoPS",
+  "git_repo": "github.com/rutgers-apl/FLoPS",
+  "revision": "95081ac643663da507115abe23ebd5701433587f",
+  "lean_toolchain": "leanprover/lean4:v4.28.0",
+  "proof_assistant": "lean",
+  "ablator": "ablators/lean (corollary-delete-lemmas-leaves-all)",
+  "ablator_flags": [
+    "--corollary-delete-lemmas-leaves-all",
+    "--shrink-solution-minimal",
+    "--compact",
+    "--seed",
+    "42"
+  ],
+  "seed": 42,
+  "validation": "ablate-baseline --dry-run (preflight compile of challenge + solution)",
+  "counts": {
+    "mined_total": 184,
+    "good_kept": 162,
+    "well_formed": 162,
+    "malformed": 13,
+    "sol_bad": 9
+  }
+}

@@ -1,0 +1,22 @@
+{
+  "repo": "ryu-lean4",
+  "git_repo": "github.com/lexicone42/ryu-lean4",
+  "revision": "5dd60fd7a0f08822a6efa0f97e585ce8efa270d4",
+  "lean_toolchain": "leanprover/lean4:v4.29.0-rc4",
+  "proof_assistant": "lean",
+  "ablator": "ablators/lean (corollary-delete-lemmas-leaves-all)",
+  "ablator_flags": [
+    "--corollary-delete-lemmas-leaves-all",
+    "--shrink-solution-minimal",
+    "--compact",
+    "--seed",
+    "42"
+  ],
+  "seed": 42,
+  "validation": "ablate-baseline --dry-run (preflight compile of challenge + solution)",
+  "counts": {
+    "mined_total": 57,
+    "good_kept": 57,
+    "well_formed": 57
+  }
+}

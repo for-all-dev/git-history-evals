@@ -1,0 +1,22 @@
+{
+  "repo": "proven-zk",
+  "git_repo": "github.com/reilabs/proven-zk",
+  "revision": "fd156e1a0a0771271b7871972f428b0c93b5b56e",
+  "lean_toolchain": "leanprover/lean4:v4.29.1",
+  "proof_assistant": "lean",
+  "ablator": "ablators/lean (corollary-delete-lemmas-leaves-all)",
+  "ablator_flags": [
+    "--corollary-delete-lemmas-leaves-all",
+    "--shrink-solution-minimal",
+    "--compact",
+    "--seed",
+    "42"
+  ],
+  "seed": 42,
+  "validation": "ablate-baseline --dry-run (preflight compile of challenge + solution)",
+  "counts": {
+    "mined_total": 11,
+    "good_kept": 11,
+    "well_formed": 11
+  }
+}

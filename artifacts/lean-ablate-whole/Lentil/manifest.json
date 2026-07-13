@@ -1,0 +1,24 @@
+{
+  "repo": "Lentil",
+  "git_repo": "github.com/verse-lab/Lentil",
+  "revision": "bc3bc567928c4a4d0158496b7c18412f10b3304f",
+  "lean_toolchain": "leanprover/lean4:v4.31.0",
+  "proof_assistant": "lean",
+  "ablator": "ablators/lean (corollary-delete-lemmas-all)",
+  "ablator_flags": [
+    "--corollary-delete-lemmas-all",
+    "--shrink-solution-minimal",
+    "--compact",
+    "--seed",
+    "42"
+  ],
+  "seed": 42,
+  "validation": "ablate-baseline --dry-run (preflight compile of challenge + solution)",
+  "counts": {
+    "mined_total": 59,
+    "good_kept": 38,
+    "malformed": 17,
+    "sol_bad": 4,
+    "well_formed": 38
+  }
+}
