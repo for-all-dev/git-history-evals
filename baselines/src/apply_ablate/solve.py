@@ -521,6 +521,10 @@ class SolveResult(BaseModel):
     )
     turn_limit: bool = False  # the agent exhausted its request budget
     trivial: bool = False  # empty solution diff (nothing deleted/holed) — not scorable
+    # the challenge did not fit the model's context window (provider rejected the prompt).
+    # Not a wrong answer — the model never saw the problem — so it is excluded from the
+    # PASS denominator rather than counted as a failure.
+    context_exceeded: bool = False
     dry_run: bool = False  # inspected only; the model was never called
     tampered: bool = False  # cheated: deleted/weakened a holed theorem's statement
     solution_compiles: bool | None = (
@@ -785,12 +789,21 @@ def solve_one(
                 agent_solution=final,
                 original_solution=record.solution_text(),
             )
+        # A challenge that does not FIT in the model's context window is not a wrong
+        # answer — the model never saw the problem. Scoring it as a failure blames the
+        # solver for a property of the (challenge, model) pair, so flag it and exclude it
+        # from the PASS denominator, exactly as `malformed`/`trivial` are excluded.
+        msg = str(e)
+        oversized = "context" in msg.lower() and (
+            "too large for model" in msg or "maximum context length" in msg
+        )
         return SolveResult(
             task_id=record.task_id,
             assistant=record.assistant,
             file_path=record.file_path,
             succeeded=False,
             gave_up=False,
+            context_exceeded=oversized,
             error=f"{type(e).__name__}: {e}",
         )
     # Score the agent's final delivered file by RECOMPILING it (don't trust the agent's
