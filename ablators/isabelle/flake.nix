@@ -1,5 +1,18 @@
 {
-  description = "Isabelle semantic-ablation toolkit — parse .thy files with the bundled Isabelle/Scala outer-syntax parser and replace proofs with `sorry` to synthesise post-training data.";
+  # Pinned OFFICIAL Isabelle releases for the ablation pipeline (the Scala ablator that used to
+  # live here is gone; the Rust ablator in ./rust does the ablation now — but the toolchain this
+  # flake pins is still load-bearing for VALIDATION):
+  #
+  #   * `isabelle-2025`   — l4v @ 429d778 needs the base 2025 release, not the point release.
+  #   * `isabelle-2025-2` — the Archive of Formal Proofs (AFP) tracks the 2025-2 point release.
+  #
+  # Both must be the official tarballs, not nixpkgs's Isabelle: nixpkgs swaps the bundled veriT
+  # for a generic build, which breaks `smt` proof reconstruction, so proofs that replay fine
+  # upstream fail to check here.
+  #
+  #   nix develop ablators/isabelle#isabelle-2025     # then: ablate-baseline <l4v challenges>
+  #   nix develop ablators/isabelle#isabelle-2025-2   # then: ablate-baseline <AFP challenges>
+  description = "Pinned official Isabelle releases (2025 for l4v, 2025-2 for the AFP)";
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
@@ -92,43 +105,13 @@
           '';
         };
 
-        # The ablator CLI: a small Scala program compiled against the Isabelle/Scala
-        # classpath, wrapped so `ablate file.thy` runs it inside the Isabelle environment.
-        ablator = pkgs.stdenv.mkDerivation {
-          pname = "isabelle-ablator";
-          version = "0.1.0";
-          src = ./.;
-          nativeBuildInputs = [ primaryIsabelle jdk ];
-          # Isabelle writes user settings under $ISABELLE_HOME_USER; in the nix sandbox
-          # $HOME is not writable, so point it at the build tree.
-          buildPhase = ''
-            export HOME=$TMPDIR
-            export ISABELLE_HOME_USER=$TMPDIR/.isabelle
-            mkdir -p $ISABELLE_HOME_USER
-            bash build.sh
-          '';
-          installPhase = ''
-            mkdir -p $out/lib $out/bin
-            cp build/ablator.jar $out/lib/
-            substitute bin/ablate $out/bin/ablate \
-              --replace '@JAR@' "$out/lib/ablator.jar" \
-              --replace '@ISABELLE@' "${primaryIsabelle}/bin/isabelle"
-            chmod +x $out/bin/ablate
-          '';
-        };
       in
       {
         packages = {
-          inherit ablator;
           isabelle = primaryIsabelle; # convenience alias for the default version
           "isabelle-2025" = isabelle2025;
           "isabelle-2025-2" = isabelle2025-2;
-          default = ablator;
-        };
-
-        apps.default = {
-          type = "app";
-          program = "${ablator}/bin/ablate";
+          default = primaryIsabelle;
         };
 
         devShells = {
