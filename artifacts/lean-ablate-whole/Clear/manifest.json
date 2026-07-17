@@ -15,9 +15,9 @@
   "seed": 42,
   "validation": "ablate-baseline --dry-run (preflight compile of challenge + solution)",
   "counts": {
-    "mined_total": 54,
-    "good_kept": 45,
-    "well_formed": 45,
-    "malformed": 9
+    "mined_total": 28,
+    "good_kept": 26,
+    "well_formed": 26,
+    "malformed": 2
   }
 }

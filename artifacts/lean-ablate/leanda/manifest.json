@@ -1,0 +1,23 @@
+{
+  "repo": "leanda",
+  "git_repo": "github.com/konnov/leanda",
+  "revision": "cefba4b23d7438a6980a6ed08456428c0cb26ae4",
+  "lean_toolchain": null,
+  "proof_assistant": "lean",
+  "ablator": "ablators/lean (corollary-delete-lemmas-leaves-all)",
+  "ablator_flags": [
+    "--corollary-delete-lemmas-leaves-all",
+    "--shrink-solution-minimal",
+    "--compact",
+    "--seed",
+    "42"
+  ],
+  "seed": 42,
+  "validation": "ablate-baseline --dry-run (preflight compile of challenge + solution)",
+  "counts": {
+    "mined_total": 132,
+    "good_kept": 123,
+    "well_formed": 123,
+    "malformed": 9
+  }
+}

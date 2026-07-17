@@ -1,0 +1,23 @@
+{
+  "repo": "verified-consensus",
+  "git_repo": "github.com/fradamt/verified-consensus",
+  "revision": "e403284a81a272924891b88471e28acc47b556f0",
+  "lean_toolchain": "leanprover/lean4:v4.30.0-rc2",
+  "proof_assistant": "lean",
+  "ablator": "ablators/lean (corollary-delete-lemmas-leaves-all)",
+  "ablator_flags": [
+    "--corollary-delete-lemmas-leaves-all",
+    "--shrink-solution-minimal",
+    "--compact",
+    "--seed",
+    "42"
+  ],
+  "seed": 42,
+  "validation": "ablate-baseline --dry-run (preflight compile of challenge + solution)",
+  "counts": {
+    "mined_total": 273,
+    "good_kept": 272,
+    "well_formed": 272,
+    "malformed": 1
+  }
+}

@@ -1,8 +1,8 @@
 {
-  "repo": "wadray_verification",
-  "git_repo": "github.com/lindy-labs/wadray_verification",
-  "revision": "2e0d2e5d2397fd3cdfd1ff289674e915d5ed5905",
-  "lean_toolchain": "leanprover/lean4:v4.9.0-rc2",
+  "repo": "verified-consensus",
+  "git_repo": "github.com/fradamt/verified-consensus",
+  "revision": "e403284a81a272924891b88471e28acc47b556f0",
+  "lean_toolchain": "leanprover/lean4:v4.30.0-rc2",
   "proof_assistant": "lean",
   "ablator": "ablators/lean (corollary-delete-lemmas-all)",
   "ablator_flags": [
@@ -15,8 +15,9 @@
   "seed": 42,
   "validation": "ablate-baseline --dry-run (preflight compile of challenge + solution)",
   "counts": {
-    "mined_total": 18,
-    "good_kept": 0,
-    "malformed": 18
+    "mined_total": 273,
+    "good_kept": 272,
+    "well_formed": 272,
+    "malformed": 1
   }
 }

@@ -17,8 +17,8 @@
   "counts": {
     "mined_total": 51,
     "good_kept": 13,
+    "malformed": 15,
     "well_formed": 13,
-    "malformed": 28,
-    "sol_bad": 10
+    "sol_bad": 23
   }
 }

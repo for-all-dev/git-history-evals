@@ -1,0 +1,24 @@
+{
+  "repo": "symcrust",
+  "git_repo": "github.com/microsoft/SymCrypt",
+  "revision": "c2e575ace0ea4b6b7a4184c1f19b81d1d5b2b5be",
+  "lean_toolchain": null,
+  "proof_assistant": "lean",
+  "ablator": "ablators/lean (corollary-delete-lemmas-leaves-all)",
+  "ablator_flags": [
+    "--corollary-delete-lemmas-leaves-all",
+    "--shrink-solution-minimal",
+    "--compact",
+    "--seed",
+    "42"
+  ],
+  "seed": 42,
+  "validation": "ablate-baseline --dry-run (preflight compile of challenge + solution)",
+  "counts": {
+    "mined_total": 367,
+    "good_kept": 322,
+    "well_formed": 322,
+    "sol_bad": 34,
+    "malformed": 11
+  }
+}
