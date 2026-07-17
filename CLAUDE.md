@@ -50,7 +50,6 @@ uv run pytest             # tests
   - `./rocq-ablator/`: OCaml/dune, for Coq/Rocq `.v` (CLI `bin/main.ml` + WASM).
   - `./lean-ablator/`: Lean 4/lake, for `.lean` (`Main.lean`, core in `Ablator/`, WASM).
   - `./isabelle-ablator/rust/`: Rust/cargo, for Isabelle `.thy` (clap CLI + WASM).
-  - `./isabelle-ablator/scala/`: Scala on the bundled Isabelle JVM (no WASM).
   Key flags (all four): `--delete-lemmas[=N]` / `--delete-lemmas-leaves` (delete N
   eligible lemmas + hole their in-file users at smallest-enclosing-block granularity),
   `--corollary-delete-lemmas[=N]` / `-uniform` / `-leaves` (same, but candidates are
@@ -73,6 +72,10 @@ uv run pytest             # tests
   schema; `obs.py` wires Logfire (`instrument_pydantic_ai` + per-compile/per-outcome
   spans). Pre-flight validation marks challenges that don't compile `malformed` and
   empty-diff ones `trivial`, both excluded from the PASS rate.
+- `./ablators/isabelle/flake.nix`: pins the **official** Isabelle releases the baseline evaluator
+  must run under — `isabelle-2025` for **l4v** (@429d778 needs the base release), `isabelle-2025-2`
+  for the **AFP**. nixpkgs' Isabelle breaks `smt` reconstruction, so it cannot be used. (The Scala
+  ablator that used to own this flake has been deleted; the Rust ablator does the ablation.)
 - `./data/`: source repos, **organised by language**: `data/lean/<repo>` (50 mined Lean repos +
   `_triage/` of unmined candidates), `data/isabelle/l4v`, `data/rocq/{CompCert,fiat-crypto,BRiCk}`.
   Only the 4 Rocq/Isabelle repos are git submodules; the Lean checkouts are pinned in
