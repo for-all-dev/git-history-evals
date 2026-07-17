@@ -480,14 +480,18 @@ def main (args : List String) : IO UInt32 := do
       -- otherwise yields a trivial challenge — already-complete, no holes to fill —
       -- which any model "passes" by doing nothing, inflating baselines. (#trivial-skip)
       let nontrivial := result.ablated > 0 && result.text != result.solution
-      -- dedup key: challenge text normally, but the (deleted lemma(s), corollary) PAIR
-      -- under --corollary-delete-lemmas*-all, so the same lemma deleted for different
-      -- corollaries is kept — only an identical lemma/corollary pair is dropped.
-      let namesKey (arr : Array String) : String := String.intercalate "," (arr.qsort (· < ·)).toList
-      let key :=
-        if spec.corollaryAll then
-          namesKey (result.deleted.map (·.name)) ++ " @@ " ++ namesKey (result.corollaries.map (·.name))
-        else result.text
+      -- Dedup on the (challenge, solution) TEXT — what a solver actually sees.
+      --
+      -- This used to key on the (deleted lemma(s), corollary) pair under
+      -- `--corollary-delete-lemmas*-all`, to keep "the same lemma deleted for different
+      -- corollaries". But those often *render identically*: once the minimal slice is taken,
+      -- two corollaries sharing a deleted lemma frequently produce a byte-identical challenge.
+      -- The solver cannot tell them apart, so they are the same problem — yet they shipped as
+      -- distinct records with distinct `challenge_id`s (the id hashes `corollaries`/`variant`,
+      -- so it could not detect the collision either). That duplicated **50% of the mined leaf
+      -- corpus** (21,530 records -> 10,586 unique challenges; iris-lean 671 -> 155) and would
+      -- leak identical problems across a train/test split.
+      let key := result.text ++ " " ++ result.solution
       if valid && nontrivial && !seen.contains key then
         seen := seen.insert key
         if o.textMode then

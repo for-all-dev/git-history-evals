@@ -39,7 +39,12 @@ def holeJson (h : Hole) : Json :=
     ("n_chars", Json.num h.metrics.nChars),
     ("n_subproofs", Json.num h.metrics.nSubproofs),
     ("n_tactics", Json.num h.metrics.nTactics),
-    ("cyclomatic", Json.num h.metrics.cyclomatic) ]
+    ("cyclomatic", Json.num h.metrics.cyclomatic),
+    ("n_automation", Json.num h.metrics.nAutomation),
+    ("n_rewrites", Json.num h.metrics.nRewrites),
+    ("n_structural", Json.num h.metrics.nStructural),
+    ("automation_only", Json.bool h.metrics.automationOnly),
+    ("max_nesting", Json.num h.metrics.maxNesting) ]
 
 def deletedJson (d : DeletedLemma) : Json :=
   Json.obj [
@@ -50,17 +55,30 @@ def deletedJson (d : DeletedLemma) : Json :=
     ("n_chars", Json.num d.metrics.nChars),
     ("n_subproofs", Json.num d.metrics.nSubproofs),
     ("n_tactics", Json.num d.metrics.nTactics),
-    ("cyclomatic", Json.num d.metrics.cyclomatic) ]
+    ("cyclomatic", Json.num d.metrics.cyclomatic),
+    ("n_automation", Json.num d.metrics.nAutomation),
+    ("n_rewrites", Json.num d.metrics.nRewrites),
+    ("n_structural", Json.num d.metrics.nStructural),
+    ("automation_only", Json.bool d.metrics.automationOnly),
+    ("max_nesting", Json.num d.metrics.maxNesting) ]
 
 def corollaryJson (c : Corollary) : Json :=
   Json.obj [
     ("name", Json.str c.name),
     ("fan_in", Json.num c.fanIn),
+    -- how many in-file lemmas this corollary rests on (the deleted lemma is one of them)
+    ("n_deps_direct", Json.num c.nDepsDirect),
+    ("n_deps_transitive", Json.num c.nDepsTransitive),
     ("n_lines", Json.num c.metrics.nLines),
     ("n_chars", Json.num c.metrics.nChars),
     ("n_subproofs", Json.num c.metrics.nSubproofs),
     ("n_tactics", Json.num c.metrics.nTactics),
-    ("cyclomatic", Json.num c.metrics.cyclomatic) ]
+    ("cyclomatic", Json.num c.metrics.cyclomatic),
+    ("n_automation", Json.num c.metrics.nAutomation),
+    ("n_rewrites", Json.num c.metrics.nRewrites),
+    ("n_structural", Json.num c.metrics.nStructural),
+    ("automation_only", Json.bool c.metrics.automationOnly),
+    ("max_nesting", Json.num c.metrics.maxNesting) ]
 
 /-- Stable, unique per-challenge id (so labels join to features exactly). Derived
     from the inputs that fully determine a challenge; unlike `task_id` it does not

@@ -16,6 +16,19 @@ from collections.abc import Iterable
 from typing import Any
 
 # Metric fields carried by each deleted-lemma / hole / corollary object, aggregated.
+#
+# The size/shape metrics (n_lines, n_chars, n_tactics, cyclomatic) turned out to be weak
+# predictors on their own (ROC-AUC 0.61): they cannot tell a `by simp` one-liner from a 40-line
+# induction with the same step count. The ablators now also emit what the proof *does*
+# (n_automation / n_rewrites / n_structural / automation_only / max_nesting) and how much the
+# corollary rests on (n_deps_direct / n_deps_transitive) — see docs/difficulty-features.md.
+_PROOF_CHARACTER = (
+    "n_automation",
+    "n_rewrites",
+    "n_structural",
+    "automation_only",  # bool -> 0/1; the "closable by one tactic call" class
+    "max_nesting",
+)
 _DELETED_METRICS = (
     "fan_in",
     "n_lines",
@@ -23,6 +36,7 @@ _DELETED_METRICS = (
     "n_subproofs",
     "n_tactics",
     "cyclomatic",
+    *_PROOF_CHARACTER,
 )
 _HOLE_METRICS = (
     "n_lines",
@@ -33,8 +47,19 @@ _HOLE_METRICS = (
     "cyclomatic",
     "centrality",
     "depth",
+    *_PROOF_CHARACTER,
 )
-_COROLLARY_METRICS = ("fan_in", "n_lines", "n_subproofs", "n_tactics", "cyclomatic")
+_COROLLARY_METRICS = (
+    "fan_in",
+    "n_lines",
+    "n_subproofs",
+    "n_tactics",
+    "cyclomatic",
+    # how many in-file lemmas the ablated corollary rests on (the deleted lemma is one)
+    "n_deps_direct",
+    "n_deps_transitive",
+    *_PROOF_CHARACTER,
+)
 
 
 def _n_lines(text: str) -> int:

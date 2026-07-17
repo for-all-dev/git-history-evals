@@ -56,6 +56,9 @@ let corollary_json (c : Ablate.corollary) : Yojson.Safe.t =
     [
       ("name", `String c.co_name);
       ("fan_in", `Int c.co_fan_in);
+      (* how many in-file lemmas this corollary rests on (the deleted lemma is one of them) *)
+      ("n_deps_direct", `Int c.co_n_deps_direct);
+      ("n_deps_transitive", `Int c.co_n_deps_transitive);
       ("n_lines", `Int c.co_metrics.Metrics.n_lines);
       ("n_chars", `Int c.co_metrics.Metrics.n_chars);
       ("n_subproofs", `Int c.co_metrics.Metrics.n_subproofs);

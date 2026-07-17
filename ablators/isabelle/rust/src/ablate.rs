@@ -114,6 +114,11 @@ pub struct DeletedLemma {
 pub struct Corollary {
     pub name: String,
     pub fan_in: i64,
+    /// How many in-file lemmas this corollary rests on (directly, and transitively). The
+    /// deleted lemma is one of them, so these say how large a share of the corollary's support
+    /// the solver must rebuild — and how much context it has to work through.
+    pub n_deps_direct: i64,
+    pub n_deps_transitive: i64,
     pub metrics: Metrics,
 }
 
@@ -579,6 +584,7 @@ fn slice_delete(
     by_lemma: &std::collections::HashMap<usize, &crate::uses::Lemma>,
     del: &std::collections::HashSet<usize>,
     users: &std::collections::HashSet<usize>,
+    cor_set: &[usize],
     solution: bool,
 ) -> String {
     use std::collections::{HashSet, VecDeque};
@@ -605,11 +611,27 @@ fn slice_delete(
                 .any(|nm| deleted_names.contains(nm.as_str()))
         })
     };
-    let mut seed: Vec<usize> = users.iter().copied().collect();
+    // Seed from THE COROLLARY (the theorem the deletion was drawn for), closing over its
+    // transitive in-file dependencies; fall back to the holes when there is no corollary
+    // (plain --delete-lemmas). Seeding from the holes made the corollary invisible to the
+    // output — the holes are the users of the deleted lemma, a property of the *lemma*, not
+    // of the corollary — so two corollaries sharing a deleted lemma emitted byte-identical
+    // challenges. Anchoring on the corollary makes each record the question it claims to be:
+    // delete L, then rebuild it so that THIS corollary still goes through.
+    let mut seed: Vec<usize> = if cor_set.is_empty() {
+        let mut s: Vec<usize> = users.iter().copied().collect();
+        s.sort_unstable();
+        if let Some(k) = spec.count {
+            s.truncate(k as usize);
+        }
+        s
+    } else {
+        let mut s: Vec<usize> = cor_set.to_vec();
+        s.sort_unstable();
+        s.dedup();
+        s
+    };
     seed.sort_unstable();
-    if let Some(k) = spec.count {
-        seed.truncate(k as usize);
-    }
     let mut keep: HashSet<usize> = HashSet::new();
     let mut q: VecDeque<usize> = VecDeque::new();
     // Keep-set computed BEFORE ablating, shared by challenge & solution: the full
@@ -947,6 +969,24 @@ fn cor_deps_of(
     s.sort_unstable();
     s.dedup();
     s
+}
+
+/// (direct, transitive) in-file dependency counts for a corollary. Unlike `cor_closure` this
+/// does NOT filter to deletable candidates: it measures the corollary's whole support.
+fn cor_dep_counts(
+    lemmas: &[crate::uses::Lemma],
+    idx_of: &std::collections::HashMap<&str, usize>,
+    start: usize,
+) -> (i64, i64) {
+    let direct = cor_deps_of(lemmas, idx_of, start);
+    let mut seen: std::collections::HashSet<usize> = std::collections::HashSet::new();
+    let mut stack: Vec<usize> = direct.clone();
+    while let Some(q) = stack.pop() {
+        if q != start && seen.insert(q) {
+            stack.extend(cor_deps_of(lemmas, idx_of, q));
+        }
+    }
+    (direct.len() as i64, seen.len() as i64)
 }
 
 /// Eligible candidate positions in `start`'s transitive in-file dependency closure
@@ -1318,6 +1358,8 @@ fn ablate_delete(spans: &[Span], spec: &Spec, rng: &mut Rng) -> AblationResult {
         }
     }
     let original: String = spans.iter().map(|s| s.source()).collect();
+    // span indices of the corollaries this ablation was drawn for (empty outside corollary mode)
+    let cor_openers: Vec<usize> = corollary_seed_pos.iter().map(|&p| lemmas[p].opener).collect();
     let cnt = spec.count.map(|c| c as usize);
     let text = if spec.truncate && last_sorry_end >= 0 {
         collapse_blank_lines(
@@ -1326,28 +1368,35 @@ fn ablate_delete(spans: &[Span], spec: &Spec, rng: &mut Rng) -> AblationResult {
                 .collect::<String>(),
         )
     } else if spec.shrink_challenge_minimal {
-        slice_delete(spans, spec, &by_lemma, &del, &users, false)
+        slice_delete(spans, spec, &by_lemma, &del, &users, &cor_openers, false)
     } else if spec.shrink_challenge {
         shrink(&out, &chal_segs, cnt)
     } else {
         collapse_blank_lines(&out)
     };
     let solution = if spec.shrink_solution_minimal {
-        slice_delete(spans, spec, &by_lemma, &del, &users, true)
+        slice_delete(spans, spec, &by_lemma, &del, &users, &cor_openers, true)
     } else if spec.shrink_solution {
         shrink(&original, &sol_segs, cnt)
     } else {
         original
     };
+    let mut idx_of_all: std::collections::HashMap<&str, usize> = std::collections::HashMap::new();
+    for (i, l) in lemmas.iter().enumerate() {
+        idx_of_all.entry(l.name.as_str()).or_insert(i);
+    }
     let corollaries: Vec<Corollary> = corollary_seed_pos
         .iter()
         .map(|&p| {
             let c = &lemmas[p];
             let block = src_range(c.opener, c.block_end);
             let body = src_range(c.opener + 1, c.block_end);
+            let (n_direct, n_trans) = cor_dep_counts(&lemmas, &idx_of_all, p);
             Corollary {
                 name: c.name.clone(),
                 fan_in: c.users.len() as i64,
+                n_deps_direct: n_direct,
+                n_deps_transitive: n_trans,
                 metrics: crate::metrics::compute(&block, &body),
             }
         })

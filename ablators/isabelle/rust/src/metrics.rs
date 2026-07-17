@@ -21,12 +21,35 @@ pub struct Metrics {
     pub n_subproofs: i64, // intermediate-assertion keywords: have/obtain/hence/thus
     pub n_tactics: i64,   // apply steps + terminal closers (by/../.) + structured steps
     pub cyclomatic: i64,  // 1 + #case-splitters + #alternation combinators
+    // What the proof DOES. Size/shape alone cannot tell `by auto` from a 40-line induction
+    // with the same step count, and that is most of what decides whether a model can
+    // re-derive the lemma. Mirrors the Lean/Rocq banks for Isabelle's vocabulary.
+    pub n_automation: i64,      // closing/automation methods: auto, simp, blast, metis, …
+    pub n_rewrites: i64,        // rewriting/unfolding steps: subst, unfolding, simp add, …
+    pub n_structural: i64,      // structural steps: induct, cases, rule, intro, …
+    pub automation_only: bool,  // EVERY step is automation: closable by a method call
+    pub max_nesting: i64,       // deepest indentation of the body
 }
 
 // Isabelle keyword banks (see spec §2).
 const SUBPROOF_KW: [&str; 4] = ["have", "obtain", "hence", "thus"];
 const CASE_SPLITTERS: [&str; 6] = ["cases", "induct", "induction", "split", "case", "next"];
 const STRUCTURED_STEPS: [&str; 5] = ["have", "show", "hence", "thus", "obtain"];
+
+/// Closing/automation methods: discharge a goal by search or decision procedure.
+const AUTOMATION_KW: [&str; 18] = [
+    "auto", "simp", "fastforce", "force", "blast", "metis", "smt", "arith", "linarith",
+    "presburger", "algebra", "sledgehammer", "meson", "satx", "argo", "eval", "normalization",
+    "clarsimp",
+];
+
+/// Rewriting / unfolding steps: manipulate the goal without deciding it.
+const REWRITE_KW: [&str; 7] = ["subst", "unfolding", "unfold", "rewrite", "simplified", "folded", "cong"];
+
+/// Structural steps: introduce a proof skeleton the model must get right.
+const STRUCTURAL_KW: [&str; 10] = [
+    "induct", "induction", "cases", "rule", "intro", "elim", "erule", "drule", "frule", "case_tac",
+];
 
 fn n_lines(s: &str) -> i64 {
     if s.is_empty() {
@@ -236,8 +259,20 @@ pub fn compute(block: &str, body: &str) -> Metrics {
     let mut n_apply = 0i64;
     let mut n_closer = 0i64;
     let mut n_struct = 0i64;
+    let mut n_automation = 0i64;
+    let mut n_rewrites = 0i64;
+    let mut n_structural = 0i64;
     for t in code_tokens(body) {
         let s = t.as_str();
+        if AUTOMATION_KW.contains(&s) {
+            n_automation += 1;
+        }
+        if REWRITE_KW.contains(&s) {
+            n_rewrites += 1;
+        }
+        if STRUCTURAL_KW.contains(&s) {
+            n_structural += 1;
+        }
         if SUBPROOF_KW.contains(&s) {
             n_subproofs += 1;
         }
@@ -254,9 +289,25 @@ pub fn compute(block: &str, body: &str) -> Metrics {
             n_struct += 1;
         }
     }
+    let max_nesting = body
+        .lines()
+        .filter(|l| !l.trim().is_empty())
+        .map(|l| (l.len() - l.trim_start().len()) as i64)
+        .max()
+        .unwrap_or(0);
     Metrics {
         n_lines: n_lines(block),
         n_chars: block.len() as i64,
+        n_automation,
+        n_rewrites,
+        n_structural,
+        // at least one automation method, and no rewriting/structural/case/subproof work
+        automation_only: n_automation > 0
+            && n_rewrites == 0
+            && n_structural == 0
+            && n_subproofs == 0
+            && branches == 0,
+        max_nesting,
         n_subproofs,
         n_tactics: n_apply + n_closer + n_struct,
         cyclomatic: 1 + branches,

@@ -436,16 +436,18 @@ let () =
       let spans = Span.parse_spans original in
       let seen = Hashtbl.create 8 in
       let produced = ref 0 in
-      (* dedup key: normally the challenge text (distinct challenges), but under
-         --corollary-delete-lemmas*-all the (deleted lemma(s), corollary) PAIR — so the
-         same lemma deleted for two different corollaries is kept (both are real
-         per-corollary challenges), only an identical lemma/corollary pair is dropped. *)
+      (* Dedup on the (challenge, solution) TEXT — what a solver actually sees.
+
+         This used to key on the (deleted lemma(s), corollary) pair under
+         --corollary-delete-lemmas*-all, to keep "the same lemma deleted for different
+         corollaries". But those often render identically: once the minimal slice is taken,
+         two corollaries sharing a deleted lemma frequently produce a byte-identical
+         challenge. The solver cannot tell them apart, so they are the same problem — yet
+         they shipped as distinct records with distinct challenge_ids (the id hashes the
+         corollary/variant, so it could not detect the collision either). In Lean this
+         duplicated 50% of the mined corpus. *)
       let dedup_key (result : Ablate.result) =
-        if spec.Ablate.corollary_all then
-          let names f xs = String.concat "," (List.sort compare (List.map f xs)) in
-          names (fun (d : Ablate.deleted_lemma) -> d.Ablate.d_name) result.Ablate.deleted
-          ^ "\x00" ^ names (fun (c : Ablate.corollary) -> c.Ablate.co_name) result.Ablate.corollaries
-        else result.Ablate.text
+        result.Ablate.text ^ "\x00" ^ result.Ablate.solution
       in
       (* emit one ablation result (deduped, non-trivial only). A file yielding several
          records — via --repeat OR --corollary-delete-lemmas*-all — gets a variant index;

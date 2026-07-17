@@ -17,13 +17,20 @@ _OUTCOME_ORDER: tuple[tuple[str, str], ...] = (
     ("dry_run", "dry_run"),
     ("trivial", "trivial"),
     ("malformed_challenge", "malformed"),
+    ("context_exceeded", "context_exceeded"),
     ("tampered", "tampered"),
     ("gave_up", "gave_up"),
     ("turn_limit", "turn_limit"),
 )
 
-# outcome classes excluded from the trainable set (not scorable / no model was called)
-NON_TRAINABLE: frozenset[str] = frozenset({"trivial", "malformed", "dry_run"})
+# Outcome classes excluded from the trainable set (not scorable / the model never saw the
+# problem). `context_exceeded` belongs here for the same reason it is excluded from the PASS
+# denominator: the provider rejected the prompt for length, so a FAIL label would teach the
+# classifier a harness artifact (prompt size vs. the model's context window) rather than
+# proof difficulty.
+NON_TRAINABLE: frozenset[str] = frozenset(
+    {"trivial", "malformed", "dry_run", "context_exceeded"}
+)
 
 
 def outcome_of(result: dict[str, Any]) -> str:

@@ -481,18 +481,13 @@ fn main() {
             if result.ablated == 0 || result.text == result.solution {
                 continue;
             }
-            // dedup key: challenge text normally, but the (deleted lemma(s), corollary)
-            // PAIR under --corollary-delete-lemmas*-all — so the same lemma deleted for
-            // different corollaries is kept; only an identical pair is dropped.
-            let key = if spec.corollary_all {
-                let mut dels: Vec<&str> = result.deleted.iter().map(|d| d.name.as_str()).collect();
-                dels.sort_unstable();
-                let mut cors: Vec<&str> = result.corollaries.iter().map(|c| c.name.as_str()).collect();
-                cors.sort_unstable();
-                format!("{} @@ {}", dels.join(","), cors.join(","))
-            } else {
-                result.text.clone()
-            };
+            // Dedup on the (challenge, solution) TEXT — what a solver actually sees. Keying on
+            // the (deleted lemma, corollary) pair kept records that render byte-identically:
+            // after the minimal slice, two corollaries sharing a deleted lemma usually produce
+            // the same challenge. They shipped as distinct records with distinct challenge_ids
+            // (the id hashes the corollary/variant, so it could not see the collision). In Lean
+            // that duplicated 50% of the mined corpus.
+            let key = format!("{}\u{0}{}", result.text, result.solution);
             if seen.insert(key) {
                 if cli.text {
                     print!("{}", result.text);

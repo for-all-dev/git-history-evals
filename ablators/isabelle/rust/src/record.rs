@@ -83,6 +83,11 @@ pub fn record(
                 "n_subproofs": h.metrics.n_subproofs,
                 "n_tactics": h.metrics.n_tactics,
                 "cyclomatic": h.metrics.cyclomatic,
+                "n_automation": h.metrics.n_automation,
+                "n_rewrites": h.metrics.n_rewrites,
+                "n_structural": h.metrics.n_structural,
+                "automation_only": h.metrics.automation_only,
+                "max_nesting": h.metrics.max_nesting,
             })
         })
         .collect();
@@ -99,6 +104,11 @@ pub fn record(
                 "n_subproofs": d.metrics.n_subproofs,
                 "n_tactics": d.metrics.n_tactics,
                 "cyclomatic": d.metrics.cyclomatic,
+                "n_automation": d.metrics.n_automation,
+                "n_rewrites": d.metrics.n_rewrites,
+                "n_structural": d.metrics.n_structural,
+                "automation_only": d.metrics.automation_only,
+                "max_nesting": d.metrics.max_nesting,
             })
         })
         .collect();
@@ -111,9 +121,16 @@ pub fn record(
                 "fan_in": c.fan_in,
                 "n_lines": c.metrics.n_lines,
                 "n_chars": c.metrics.n_chars,
+                "n_deps_direct": c.n_deps_direct,
+                "n_deps_transitive": c.n_deps_transitive,
                 "n_subproofs": c.metrics.n_subproofs,
                 "n_tactics": c.metrics.n_tactics,
                 "cyclomatic": c.metrics.cyclomatic,
+                "n_automation": c.metrics.n_automation,
+                "n_rewrites": c.metrics.n_rewrites,
+                "n_structural": c.metrics.n_structural,
+                "automation_only": c.metrics.automation_only,
+                "max_nesting": c.metrics.max_nesting,
             })
         })
         .collect();
