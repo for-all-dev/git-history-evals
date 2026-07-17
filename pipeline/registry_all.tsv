@@ -46,5 +46,12 @@ starkware-formal-proofs	data/lean/starkware-formal-proofs
 veil	data/lean/veil
 verified-compiler	data/lean/verified-compiler
 verity	data/lean/verity
-wadray_verification	data/lean/wadray_verification
 yul-semantics	data/lean/yul-semantics
+apc-optimizer	data/lean/apc-optimizer
+yul-compiler	data/lean/yul-compiler
+leanda	data/lean/leanda
+verified-consensus	data/lean/verified-consensus
+posix-parsing	data/lean/posix-parsing
+posix-submatching	data/lean/posix-submatching
+adler-proofs	data/lean/adler-proofs
+symcrust	data/lean/symcrust

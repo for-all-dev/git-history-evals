@@ -9,5 +9,5 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 CH="$1"; OUT="$2"; N="${3:-8}"
 export L4V_ARCH="${L4V_ARCH:-ARM}"
 export ABLATE_ISABELLE_HOME="$ROOT/.ablate-heaps"
-exec nix develop "$ROOT/ablators/isabelle/scala#isabelle-2025" -c \
+exec nix develop "$ROOT/ablators/isabelle#isabelle-2025" -c \
   bash "$ROOT/pipeline/par_dryrun.sh" "$CH" "$ROOT/data/isabelle/l4v" "$OUT" "$N"

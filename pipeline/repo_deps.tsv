@@ -1,0 +1,2 @@
+repo	dep	url	revision	dest
+symcrust	aeneas	https://github.com/AeneasVerif/aeneas	d71d2e3f2cb763f7faf15ab606ac9cf32da8dead	data/lean/symcrust/aeneas
