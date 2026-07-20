@@ -181,14 +181,27 @@ def _retrying_async_client(max_wait: float = 90.0, attempts: int = 8):
 
     transport = AsyncTenacityTransport(
         config=RetryConfig(
-            retry=retry_if_exception_type(httpx.HTTPStatusError),
+            # Retry rate-limit/5xx statuses AND transport-level timeouts: the leanstral
+            # free-tier endpoint intermittently `ReadTimeout`s mid-stream, and without
+            # this a single slow response aborts the whole challenge as a harness-err
+            # instead of yielding a real outcome. `httpx.TimeoutException` covers
+            # Read/Connect/Write/Pool timeouts.
+            retry=retry_if_exception_type(
+                (httpx.HTTPStatusError, httpx.TimeoutException)
+            ),
             wait=wait_retry_after(max_wait=max_wait),
             stop=stop_after_attempt(attempts),
             reraise=True,
         ),
         validate_response=validate_response,
     )
-    return httpx.AsyncClient(transport=transport, timeout=httpx.Timeout(120.0))
+    # Generous read timeout: leanstral can take >2 min to stream a full corrected file
+    # at max_tokens=32000, so the previous 120 s read timeout fired mid-generation and
+    # surfaced as a harness-err. Keep connect short so genuinely dead connections fail fast.
+    return httpx.AsyncClient(
+        transport=transport,
+        timeout=httpx.Timeout(300.0, connect=15.0),
+    )
 
 
 def make_agent(model: str):
@@ -508,6 +521,10 @@ class SolveResult(BaseModel):
     )
     turn_limit: bool = False  # the agent exhausted its request budget
     trivial: bool = False  # empty solution diff (nothing deleted/holed) — not scorable
+    # the challenge did not fit the model's context window (provider rejected the prompt).
+    # Not a wrong answer — the model never saw the problem — so it is excluded from the
+    # PASS denominator rather than counted as a failure.
+    context_exceeded: bool = False
     dry_run: bool = False  # inspected only; the model was never called
     tampered: bool = False  # cheated: deleted/weakened a holed theorem's statement
     solution_compiles: bool | None = (
@@ -772,12 +789,21 @@ def solve_one(
                 agent_solution=final,
                 original_solution=record.solution_text(),
             )
+        # A challenge that does not FIT in the model's context window is not a wrong
+        # answer — the model never saw the problem. Scoring it as a failure blames the
+        # solver for a property of the (challenge, model) pair, so flag it and exclude it
+        # from the PASS denominator, exactly as `malformed`/`trivial` are excluded.
+        msg = str(e)
+        oversized = "context" in msg.lower() and (
+            "too large for model" in msg or "maximum context length" in msg
+        )
         return SolveResult(
             task_id=record.task_id,
             assistant=record.assistant,
             file_path=record.file_path,
             succeeded=False,
             gave_up=False,
+            context_exceeded=oversized,
             error=f"{type(e).__name__}: {e}",
         )
     # Score the agent's final delivered file by RECOMPILING it (don't trust the agent's

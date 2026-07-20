@@ -1,0 +1,24 @@
+{
+  "repo": "CompPoly",
+  "git_repo": "github.com/Verified-zkEVM/CompPoly",
+  "revision": "e95ba1b1cac21ac3e980725abcfb2a0c707d1062",
+  "lean_toolchain": "leanprover/lean4:v4.31.0",
+  "proof_assistant": "lean",
+  "ablator": "ablators/lean (corollary-delete-lemmas-leaves-all)",
+  "ablator_flags": [
+    "--corollary-delete-lemmas-leaves-all",
+    "--shrink-solution-minimal",
+    "--compact",
+    "--seed",
+    "42"
+  ],
+  "seed": 42,
+  "validation": "ablate-baseline --dry-run (preflight compile of challenge + solution)",
+  "counts": {
+    "mined_total": 1269,
+    "good_kept": 927,
+    "well_formed": 927,
+    "malformed": 311,
+    "sol_bad": 31
+  }
+}

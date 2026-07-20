@@ -1,0 +1,24 @@
+{
+  "repo": "lean-mlir",
+  "git_repo": "github.com/opencompl/lean-mlir",
+  "revision": "96baaa07cb7466e2057539f6b5d65d648803421f",
+  "lean_toolchain": "leanprover/lean4:nightly-2025-12-01",
+  "proof_assistant": "lean",
+  "ablator": "ablators/lean (corollary-delete-lemmas-all)",
+  "ablator_flags": [
+    "--corollary-delete-lemmas-all",
+    "--shrink-solution-minimal",
+    "--compact",
+    "--seed",
+    "42"
+  ],
+  "seed": 42,
+  "validation": "ablate-baseline --dry-run (preflight compile of challenge + solution)",
+  "counts": {
+    "mined_total": 237,
+    "good_kept": 89,
+    "well_formed": 89,
+    "malformed": 72,
+    "sol_bad": 76
+  }
+}

@@ -1,0 +1,24 @@
+{
+  "repo": "aeneas",
+  "git_repo": "github.com/AeneasVerif/aeneas",
+  "revision": "483333f74278333101795c4e55dbf09e50763f37",
+  "lean_toolchain": "leanprover/lean4:v4.31.0",
+  "proof_assistant": "lean",
+  "ablator": "ablators/lean (corollary-delete-lemmas-all)",
+  "ablator_flags": [
+    "--corollary-delete-lemmas-all",
+    "--shrink-solution-minimal",
+    "--compact",
+    "--seed",
+    "42"
+  ],
+  "seed": 42,
+  "validation": "ablate-baseline --dry-run (preflight compile of challenge + solution)",
+  "counts": {
+    "mined_total": 81,
+    "good_kept": 59,
+    "well_formed": 59,
+    "malformed": 16,
+    "sol_bad": 6
+  }
+}

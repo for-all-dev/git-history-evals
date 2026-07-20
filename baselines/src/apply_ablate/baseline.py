@@ -144,6 +144,8 @@ def run(
                     if res.trivial
                     else "malformed"
                     if res.malformed_challenge
+                    else "context_exceeded"
+                    if res.context_exceeded
                     else "tampered"
                     if res.tampered
                     else "gave_up"
@@ -162,6 +164,7 @@ def run(
                     turn_limit=res.turn_limit,
                     malformed=res.malformed_challenge,
                     trivial=res.trivial,
+                    context_exceeded=res.context_exceeded,
                     reason=res.reason,
                     error=res.error,
                 )
@@ -211,7 +214,10 @@ def run(
         typer.echo(f"  malformed   : {malformed} (challenge did not compile)")
         typer.echo(f"  results     : {out}  (challenges logged to Logfire)")
         return
-    scorable = total - malformed - trivial
+    # A challenge the model could not even fit in its context window is not a wrong answer;
+    # exclude it from the denominator alongside malformed/trivial rather than scoring it 0.
+    oversized = sum(1 for r in results if r.context_exceeded)
+    scorable = total - malformed - trivial - oversized
     passed = sum(1 for r in results if r.succeeded)
     tampered = sum(1 for r in results if r.tampered)
     gave_up = sum(1 for r in results if r.gave_up)
@@ -224,11 +230,16 @@ def run(
         and not r.turn_limit
         and not r.trivial
         and not r.tampered
+        and not r.context_exceeded
     )
     typer.echo(f"=== baseline: {model} ===")
     typer.echo(f"  challenges : {total}")
     typer.echo(f"  trivial    : {trivial} (empty diff; nothing deleted — excluded)")
     typer.echo(f"  malformed  : {malformed} (ablator bug; excluded from PASS rate)")
+    typer.echo(
+        f"  oversized  : {oversized} (challenge exceeds the model's context window; "
+        "excluded from PASS rate)"
+    )
     typer.echo(
         f"  PASS       : {passed}/{scorable} "
         f"({(100.0 * passed / scorable if scorable else 0):.0f}% of scorable)"

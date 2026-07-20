@@ -114,6 +114,11 @@ pub struct DeletedLemma {
 pub struct Corollary {
     pub name: String,
     pub fan_in: i64,
+    /// How many in-file lemmas this corollary rests on (directly, and transitively). The
+    /// deleted lemma is one of them, so these say how large a share of the corollary's support
+    /// the solver must rebuild — and how much context it has to work through.
+    pub n_deps_direct: i64,
+    pub n_deps_transitive: i64,
     pub metrics: Metrics,
 }
 
@@ -167,7 +172,11 @@ fn is_goal(k: &str) -> bool {
     kw::is_theory_goal(k) || kw::is_proof_goal(k)
 }
 fn is_ablatable(k: &str) -> bool {
-    kw::is_theory_goal(k) || k == kw::PRF_GOAL || k == kw::PRF_ASM_GOAL
+    // `thy_goal_defn` (function/termination/lift_definition) opens a proof but *defines a
+    // constant* — deleting it removes the definition (and dangles `declare foo.simps`,
+    // every use, etc.), so it is NOT a deletable lemma. Only statement-goals and nested
+    // proof goals are ablatable.
+    (kw::is_theory_goal(k) && k != kw::THY_GOAL_DEFN) || k == kw::PRF_GOAL || k == kw::PRF_ASM_GOAL
 }
 fn is_prefatory(k: &str) -> bool {
     k == kw::PRF_CHAIN || k == kw::PRF_DECL || k == kw::PRF_ASM
@@ -575,6 +584,7 @@ fn slice_delete(
     by_lemma: &std::collections::HashMap<usize, &crate::uses::Lemma>,
     del: &std::collections::HashSet<usize>,
     users: &std::collections::HashSet<usize>,
+    cor_set: &[usize],
     solution: bool,
 ) -> String {
     use std::collections::{HashSet, VecDeque};
@@ -601,11 +611,27 @@ fn slice_delete(
                 .any(|nm| deleted_names.contains(nm.as_str()))
         })
     };
-    let mut seed: Vec<usize> = users.iter().copied().collect();
+    // Seed from THE COROLLARY (the theorem the deletion was drawn for), closing over its
+    // transitive in-file dependencies; fall back to the holes when there is no corollary
+    // (plain --delete-lemmas). Seeding from the holes made the corollary invisible to the
+    // output — the holes are the users of the deleted lemma, a property of the *lemma*, not
+    // of the corollary — so two corollaries sharing a deleted lemma emitted byte-identical
+    // challenges. Anchoring on the corollary makes each record the question it claims to be:
+    // delete L, then rebuild it so that THIS corollary still goes through.
+    let mut seed: Vec<usize> = if cor_set.is_empty() {
+        let mut s: Vec<usize> = users.iter().copied().collect();
+        s.sort_unstable();
+        if let Some(k) = spec.count {
+            s.truncate(k as usize);
+        }
+        s
+    } else {
+        let mut s: Vec<usize> = cor_set.to_vec();
+        s.sort_unstable();
+        s.dedup();
+        s
+    };
     seed.sort_unstable();
-    if let Some(k) = spec.count {
-        seed.truncate(k as usize);
-    }
     let mut keep: HashSet<usize> = HashSet::new();
     let mut q: VecDeque<usize> = VecDeque::new();
     // Keep-set computed BEFORE ablating, shared by challenge & solution: the full
@@ -660,7 +686,23 @@ fn slice_delete(
             .unwrap_or(false);
         if is_goal {
             let e = by_lemma.get(&i).map(|l| l.block_end).unwrap_or(i + 1);
-            if keep.contains(&i) {
+            // Keep verbatim any goal command that is NOT a deletable *named* lemma:
+            //   * `function`/`termination`/`lift_definition` (thy_goal_defn) — define a
+            //     constant + its `foo.simps`/`foo.induct` facts;
+            //   * `sublocale`/`interpretation`/`instance` (thy_goal) — establish locale
+            //     scope / interpretations that a later `lemmas x = locale_fact`, `context
+            //     L begin … end`, etc. depend on;
+            //   * an unnamed `lemma "…"`/`theorem "…"` (thy_goal_stmt, empty goal_name).
+            // goal_name can't name these, so the name-based keep-closure can't retain them;
+            // dropping them dangles `declare foo.simps`, re-exported locale facts, etc.
+            // Only a *named* `thy_goal_stmt` (lemma/theorem/corollary/…) is deletable.
+            let gk = spans[i].keyword_kind();
+            let structural_goal = gk == Some(kw::THY_GOAL)
+                || gk == Some(kw::THY_GOAL_DEFN)
+                || (gk == Some(kw::THY_GOAL_STMT) && goal_name(&spans[i]).is_empty());
+            if structural_goal {
+                buf.push_str(&src_range(i, e));
+            } else if keep.contains(&i) {
                 if !solution && del.contains(&i) {
                     // deleted lemma: omitted from the challenge
                 } else if !solution && (must_hole(i) || users.contains(&i)) {
@@ -766,6 +808,23 @@ fn subtree_cites(
     (lo..hi).any(|j| span_cites(&spans[j], deleted))
 }
 
+/// Is `[lo,hi)` a pure apply-script prefix — every command a prove-mode script step
+/// (`apply`/`apply_end`/`supply` = prf_script, `using`/`unfolding`/`note`/`let` =
+/// prf_decl)? A `sorry` appended after such a prefix stays in *prove* mode and is legal.
+/// Any structured-proof command (`proof`/`fix`/`assume`/`case`/`next`/`{` — prf_block,
+/// prf_asm, next_block, …) or a nested `have`/`show` goal leaves the proof in *state*
+/// mode at the cut, where a bare `sorry` is illegal ("Illegal application of proof
+/// command in state mode") — so those return false and the caller whole-proofs instead.
+fn is_script_prefix(spans: &[Span], lo: usize, hi: usize) -> bool {
+    // Only *command* spans decide proof mode; None-kind spans are whitespace/comment glue
+    // between commands (mode-neutral), so skip them. Every command must be a prove-mode
+    // script step for an appended `sorry` to be legal.
+    (lo..hi).all(|j| match kind_of(&spans[j]) {
+        Some(k) => k == kw::PRF_SCRIPT || k == kw::PRF_DECL,
+        None => true,
+    })
+}
+
 /// Index of the first OWN-level (depth `d`) span in `[lo,hi)` that cites a deleted name,
 /// skipping over nested goal-units (mirrors `own_cites`). Used to cut an apply-script at
 /// the step that uses a deleted lemma.
@@ -855,7 +914,13 @@ fn render_user(
         // (unless --ablate-scripts, which drops the whole script below).
         if !ablate_scripts {
             if let Some(cut) = first_citing_toplevel(spans, opener + 1, end, 0, deleted) {
-                if !subtree_cites(spans, opener + 1, cut, deleted) {
+                // Only prefix-cut a genuine apply-script: appending `sorry` is legal only
+                // when the kept prefix leaves the proof in *prove* mode. A structured
+                // `proof … qed` prefix ends in *state* mode (after proof/fix/assume/next),
+                // so fall through to whole-proof `sorry` for those.
+                if !subtree_cites(spans, opener + 1, cut, deleted)
+                    && is_script_prefix(spans, opener + 1, cut)
+                {
                     let prefix: String =
                         spans[opener + 1..cut].iter().map(|s| s.source()).collect();
                     return format!("{}{} sorry", spans[opener].source(), prefix);
@@ -904,6 +969,24 @@ fn cor_deps_of(
     s.sort_unstable();
     s.dedup();
     s
+}
+
+/// (direct, transitive) in-file dependency counts for a corollary. Unlike `cor_closure` this
+/// does NOT filter to deletable candidates: it measures the corollary's whole support.
+fn cor_dep_counts(
+    lemmas: &[crate::uses::Lemma],
+    idx_of: &std::collections::HashMap<&str, usize>,
+    start: usize,
+) -> (i64, i64) {
+    let direct = cor_deps_of(lemmas, idx_of, start);
+    let mut seen: std::collections::HashSet<usize> = std::collections::HashSet::new();
+    let mut stack: Vec<usize> = direct.clone();
+    while let Some(q) = stack.pop() {
+        if q != start && seen.insert(q) {
+            stack.extend(cor_deps_of(lemmas, idx_of, q));
+        }
+    }
+    (direct.len() as i64, seen.len() as i64)
 }
 
 /// Eligible candidate positions in `start`'s transitive in-file dependency closure
@@ -1275,6 +1358,8 @@ fn ablate_delete(spans: &[Span], spec: &Spec, rng: &mut Rng) -> AblationResult {
         }
     }
     let original: String = spans.iter().map(|s| s.source()).collect();
+    // span indices of the corollaries this ablation was drawn for (empty outside corollary mode)
+    let cor_openers: Vec<usize> = corollary_seed_pos.iter().map(|&p| lemmas[p].opener).collect();
     let cnt = spec.count.map(|c| c as usize);
     let text = if spec.truncate && last_sorry_end >= 0 {
         collapse_blank_lines(
@@ -1283,28 +1368,35 @@ fn ablate_delete(spans: &[Span], spec: &Spec, rng: &mut Rng) -> AblationResult {
                 .collect::<String>(),
         )
     } else if spec.shrink_challenge_minimal {
-        slice_delete(spans, spec, &by_lemma, &del, &users, false)
+        slice_delete(spans, spec, &by_lemma, &del, &users, &cor_openers, false)
     } else if spec.shrink_challenge {
         shrink(&out, &chal_segs, cnt)
     } else {
         collapse_blank_lines(&out)
     };
     let solution = if spec.shrink_solution_minimal {
-        slice_delete(spans, spec, &by_lemma, &del, &users, true)
+        slice_delete(spans, spec, &by_lemma, &del, &users, &cor_openers, true)
     } else if spec.shrink_solution {
         shrink(&original, &sol_segs, cnt)
     } else {
         original
     };
+    let mut idx_of_all: std::collections::HashMap<&str, usize> = std::collections::HashMap::new();
+    for (i, l) in lemmas.iter().enumerate() {
+        idx_of_all.entry(l.name.as_str()).or_insert(i);
+    }
     let corollaries: Vec<Corollary> = corollary_seed_pos
         .iter()
         .map(|&p| {
             let c = &lemmas[p];
             let block = src_range(c.opener, c.block_end);
             let body = src_range(c.opener + 1, c.block_end);
+            let (n_direct, n_trans) = cor_dep_counts(&lemmas, &idx_of_all, p);
             Corollary {
                 name: c.name.clone(),
                 fan_in: c.users.len() as i64,
+                n_deps_direct: n_direct,
+                n_deps_transitive: n_trans,
                 metrics: crate::metrics::compute(&block, &body),
             }
         })

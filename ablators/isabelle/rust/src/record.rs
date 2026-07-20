@@ -60,6 +60,9 @@ pub fn record(
     seed: i64,
     variant: Option<u64>,
     difficulty: Option<&str>,
+    repo: Option<&str>,
+    revision: Option<&str>,
+    isabelle_version: Option<&str>,
     result: &AblationResult,
 ) -> Value {
     let holes: Vec<Value> = result
@@ -80,6 +83,11 @@ pub fn record(
                 "n_subproofs": h.metrics.n_subproofs,
                 "n_tactics": h.metrics.n_tactics,
                 "cyclomatic": h.metrics.cyclomatic,
+                "n_automation": h.metrics.n_automation,
+                "n_rewrites": h.metrics.n_rewrites,
+                "n_structural": h.metrics.n_structural,
+                "automation_only": h.metrics.automation_only,
+                "max_nesting": h.metrics.max_nesting,
             })
         })
         .collect();
@@ -96,6 +104,11 @@ pub fn record(
                 "n_subproofs": d.metrics.n_subproofs,
                 "n_tactics": d.metrics.n_tactics,
                 "cyclomatic": d.metrics.cyclomatic,
+                "n_automation": d.metrics.n_automation,
+                "n_rewrites": d.metrics.n_rewrites,
+                "n_structural": d.metrics.n_structural,
+                "automation_only": d.metrics.automation_only,
+                "max_nesting": d.metrics.max_nesting,
             })
         })
         .collect();
@@ -108,9 +121,16 @@ pub fn record(
                 "fan_in": c.fan_in,
                 "n_lines": c.metrics.n_lines,
                 "n_chars": c.metrics.n_chars,
+                "n_deps_direct": c.n_deps_direct,
+                "n_deps_transitive": c.n_deps_transitive,
                 "n_subproofs": c.metrics.n_subproofs,
                 "n_tactics": c.metrics.n_tactics,
                 "cyclomatic": c.metrics.cyclomatic,
+                "n_automation": c.metrics.n_automation,
+                "n_rewrites": c.metrics.n_rewrites,
+                "n_structural": c.metrics.n_structural,
+                "automation_only": c.metrics.automation_only,
+                "max_nesting": c.metrics.max_nesting,
             })
         })
         .collect();
@@ -120,6 +140,13 @@ pub fn record(
         "challenge_id": challenge_id(file_path, seed, variant, result),
         "proof_assistant": "isabelle",
         "session": session,
+        // provenance: git repo + commit the source was ablated from. For the packaged
+        // AFP there is no local git checkout, so these come from --repo/--revision
+        // (e.g. the isabelle-prover/mirror-afp-devel mirror) and `isabelle_version`
+        // pins the Isabelle release the session was built against.
+        "repo": repo.map(Value::from).unwrap_or(Value::Null),
+        "revision": revision.map(Value::from).unwrap_or(Value::Null),
+        "isabelle_version": isabelle_version.map(Value::from).unwrap_or(Value::Null),
         "file_path": file_path,
         "theory": theory_name(file_path),
         "variant": variant.map(Value::from).unwrap_or(Value::Null),

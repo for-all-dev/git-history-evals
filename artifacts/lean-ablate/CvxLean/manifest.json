@@ -1,0 +1,23 @@
+{
+  "repo": "CvxLean",
+  "git_repo": "github.com/verified-optimization/CvxLean",
+  "revision": "c62c2f292c6420f31a12e738ebebdfed50f6f840",
+  "lean_toolchain": "leanprover/lean4:v4.8.0-rc1",
+  "proof_assistant": "lean",
+  "ablator": "ablators/lean (corollary-delete-lemmas-leaves-all)",
+  "ablator_flags": [
+    "--corollary-delete-lemmas-leaves-all",
+    "--shrink-solution-minimal",
+    "--compact",
+    "--seed",
+    "42"
+  ],
+  "seed": 42,
+  "validation": "ablate-baseline --dry-run (preflight compile of challenge + solution)",
+  "counts": {
+    "mined_total": 29,
+    "good_kept": 25,
+    "malformed": 4,
+    "well_formed": 25
+  }
+}

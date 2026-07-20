@@ -1,0 +1,24 @@
+{
+  "repo": "TTBFL",
+  "git_repo": "github.com/ionathanch/TTBFL",
+  "revision": "274b8d0410b7c1671f15f140e75634065bb06bf9",
+  "lean_toolchain": "leanprover/lean4:v4.29.0",
+  "proof_assistant": "lean",
+  "ablator": "ablators/lean (corollary-delete-lemmas-leaves-all)",
+  "ablator_flags": [
+    "--corollary-delete-lemmas-leaves-all",
+    "--shrink-solution-minimal",
+    "--compact",
+    "--seed",
+    "42"
+  ],
+  "seed": 42,
+  "validation": "ablate-baseline --dry-run (preflight compile of challenge + solution)",
+  "counts": {
+    "mined_total": 172,
+    "good_kept": 135,
+    "malformed": 24,
+    "well_formed": 135,
+    "sol_bad": 13
+  }
+}

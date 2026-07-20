@@ -1,0 +1,22 @@
+{
+  "repo": "veil",
+  "git_repo": "github.com/verse-lab/veil",
+  "revision": "6a12daa8d3e0e8a9808a40ecab17ca030b557063",
+  "lean_toolchain": "leanprover/lean4:v4.24.0",
+  "proof_assistant": "lean",
+  "ablator": "ablators/lean (corollary-delete-lemmas-all)",
+  "ablator_flags": [
+    "--corollary-delete-lemmas-all",
+    "--shrink-solution-minimal",
+    "--compact",
+    "--seed",
+    "42"
+  ],
+  "seed": 42,
+  "validation": "ablate-baseline --dry-run (preflight compile of challenge + solution)",
+  "counts": {
+    "mined_total": 6,
+    "good_kept": 6,
+    "well_formed": 6
+  }
+}

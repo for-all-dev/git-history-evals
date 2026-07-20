@@ -93,10 +93,18 @@ structure DeletedLemma where
   deriving Inhabited, BEq
 
 /-- The theorem whose transitive in-file dependency closure seeded a corollary-mode
-    deletion (empty outside corollary mode). It is typically also a holed theorem. -/
+    deletion (empty outside corollary mode). It is typically also a holed theorem.
+
+    `nDepsDirect` / `nDepsTransitive` are how many in-file lemmas the corollary rests on
+    (cited directly, and over the whole closure). A corollary standing on one helper is a
+    very different problem from one standing on thirty: the deleted lemma is a larger or
+    smaller share of what the solver must reconstruct, and the closure is the context it has
+    to work through. -/
 structure Corollary where
   name    : String
   fanIn   : Int
+  nDepsDirect     : Int := 0
+  nDepsTransitive : Int := 0
   metrics : Metrics
   deriving Inhabited, BEq
 
@@ -160,6 +168,17 @@ private def firstProperIdx (toks : Array Token) (lo hi : Nat) : Option Nat := Id
   for i in [lo:hi] do
     if toks[i]!.isProper then return some i
   return none
+
+/-- Does the decl in `[lo, hi)` carry an attribute (`@[…]`)? The span parser merges a
+    leading `@[…]` attribute block into the decl span, so the first proper token is `@`.
+    Attribute-tagged decls (`@[simp]`, `@[grind]`, instances, `@[ext]`, …) can be
+    depended on *implicitly* — a `simp` call cites none of its simp-set members by name —
+    so a syntactic dependency closure cannot see those edges. The minimal slicer therefore
+    keeps every attributed decl unconditionally (see `sliceDelete`). -/
+private def spanHasAttr (toks : Array Token) (lo hi : Nat) : Bool :=
+  match firstProperIdx toks lo hi with
+  | some i => toks[i]!.src == "@"
+  | none => false
 
 /-- Index just after the last *proper* token in `[lo, hi)` (so trailing
     whitespace/comments can be preserved verbatim). -/
@@ -642,36 +661,63 @@ def renderUserLean (toks : Array Token) (lo a contentHi hi parentCol : Nat) (del
     if ok then stmt ++ body ++ trailing else stmt ++ " sorry" ++ trailing
   else stmt ++ " sorry" ++ trailing
 
-/-- Minimal dependency-closed slice for `--shrink-*-minimal` (mirrors rocq
-    `slice_delete`): keep the (first `count`) holes + the transitive closure of the
-    goal-decls their statements reference; all non-goal items kept as glue. Challenge
-    excludes the deleted lemma(s) and re-holes any kept goal still citing a deleted
-    name; solution keeps everything real (restoring the deleted lemma + deps). -/
+/-- Minimal dependency-closed slice for `--shrink-*-minimal` (mirrors rocq `slice_delete`).
+
+    The slice is seeded from **the corollary** — the theorem the deletion was drawn for —
+    and closed over its transitive in-file dependencies; all non-goal items kept as glue.
+    Challenge excludes the deleted lemma(s) and holes any kept goal citing a deleted name;
+    solution keeps everything real (restoring the deleted lemma + deps).
+
+    It used to be seeded from the **holes** instead. That made the corollary invisible to the
+    output: the holes are the in-file users of the deleted lemma, which is a property of the
+    *lemma*, not of the corollary that motivated picking it. So two corollaries whose closures
+    both contained lemma `L` produced a byte-identical challenge — the same problem shipped
+    twice (50% of the mined Lean corpus was such duplicates). Seeding from the corollary makes
+    each record the real question it claims to be: *delete `L`, then rebuild it so that THIS
+    corollary still goes through* — a different task per corollary, with the context cut to
+    what that corollary actually depends on. -/
 def sliceDelete (toks : Array Token) (spans : Array Span) (spec : Spec)
-    (lemmas : Array DeletableLemma) (delSet userSet : HashSet Nat) (solution : Bool) : String := Id.run do
-  let bySpan := fun (si : Nat) => lemmas.find? (fun l => l.spanIdx == si)
-  -- name -> ALL openers that define it. A name may be declared more than once (e.g. the
-  -- same lemma name inside different namespaces/sections); keeping only one — worse, an
-  -- arbitrary `find?` match — can drop the definition a kept reference resolves to,
-  -- leaving a dangling reference in the slice. (Mirrors rocq `openers_of_name`.)
-  -- Resolve a cited name to lemma decls by full name OR last dotted component. A
-  -- dot-notation call `x.foo` (with `x : T`, resolving to `T.foo`) or an open-namespace
-  -- reference cites only `foo`, which cannot be tied to the fully-qualified `T.foo`
-  -- declaration syntactically — matching on the last component recovers it. This
-  -- conservatively over-keeps same-suffix lemmas, which is safe: an extra kept lemma
-  -- never breaks compilation, whereas a dropped-but-needed one does (the over-cut bug
-  -- that made `--shrink-*-minimal` corrupt dot-notation-heavy files, e.g. lean4lean).
+    (lemmas : Array DeletableLemma) (delSet userSet corSet : HashSet Nat) (solution : Bool) : String := Id.run do
   let lastComp := fun (s : String) => (s.splitOn ".").getLastD s
-  let openersOfName := fun (nm : String) =>
-    let nc := lastComp nm
-    lemmas.filterMap (fun l => if l.name == nm || lastComp l.name == nc then some l.spanIdx else none)
+  -- Precompute lookup indices ONCE. `bySpan` and `openersOfName` were each an O(lemmas)
+  -- scan; called per-name inside the closure BFS and per-slice by `ablateAll`, that made
+  -- `--shrink-*-minimal` ~O(n³) on large corollary-rich files (a 1200-line VCV-io theory
+  -- took 25 s). spanToLemma / byLastComp turn both into O(1) lookups.
+  let mut spanToLemma : HashMap Nat DeletableLemma := {}
+  -- name -> ALL openers that define it. A name may be declared more than once (same lemma
+  -- name in different namespaces/sections); keeping only one — worse, an arbitrary match —
+  -- can drop the definition a kept reference resolves to, leaving a dangle. (rocq
+  -- `openers_of_name`.) Resolve a cited name to decls by *last dotted component*: a
+  -- dot-notation call `x.foo` (`x : T` → `T.foo`) or an open-namespace reference cites only
+  -- `foo`, unrecoverable from the fully-qualified `T.foo` decl by full name — matching the
+  -- last component recovers it. A full-name match `l.name == nm` *implies* a last-component
+  -- match (`lastComp l.name == lastComp nm`), so a single last-component index is complete.
+  -- Over-keeps same-suffix lemmas, which is safe (an extra kept lemma never breaks the
+  -- build; a dropped-but-needed one does — the over-cut bug that corrupted dot-heavy files).
+  let mut byLastComp : HashMap String (Array Nat) := {}
+  for l in lemmas do
+    spanToLemma := spanToLemma.insert l.spanIdx l
+    let nc := lastComp l.name
+    byLastComp := byLastComp.insert nc ((byLastComp.getD nc #[]).push l.spanIdx)
+  let bySpan := fun (si : Nat) => spanToLemma.get? si
+  let openersOfName := fun (nm : String) => byLastComp.getD (lastComp nm) #[]
   let mut deletedNames : HashSet String := {}
   for si in delSet.toList do
     match bySpan si with | some l => deletedNames := deletedNames.insert l.name | none => pure ()
   let mustHole := fun (si : Nat) =>
     match bySpan si with | some l => l.bodyNames.any (fun nm => deletedNames.contains nm) | none => false
-  let seedAll := userSet.toList.toArray.qsort (· < ·)
-  let seed := match spec.count with | some k => seedAll.extract 0 (min k seedAll.size) | none => seedAll
+  -- Seed from the corollary when there is one (corollary modes); otherwise from the holes
+  -- (plain `--delete-lemmas`, which has no corollary to anchor on). The deleted lemma is in
+  -- the corollary's closure by construction, so the BFS below still reaches it — and reaches
+  -- exactly those users of it that THIS corollary depends on. Users outside the corollary's
+  -- closure are cut, which is the point: the challenge is scoped to the corollary.
+  let seedAll :=
+    if corSet.isEmpty then userSet.toList.toArray.qsort (· < ·)
+    else corSet.toList.toArray.qsort (· < ·)
+  let seed :=
+    if corSet.isEmpty then
+      match spec.count with | some k => seedAll.extract 0 (min k seedAll.size) | none => seedAll
+    else seedAll
   -- Keep-set computed BEFORE ablating, shared by challenge & solution: the full
   -- statement+body closure of the target holes over the original. Keeps every lemma
   -- the real proofs need (never throws away more than the deleted lemma) and gives
@@ -691,6 +737,18 @@ def sliceDelete (toks : Array Token) (spans : Array Span) (spec : Spec)
         for o2 in openersOfName nm do
           if !keep.contains o2 && (bySpan o2).isSome then
             keep := keep.insert o2; q := q.push o2
+  -- Attribute-tagged decls (`@[simp]`, `@[grind]`, instances, …) can be depended on
+  -- implicitly by a *kept* proof (a `simp` names none of its simp-set members), so the
+  -- syntactic closure below can't reach them. Dropping one silently breaks kept proofs
+  -- ("unsolved goals" with no unknown-identifier). Keep them all — over-keeping an extra
+  -- lemma never breaks compilation, whereas a dropped-but-needed one does.
+  for si in [0:spans.size] do
+    match bySpan si with
+    | some _ =>
+      let s := spans[si]!
+      if !keep.contains si && spanHasAttr toks s.lo s.hi then
+        keep := keep.insert si; q := q.push si
+    | none => pure ()
   let mut qi := 0
   while qi < q.size do
     let o := q[qi]!
@@ -1000,24 +1058,47 @@ def ablateDelete (toks : Array Token) (spec : Spec) (rng : Rng) : AblationResult
       chalSegs := chalSegs.push (out.length, closer, false)
       origLen := origLen + itemLen
       solSegs := solSegs.push (origLen, closer, false)
+  -- span indices of the corollaries this ablation was drawn for; empty outside corollary mode
+  let corSet : HashSet Nat := corollarySeeds.foldl (fun acc c => acc.insert c.spanIdx) {}
   let original := implode toks
   let text :=
     if spec.truncate && lastSorryEnd ≥ 0 then
       collapseBlankLines (String.mk (out.toList.take lastSorryEnd.toNat))
-    else if spec.shrinkChallengeMinimal then sliceDelete toks spans spec lemmas delSet userSet false
+    else if spec.shrinkChallengeMinimal then sliceDelete toks spans spec lemmas delSet userSet corSet false
     else if spec.shrinkChallenge then shrink out chalSegs spec.count
     else collapseBlankLines out
   let solution :=
-    if spec.shrinkSolutionMinimal then sliceDelete toks spans spec lemmas delSet userSet true
+    if spec.shrinkSolutionMinimal then sliceDelete toks spans spec lemmas delSet userSet corSet true
     else if spec.shrinkSolution then shrink original solSegs spec.count
     else original
+  -- how many in-file lemmas each corollary rests on: cited directly, and over the transitive
+  -- closure (BFS over corDepsOf). The deleted lemma is one of these — so the counts say how
+  -- large a share of the corollary's support the solver has to rebuild.
+  let byNamePos := buildByNamePos lemmas
+  let depCounts := fun (c : DeletableLemma) => Id.run do
+    let direct := corDepsOf lemmas byNamePos c
+    let mut seen : HashSet Nat := {}
+    let mut q : Array DeletableLemma := direct
+    let mut qi := 0
+    for d in direct do seen := seen.insert d.spanIdx
+    while qi < q.size do
+      let d := q[qi]!
+      qi := qi + 1
+      for d2 in corDepsOf lemmas byNamePos d do
+        if !seen.contains d2.spanIdx then
+          seen := seen.insert d2.spanIdx
+          q := q.push d2
+    return (direct.size, seen.size)
   let corollaries : Array Corollary := corollarySeeds.map (fun c =>
     let s := spans[c.spanIdx]!
     let block := s.source toks
     let body := match findDeclBody toks s.lo s.hi with
       | some a => implode (toks.extract (a + 1) (lastProperEnd toks (a + 1) s.hi))
       | none => ""
-    { name := c.name, fanIn := Int.ofNat c.users.size, metrics := Metrics.compute block body })
+    let (nDirect, nTrans) := depCounts c
+    { name := c.name, fanIn := Int.ofNat c.users.size,
+      nDepsDirect := Int.ofNat nDirect, nDepsTransitive := Int.ofNat nTrans,
+      metrics := Metrics.compute block body })
   return {
     text := text, solution := solution,
     total := Int.ofNat totalEligible, ablated := ablated, holes := holes, deleted := deleted,

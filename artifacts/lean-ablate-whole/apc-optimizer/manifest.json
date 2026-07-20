@@ -1,0 +1,23 @@
+{
+  "repo": "apc-optimizer",
+  "git_repo": "github.com/powdr-labs/apc-optimizer",
+  "revision": "bd367dd92ecaabcdc3a308473fbe966da9a1c03c",
+  "lean_toolchain": "leanprover/lean4:v4.30.0-rc1",
+  "proof_assistant": "lean",
+  "ablator": "ablators/lean (corollary-delete-lemmas-all)",
+  "ablator_flags": [
+    "--corollary-delete-lemmas-all",
+    "--shrink-solution-minimal",
+    "--compact",
+    "--seed",
+    "42"
+  ],
+  "seed": 42,
+  "validation": "ablate-baseline --dry-run (preflight compile of challenge + solution)",
+  "counts": {
+    "mined_total": 130,
+    "good_kept": 128,
+    "well_formed": 128,
+    "malformed": 2
+  }
+}

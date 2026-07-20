@@ -1,0 +1,23 @@
+{
+  "repo": "adler-proofs",
+  "git_repo": "github.com/septract/adler-proofs",
+  "revision": "e500f96af690e90eb185aa39caa798c07d671d82",
+  "lean_toolchain": null,
+  "proof_assistant": "lean",
+  "ablator": "ablators/lean (corollary-delete-lemmas-leaves-all)",
+  "ablator_flags": [
+    "--corollary-delete-lemmas-leaves-all",
+    "--shrink-solution-minimal",
+    "--compact",
+    "--seed",
+    "42"
+  ],
+  "seed": 42,
+  "validation": "ablate-baseline --dry-run (preflight compile of challenge + solution)",
+  "counts": {
+    "mined_total": 43,
+    "good_kept": 8,
+    "sol_bad": 35,
+    "well_formed": 8
+  }
+}

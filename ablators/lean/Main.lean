@@ -69,6 +69,8 @@ def usage : String :=
   Other:
     -s SESSION       session/library label recorded in output (default: lean)
     -d DIR           strip DIR prefix from emitted file paths (repeatable)
+    --repo URL       record this git remote as provenance (default: auto-detect)
+    --revision SHA   record this commit as provenance (default: auto-detect HEAD)
     --repeat N       emit up to N deduplicated ablations per file (default: 1)
     --seed N         RNG seed (default: time-based)
     --text           output the ablated source instead of JSONL
@@ -110,6 +112,8 @@ structure Opts where
   repeatN      : Nat := 1
   paths        : Array String := #[]
   stripDirs    : Array String := #[]
+  repoOpt      : Option String := none
+  revisionOpt  : Option String := none
 
 def parseDepth (s : String) : Except String Int :=
   if s == "inf" || s == "infinity" then .ok INF
@@ -194,6 +198,8 @@ partial def parseArgs (args : List String) (o : Opts) : Except String Opts := do
                             | [] => .error "missing arg for --seed"
     | "-s"               => needArg fun v => { o with session := v }
     | "-d"               => needArg fun v => { o with stripDirs := o.stripDirs.push v }
+    | "--repo"           => needArg fun v => { o with repoOpt := some v }
+    | "--revision"       => needArg fun v => { o with revisionOpt := some v }
     | _ =>
       if a.startsWith "-" && a != "-" then .error s!"Unknown option: {a}"
       else parseArgs rest { o with paths := o.paths.push a }
@@ -316,6 +322,35 @@ def runCheck (docs : Array Doc) (spec : Spec) (centrality : String → Int) : IO
 
 def golden : UInt64 := 0x9E3779B97F4A7C15
 
+/-- Normalise a git remote URL to a stable `host/owner/repo` form (strip a
+    trailing `.git`, rewrite `git@host:owner/repo` → `host/owner/repo`, drop a
+    leading scheme). Leaves anything unrecognised untouched. -/
+def normalizeRemote (url : String) : String :=
+  let u := if url.endsWith ".git" then url.dropRight 4 else url
+  -- scp-style: git@github.com:owner/repo
+  let u := if u.startsWith "git@" then
+             let rest := u.drop 4
+             (rest.replace ":" "/")
+           else u
+  -- strip scheme://[user@]
+  let u := match (u.splitOn "://") with | [_, tl] => tl | _ => u
+  u
+
+/-- Best-effort git provenance for the repo enclosing `dir`: (remote, HEAD sha).
+    Returns `none` components when `git` is unavailable or `dir` isn't a repo. -/
+def gitInfo (dir : System.FilePath) : IO (Option String × Option String) := do
+  let run (args : Array String) : IO (Option String) := do
+    try
+      let out ← IO.Process.output { cmd := "git", args := args, cwd := some dir.toString }
+      if out.exitCode == 0 then
+        let s := out.stdout.trim
+        return (if s.isEmpty then none else some s)
+      else return none
+    catch _ => return none
+  let url ← run #["config", "--get", "remote.origin.url"]
+  let sha ← run #["rev-parse", "HEAD"]
+  return (url.map normalizeRemote, sha)
+
 /-- Walk up from `p` to the enclosing Lake package root (the dir with a
     lakefile). Returns `none` if there isn't one. -/
 partial def findLakeRoot (p : System.FilePath) : IO (Option System.FilePath) := do
@@ -409,8 +444,20 @@ def main (args : List String) : IO UInt32 := do
     return (if nfail == 0 then 0 else 1)
 
   let nRepeat := Nat.max 1 o.repeatN
+  -- git provenance, cached per enclosing directory. CLI --repo/--revision override
+  -- detection wholesale (needed for AFP-style sources with no local git).
   let mut emitted := 0
+  let mut provCache : Std.HashMap String (Option String × Option String) := {}
   for d in docs do
+    let parent := (d.path.parent.getD (System.FilePath.mk ".")).toString
+    let (detRepo, detRev) ← match provCache.get? parent with
+      | some v => pure v
+      | none => do
+          let v ← gitInfo (System.FilePath.mk parent)
+          provCache := provCache.insert parent v
+          pure v
+    let repo := o.repoOpt.orElse (fun _ => detRepo)
+    let revision := o.revisionOpt.orElse (fun _ => detRev)
     let mut seen : Std.HashSet String := {}
     let mut produced := 0
     -- A file yields several records via --repeat OR --corollary-delete-lemmas*-all. In
@@ -433,14 +480,18 @@ def main (args : List String) : IO UInt32 := do
       -- otherwise yields a trivial challenge — already-complete, no holes to fill —
       -- which any model "passes" by doing nothing, inflating baselines. (#trivial-skip)
       let nontrivial := result.ablated > 0 && result.text != result.solution
-      -- dedup key: challenge text normally, but the (deleted lemma(s), corollary) PAIR
-      -- under --corollary-delete-lemmas*-all, so the same lemma deleted for different
-      -- corollaries is kept — only an identical lemma/corollary pair is dropped.
-      let namesKey (arr : Array String) : String := String.intercalate "," (arr.qsort (· < ·)).toList
-      let key :=
-        if spec.corollaryAll then
-          namesKey (result.deleted.map (·.name)) ++ " @@ " ++ namesKey (result.corollaries.map (·.name))
-        else result.text
+      -- Dedup on the (challenge, solution) TEXT — what a solver actually sees.
+      --
+      -- This used to key on the (deleted lemma(s), corollary) pair under
+      -- `--corollary-delete-lemmas*-all`, to keep "the same lemma deleted for different
+      -- corollaries". But those often *render identically*: once the minimal slice is taken,
+      -- two corollaries sharing a deleted lemma frequently produce a byte-identical challenge.
+      -- The solver cannot tell them apart, so they are the same problem — yet they shipped as
+      -- distinct records with distinct `challenge_id`s (the id hashes `corollaries`/`variant`,
+      -- so it could not detect the collision either). That duplicated **50% of the mined leaf
+      -- corpus** (21,530 records -> 10,586 unique challenges; iris-lean 671 -> 155) and would
+      -- leak identical problems across a train/test split.
+      let key := result.text ++ " " ++ result.solution
       if valid && nontrivial && !seen.contains key then
         seen := seen.insert key
         if o.textMode then
@@ -448,7 +499,7 @@ def main (args : List String) : IO UInt32 := do
         else
           let variant := if nRepeat > 1 || spec.corollaryAll then some produced else none
           let obj := Ablator.record d.display o.session spec (Int.ofNat seedBase.toNat)
-                       variant o.difficulty result
+                       variant o.difficulty repo revision result
           IO.println (if o.compact then obj.compact else obj.pretty)
         produced := produced + 1
         emitted := emitted + 1

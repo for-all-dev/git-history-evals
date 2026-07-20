@@ -1,0 +1,24 @@
+{
+  "repo": "jolt-tla",
+  "git_repo": "github.com/CharlesHoskinson/jolt-tla",
+  "revision": "3918257edd8333d79e21d813a2fa70761aba538f",
+  "lean_toolchain": null,
+  "proof_assistant": "lean",
+  "ablator": "ablators/lean (corollary-delete-lemmas-leaves-all)",
+  "ablator_flags": [
+    "--corollary-delete-lemmas-leaves-all",
+    "--shrink-solution-minimal",
+    "--compact",
+    "--seed",
+    "42"
+  ],
+  "seed": 42,
+  "validation": "ablate-baseline --dry-run (preflight compile of challenge + solution)",
+  "counts": {
+    "mined_total": 86,
+    "good_kept": 25,
+    "sol_bad": 54,
+    "well_formed": 25,
+    "malformed": 7
+  }
+}

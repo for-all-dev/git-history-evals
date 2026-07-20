@@ -50,7 +50,6 @@ uv run pytest             # tests
   - `./rocq-ablator/`: OCaml/dune, for Coq/Rocq `.v` (CLI `bin/main.ml` + WASM).
   - `./lean-ablator/`: Lean 4/lake, for `.lean` (`Main.lean`, core in `Ablator/`, WASM).
   - `./isabelle-ablator/rust/`: Rust/cargo, for Isabelle `.thy` (clap CLI + WASM).
-  - `./isabelle-ablator/scala/`: Scala on the bundled Isabelle JVM (no WASM).
   Key flags (all four): `--delete-lemmas[=N]` / `--delete-lemmas-leaves` (delete N
   eligible lemmas + hole their in-file users at smallest-enclosing-block granularity),
   `--corollary-delete-lemmas[=N]` / `-uniform` / `-leaves` (same, but candidates are
@@ -73,7 +72,22 @@ uv run pytest             # tests
   schema; `obs.py` wires Logfire (`instrument_pydantic_ai` + per-compile/per-outcome
   spans). Pre-flight validation marks challenges that don't compile `malformed` and
   empty-diff ones `trivial`, both excluded from the PASS rate.
-- `./data/`: source repos as git submodules
+- `./ablators/isabelle/flake.nix`: pins the **official** Isabelle releases the baseline evaluator
+  must run under — `isabelle-2025` for **l4v** (@429d778 needs the base release), `isabelle-2025-2`
+  for the **AFP**. nixpkgs' Isabelle breaks `smt` reconstruction, so it cannot be used. (The Scala
+  ablator that used to own this flake has been deleted; the Rust ablator does the ablation.)
+- `./data/`: source repos, **organised by language**: `data/lean/<repo>` (50 mined Lean repos +
+  `_triage/` of unmined candidates), `data/isabelle/l4v`, `data/rocq/{CompCert,fiat-crypto,BRiCk}`.
+  Only the 4 Rocq/Isabelle repos are git submodules; the Lean checkouts are pinned in
+  `pipeline/repos.tsv` (url + revision + toolchain) and materialised by `pipeline/clone_repos.sh`
+  — they are multi-GB once built, so they are gitignored rather than vendored.
+- `./pipeline/`: the ablation pipeline — mine -> build -> validate -> publish. See
+  `pipeline/README.md`; **read its "Validation is a build problem" section before trusting any
+  `malformed` count**, since an incompletely-built source tree reports every challenge as
+  malformed (this understated hex-dev by 2,881 challenges).
+- `./flake.nix`: the pipeline toolchain — a `cc` wrapper adding `-D_GNU_SOURCE` (Lean C FFI),
+  elan/lake, s3cmd, and a uv2nix-built python env exposing `ablate-baseline` with no uv at
+  runtime (`nix run .#ablate-baseline`).
 - `./artifacts/`: mined eval datasets as versioned bundles — `<repo>-eval/<tag>-<hash>/{manifest.json, miner/profile.json, challenges.jsonl}` per `MANIFEST_SCHEMA.md`, indexed by `_index.json`. Each dataset owns exactly one profile (at `<version>/miner/profile.json`); the blessed `<repo>-eval/profile.json` that `mine-all` reads is a relative **symlink** into the canonical version's profile, not a copy. Bulk `*.jsonl`/`*.txt` payloads are sha256 blobs declared in manifests and gitignored.
 - `./dashboard/`: Next.js app for exploring JSONL benchmark artifacts
 - `./docs/`: changelog for the pattern detector (`PatternDetectorChanges.md`) + agent task template

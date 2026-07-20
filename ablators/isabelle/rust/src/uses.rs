@@ -37,6 +37,17 @@ pub fn names_in(content: &[crate::token::Token]) -> Vec<String> {
                     out.push(t.source[dot + 1..].to_string());
                 }
             }
+            // Auto-generated facts (`inner.simps`, `inner.induct`, `foo.cases`, …) are
+            // qualified by their *producing declaration's* name — the prefix before the
+            // FIRST dot — not by the suffix. Emit it so a lemma citing `inner.simps`
+            // links to the `function inner`/`fun inner` declaration; otherwise the
+            // minimal-closure shrink drops that definition and leaves a dangling
+            // `declare inner.simps` / `inner.induct` reference (uncompilable challenge).
+            if let Some(dot) = t.source.find('.') {
+                if dot > 0 {
+                    out.push(t.source[..dot].to_string());
+                }
+            }
         }
     }
     out

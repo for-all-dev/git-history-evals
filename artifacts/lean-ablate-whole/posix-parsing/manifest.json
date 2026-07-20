@@ -1,0 +1,22 @@
+{
+  "repo": "posix-parsing",
+  "git_repo": "github.com/keeganperry7/posix-parsing",
+  "revision": "e1dc3644c5f8c6601fe5d578c8edd4c9b28a6d1a",
+  "lean_toolchain": "leanprover/lean4:v4.23.0",
+  "proof_assistant": "lean",
+  "ablator": "ablators/lean (corollary-delete-lemmas-all)",
+  "ablator_flags": [
+    "--corollary-delete-lemmas-all",
+    "--shrink-solution-minimal",
+    "--compact",
+    "--seed",
+    "42"
+  ],
+  "seed": 42,
+  "validation": "ablate-baseline --dry-run (preflight compile of challenge + solution)",
+  "counts": {
+    "mined_total": 13,
+    "good_kept": 13,
+    "well_formed": 13
+  }
+}

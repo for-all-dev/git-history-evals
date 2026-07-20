@@ -1,0 +1,23 @@
+{
+  "repo": "hax-proof-libs-lean",
+  "git_repo": "github.com/cryspen/hax",
+  "revision": "dbd2026cc871063a455da37f88ade8f4167271bc",
+  "lean_toolchain": "leanprover/lean4:v4.29.0-rc1",
+  "proof_assistant": "lean",
+  "ablator": "ablators/lean (corollary-delete-lemmas-leaves-all)",
+  "ablator_flags": [
+    "--corollary-delete-lemmas-leaves-all",
+    "--shrink-solution-minimal",
+    "--compact",
+    "--seed",
+    "42"
+  ],
+  "seed": 42,
+  "validation": "ablate-baseline --dry-run (preflight compile of challenge + solution)",
+  "counts": {
+    "mined_total": 60,
+    "good_kept": 46,
+    "well_formed": 46,
+    "malformed": 14
+  }
+}

@@ -1,0 +1,24 @@
+{
+  "repo": "lean4lean",
+  "git_repo": "github.com/digama0/lean4lean",
+  "revision": "8865b155abbf68d3a827fb3568bf6839780163c2",
+  "lean_toolchain": "leanprover/lean4:v4.29.0",
+  "proof_assistant": "lean",
+  "ablator": "ablators/lean (corollary-delete-lemmas-leaves-all)",
+  "ablator_flags": [
+    "--corollary-delete-lemmas-leaves-all",
+    "--shrink-solution-minimal",
+    "--compact",
+    "--seed",
+    "42"
+  ],
+  "seed": 42,
+  "validation": "ablate-baseline --dry-run (preflight compile of challenge + solution)",
+  "counts": {
+    "mined_total": 244,
+    "good_kept": 115,
+    "sol_bad": 43,
+    "well_formed": 115,
+    "malformed": 86
+  }
+}

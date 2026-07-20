@@ -1,0 +1,22 @@
+{
+  "repo": "dolev-yao",
+  "git_repo": "github.com/metareflection/dolev-yao",
+  "revision": "cc9d1a6dd800c1debc0a8cc9b7d2e331b84bd30c",
+  "lean_toolchain": "leanprover/lean4:v4.29.0-rc6",
+  "proof_assistant": "lean",
+  "ablator": "ablators/lean (corollary-delete-lemmas-all)",
+  "ablator_flags": [
+    "--corollary-delete-lemmas-all",
+    "--shrink-solution-minimal",
+    "--compact",
+    "--seed",
+    "42"
+  ],
+  "seed": 42,
+  "validation": "ablate-baseline --dry-run (preflight compile of challenge + solution)",
+  "counts": {
+    "mined_total": 1,
+    "good_kept": 1,
+    "well_formed": 1
+  }
+}

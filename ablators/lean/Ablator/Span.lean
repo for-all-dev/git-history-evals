@@ -178,6 +178,28 @@ private def isAttrPrefix (toks : Array Token) (lo hi : Nat) : Bool := Id.run do
     i := i + 1
   return sawAttrMod
 
+/-- Is `[lo, hi)` a `set_option … in` / `open … in` command-modifier prefix of the
+    command that starts at `hi`? Like `@[…]`, such a prefix binds to the *following*
+    command, so it must merge into that command's span — else deleting the command
+    orphans the modifier (`set_option … in` immediately before an `end`, a parse error).
+    Detected structurally: first proper token is `set_option`/`open`, last is `in`, no
+    blank-line break. Early-exits on any other leading token so normal decls stay O(1). -/
+private def isInModifierPrefix (toks : Array Token) (lo hi : Nat) : Bool := Id.run do
+  let mut firstProper : Option String := none
+  let mut lastProper : Option String := none
+  for i in [lo:hi] do
+    let t := toks[i]!
+    if t.isSpace then
+      if newlineCount t ≥ 2 then return false
+    else if t.isComment then pure ()
+    else
+      match firstProper with
+      | none =>
+        if t.src != "set_option" && t.src != "open" then return false
+        firstProper := some t.src; lastProper := some t.src
+      | some _ => lastProper := some t.src
+  return firstProper.isSome && lastProper == some "in"
+
 /-- Split tokens into top-level command spans. -/
 def parseSpans (toks : Array Token) : Array Span := Id.run do
   let n := toks.size
@@ -192,8 +214,10 @@ def parseSpans (toks : Array Token) : Array Span := Id.run do
   -- and its leading `@[…]`/`public`/… stay ONE span (deleting the decl takes them all).
   let mut merged : Array Nat := #[]
   for b in bounds do
-    if (!merged.isEmpty) && isAttrPrefix toks merged[merged.size - 1]! b then
-      pure ()  -- drop b: it continues the attribute-led command above
+    if (!merged.isEmpty)
+        && (isAttrPrefix toks merged[merged.size - 1]! b
+            || isInModifierPrefix toks merged[merged.size - 1]! b) then
+      pure ()  -- drop b: it continues the attribute-/modifier-led command above
     else
       merged := merged.push b
   bounds := merged

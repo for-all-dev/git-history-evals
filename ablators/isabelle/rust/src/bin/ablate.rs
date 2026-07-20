@@ -130,6 +130,16 @@ struct Cli {
     /// strip DIR prefix from emitted file paths (repeatable)
     #[arg(short = 'd', long = "strip-dir", value_name = "DIR")]
     strip_dir: Vec<String>,
+    /// record this git remote as provenance (default: auto-detect; for the packaged
+    /// AFP with no local git, pass the mirror, e.g. github.com/isabelle-prover/mirror-afp-devel)
+    #[arg(long, value_name = "URL")]
+    repo: Option<String>,
+    /// record this commit as provenance (default: auto-detect HEAD)
+    #[arg(long, value_name = "SHA")]
+    revision: Option<String>,
+    /// pin the Isabelle release the session was built against (e.g. Isabelle2025)
+    #[arg(long, value_name = "VER")]
+    isabelle_version: Option<String>,
     /// load a name->kind keyword table JSON (default: baked-in HOL)
     #[arg(long, value_name = "FILE")]
     keywords: Option<String>,
@@ -162,6 +172,43 @@ fn parse_depth(s: &str) -> i64 {
         s.parse()
             .unwrap_or_else(|_| die(&format!("bad number: {s}")))
     }
+}
+
+/// Normalise a git remote to a stable host/owner/repo form.
+fn normalize_remote(url: &str) -> String {
+    let u = url.strip_suffix(".git").unwrap_or(url);
+    let u = if let Some(rest) = u.strip_prefix("git@") {
+        rest.replacen(':', "/", 1)
+    } else {
+        u.to_string()
+    };
+    // drop leading scheme://
+    match u.find("://") {
+        Some(i) => u[i + 3..].to_string(),
+        None => u,
+    }
+}
+
+/// Best-effort git provenance for the repo enclosing `dir`: (remote, HEAD sha).
+/// Empty for the packaged AFP (no local git) — pass --repo/--revision there.
+fn git_info(dir: &Path) -> (Option<String>, Option<String>) {
+    use std::process::Command;
+    let run = |args: &[&str]| -> Option<String> {
+        let out = Command::new("git")
+            .arg("-C")
+            .arg(dir)
+            .args(args)
+            .output()
+            .ok()?;
+        if !out.status.success() {
+            return None;
+        }
+        let s = String::from_utf8_lossy(&out.stdout).trim().to_string();
+        if s.is_empty() { None } else { Some(s) }
+    };
+    let repo = run(&["config", "--get", "remote.origin.url"]).map(|u| normalize_remote(&u));
+    let rev = run(&["rev-parse", "HEAD"]);
+    (repo, rev)
 }
 
 fn collect_theories(paths: &[String]) -> Vec<PathBuf> {
@@ -384,8 +431,24 @@ fn main() {
 
     let n_repeat = cli.repeat.max(1);
     let mut emitted = 0u64;
+    // git provenance cached per enclosing directory; CLI flags override detection
+    // (needed for the packaged AFP, which has no local git checkout).
+    let mut git_cache: std::collections::HashMap<String, (Option<String>, Option<String>)> =
+        std::collections::HashMap::new();
     for (path, original) in &docs {
         let display = display_path(path);
+        let (det_repo, det_rev) = {
+            let dir = path
+                .parent()
+                .map(|p| p.to_string_lossy().into_owned())
+                .unwrap_or_default();
+            git_cache
+                .entry(dir.clone())
+                .or_insert_with(|| git_info(Path::new(&dir)))
+                .clone()
+        };
+        let repo = cli.repo.clone().or(det_repo);
+        let revision = cli.revision.clone().or(det_rev);
         let spans = syntax.parse_spans(original);
         let mut seen: HashSet<String> = HashSet::new();
         let mut produced = 0u64;
@@ -418,18 +481,13 @@ fn main() {
             if result.ablated == 0 || result.text == result.solution {
                 continue;
             }
-            // dedup key: challenge text normally, but the (deleted lemma(s), corollary)
-            // PAIR under --corollary-delete-lemmas*-all — so the same lemma deleted for
-            // different corollaries is kept; only an identical pair is dropped.
-            let key = if spec.corollary_all {
-                let mut dels: Vec<&str> = result.deleted.iter().map(|d| d.name.as_str()).collect();
-                dels.sort_unstable();
-                let mut cors: Vec<&str> = result.corollaries.iter().map(|c| c.name.as_str()).collect();
-                cors.sort_unstable();
-                format!("{} @@ {}", dels.join(","), cors.join(","))
-            } else {
-                result.text.clone()
-            };
+            // Dedup on the (challenge, solution) TEXT — what a solver actually sees. Keying on
+            // the (deleted lemma, corollary) pair kept records that render byte-identically:
+            // after the minimal slice, two corollaries sharing a deleted lemma usually produce
+            // the same challenge. They shipped as distinct records with distinct challenge_ids
+            // (the id hashes the corollary/variant, so it could not see the collision). In Lean
+            // that duplicated 50% of the mined corpus.
+            let key = format!("{}\u{0}{}", result.text, result.solution);
             if seen.insert(key) {
                 if cli.text {
                     print!("{}", result.text);
@@ -446,6 +504,9 @@ fn main() {
                         base,
                         variant,
                         cli.difficulty.as_deref(),
+                        repo.as_deref(),
+                        revision.as_deref(),
+                        cli.isabelle_version.as_deref(),
                         &result,
                     );
                     if cli.compact {

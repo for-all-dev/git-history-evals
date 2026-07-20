@@ -39,3 +39,17 @@ artifacts/**/writer_transcript.json
 # prebuilt Isabelle session heaps (large, local; keyed by version inside,
 # e.g. .isabelle-heaps/.isabelle/Isabelle2025{,-2}/ for l4v / AFP)
 .isabelle-heaps/
+
+# ablation pipeline: source checkouts, heaps, and bulk mined data are never committed
+# (repos are pinned in pipeline/repos.tsv; datasets live in the forall-ablations Space)
+/data/lean/
+/data/**/.lake/
+/.ablate-heaps/
+/afp-*/
+/scratchpad_pilot/
+/artifacts/**/*.jsonl
+/artifacts/**/*.txt
+/baselines/results/
+/baselines/baseline-results.jsonl
+/challenges.jsonl
+/.elan/

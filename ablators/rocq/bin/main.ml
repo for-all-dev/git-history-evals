@@ -76,6 +76,8 @@ let usage =
   Other:
     -s SESSION       session/library label recorded in output (default: coq)
     -d DIR           strip DIR prefix from emitted file paths (repeatable)
+    --repo URL       record this git remote as provenance (default: auto-detect)
+    --revision SHA   record this commit as provenance (default: auto-detect HEAD)
     --repeat N       emit up to N deduplicated ablations per file (default: 1)
     --seed N         RNG seed (default: random)
     --text           output the ablated source instead of JSONL
@@ -130,6 +132,56 @@ let display_path strip p =
   in
   go strip
 
+(* --- git provenance (best-effort) ------------------------------------------ *)
+
+(* Normalise a git remote to a stable host/owner/repo form. *)
+let normalize_remote url =
+  let u = if Filename.check_suffix url ".git"
+          then String.sub url 0 (String.length url - 4) else url in
+  let u =
+    if String.length u >= 4 && String.sub u 0 4 = "git@"
+    then String.map (fun c -> if c = ':' then '/' else c)
+           (String.sub u 4 (String.length u - 4))
+    else u in
+  (* drop leading scheme:// *)
+  match String.index_opt u ':' with
+  | Some i when i + 2 < String.length u && u.[i+1] = '/' && u.[i+2] = '/' ->
+      String.sub u (i + 3) (String.length u - i - 3)
+  | _ -> u
+
+(* Run `git -C dir <args>` and return trimmed stdout, or None on any failure.
+   Uses Sys.command + a temp file (like build_check) so no unix dep is needed. *)
+let git_run dir args =
+  let tmp = Filename.temp_file "ablate_git" ".txt" in
+  let cmd = Printf.sprintf "git -C %s %s > %s 2>/dev/null"
+      (Filename.quote dir) args (Filename.quote tmp) in
+  let result =
+    if Sys.command cmd = 0 then
+      try
+        let ic = open_in tmp in
+        let line = try Some (String.trim (input_line ic)) with End_of_file -> None in
+        close_in ic;
+        (match line with Some s when s <> "" -> Some s | _ -> None)
+      with _ -> None
+    else None
+  in
+  (try Sys.remove tmp with _ -> ());
+  result
+
+let git_cache : (string, string option * string option) Hashtbl.t = Hashtbl.create 8
+
+(* (repo, revision) for the git repo enclosing [path], cached per directory. *)
+let git_info path =
+  let dir = Filename.dirname path in
+  match Hashtbl.find_opt git_cache dir with
+  | Some v -> v
+  | None ->
+      let repo = Option.map normalize_remote (git_run dir "config --get remote.origin.url") in
+      let rev = git_run dir "rev-parse HEAD" in
+      let v = (repo, rev) in
+      Hashtbl.replace git_cache dir v;
+      v
+
 type opts = {
   mutable session : string;
   mutable seed : int option;
@@ -166,6 +218,8 @@ type opts = {
   mutable repeat : int;
   mutable strip_dirs : string list;
   mutable paths : string list;
+  mutable repo : string option;
+  mutable revision : string option;
 }
 
 let parse_args argv =
@@ -178,7 +232,7 @@ let parse_args argv =
       shrink_challenge_minimal = false; shrink_solution_minimal = false;
       allow_defined = false; delete_lemmas = false; delete_count = None; delete_uniform = false;
       delete_leaves = false; aggressive = false; corollary = false; corollary_all = false;
-      repeat = 1; strip_dirs = []; paths = [] }
+      repeat = 1; strip_dirs = []; paths = []; repo = None; revision = None }
   in
   let n = Array.length argv in
   let i = ref 1 in
@@ -235,6 +289,8 @@ let parse_args argv =
      | "--seed" -> o.seed <- Some (int_of_string (next a))
      | "-s" -> o.session <- next a
      | "-d" -> o.strip_dirs <- next a :: o.strip_dirs
+     | "--repo" -> o.repo <- Some (next a)
+     | "--revision" -> o.revision <- Some (next a)
      | _ ->
          if String.length a > 0 && a.[0] = '-' && a <> "-" then die ("Unknown option: " ^ a)
          else o.paths <- a :: o.paths);
@@ -374,19 +430,24 @@ let () =
   List.iter
     (fun (path, original) ->
       let display = display_path o.strip_dirs path in
+      let det_repo, det_rev = git_info path in
+      let repo = (match o.repo with Some _ as r -> r | None -> det_repo) in
+      let revision = (match o.revision with Some _ as r -> r | None -> det_rev) in
       let spans = Span.parse_spans original in
       let seen = Hashtbl.create 8 in
       let produced = ref 0 in
-      (* dedup key: normally the challenge text (distinct challenges), but under
-         --corollary-delete-lemmas*-all the (deleted lemma(s), corollary) PAIR — so the
-         same lemma deleted for two different corollaries is kept (both are real
-         per-corollary challenges), only an identical lemma/corollary pair is dropped. *)
+      (* Dedup on the (challenge, solution) TEXT — what a solver actually sees.
+
+         This used to key on the (deleted lemma(s), corollary) pair under
+         --corollary-delete-lemmas*-all, to keep "the same lemma deleted for different
+         corollaries". But those often render identically: once the minimal slice is taken,
+         two corollaries sharing a deleted lemma frequently produce a byte-identical
+         challenge. The solver cannot tell them apart, so they are the same problem — yet
+         they shipped as distinct records with distinct challenge_ids (the id hashes the
+         corollary/variant, so it could not detect the collision either). In Lean this
+         duplicated 50% of the mined corpus. *)
       let dedup_key (result : Ablate.result) =
-        if spec.Ablate.corollary_all then
-          let names f xs = String.concat "," (List.sort compare (List.map f xs)) in
-          names (fun (d : Ablate.deleted_lemma) -> d.Ablate.d_name) result.Ablate.deleted
-          ^ "\x00" ^ names (fun (c : Ablate.corollary) -> c.Ablate.co_name) result.Ablate.corollaries
-        else result.Ablate.text
+        result.Ablate.text ^ "\x00" ^ result.Ablate.solution
       in
       (* emit one ablation result (deduped, non-trivial only). A file yielding several
          records — via --repeat OR --corollary-delete-lemmas*-all — gets a variant index;
@@ -408,7 +469,7 @@ let () =
             let obj =
               Record.record ~file_path:display ~session:o.session ~spec
                 ~seed:(Int64.to_int base_seed) ~variant ~difficulty:o.difficulty
-                ~result
+                ~repo ~revision ~result
             in
             print_endline
               (if o.compact then Yojson.Safe.to_string obj else Yojson.Safe.pretty_to_string obj)

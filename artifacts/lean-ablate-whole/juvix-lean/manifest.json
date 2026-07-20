@@ -1,0 +1,23 @@
+{
+  "repo": "juvix-lean",
+  "git_repo": "github.com/anoma/juvix-lean",
+  "revision": "f202e04219a84ce8f56b2c3fffa3409237c5daea",
+  "lean_toolchain": "leanprover/lean4:v4.19.0-rc2",
+  "proof_assistant": "lean",
+  "ablator": "ablators/lean (corollary-delete-lemmas-all)",
+  "ablator_flags": [
+    "--corollary-delete-lemmas-all",
+    "--shrink-solution-minimal",
+    "--compact",
+    "--seed",
+    "42"
+  ],
+  "seed": 42,
+  "validation": "ablate-baseline --dry-run (preflight compile of challenge + solution)",
+  "counts": {
+    "mined_total": 19,
+    "good_kept": 17,
+    "well_formed": 17,
+    "malformed": 2
+  }
+}

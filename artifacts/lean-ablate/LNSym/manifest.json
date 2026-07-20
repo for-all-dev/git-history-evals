@@ -1,0 +1,24 @@
+{
+  "repo": "LNSym",
+  "git_repo": "github.com/leanprover/LNSym",
+  "revision": "5c05220ff970e3bdd7813ad0c9ef3741522c8b92",
+  "lean_toolchain": "leanprover/lean4:nightly-2024-10-07",
+  "proof_assistant": "lean",
+  "ablator": "ablators/lean (corollary-delete-lemmas-leaves-all)",
+  "ablator_flags": [
+    "--corollary-delete-lemmas-leaves-all",
+    "--shrink-solution-minimal",
+    "--compact",
+    "--seed",
+    "42"
+  ],
+  "seed": 42,
+  "validation": "ablate-baseline --dry-run (preflight compile of challenge + solution)",
+  "counts": {
+    "mined_total": 115,
+    "good_kept": 101,
+    "well_formed": 101,
+    "malformed": 11,
+    "sol_bad": 3
+  }
+}

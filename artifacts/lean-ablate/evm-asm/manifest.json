@@ -1,0 +1,24 @@
+{
+  "repo": "evm-asm",
+  "git_repo": "github.com/Verified-zkEVM/evm-asm",
+  "revision": "7d5875858bc3727250adb6880c8339048365b1b6",
+  "lean_toolchain": "leanprover/lean4:v4.30.0-rc1",
+  "proof_assistant": "lean",
+  "ablator": "ablators/lean (corollary-delete-lemmas-leaves-all)",
+  "ablator_flags": [
+    "--corollary-delete-lemmas-leaves-all",
+    "--shrink-solution-minimal",
+    "--compact",
+    "--seed",
+    "42"
+  ],
+  "seed": 42,
+  "validation": "ablate-baseline --dry-run (preflight compile of challenge + solution)",
+  "counts": {
+    "mined_total": 7407,
+    "good_kept": 7323,
+    "well_formed": 7323,
+    "sol_bad": 74,
+    "malformed": 10
+  }
+}

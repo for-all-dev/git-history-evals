@@ -1,0 +1,70 @@
+{
+  "schema_version": 1,
+  "dataset_id": "for-all-dev/cedar-spec-eval",
+  "version": "cedar-corollary-leaf-v1-9ab1ca6e",
+  "created_at": "2026-07-02T13:10:19.278282+00:00",
+  "source": {
+    "repo": "cedar-policy/cedar-spec",
+    "submodule_path": "data/cedar-spec",
+    "range": {
+      "from": null,
+      "to": null,
+      "filter": "Syntactic ablation (not git-history mining): each challenge deletes one lemma from a random theorem's in-file dependency closure (corollary leaves) and holes its in-file users; challenge+solution minimally sliced."
+    },
+    "shas": [
+      "795ddccff61c83aeb5d6a7ccd22abf5e00164c73"
+    ]
+  },
+  "miner": {
+    "kind": "ablator",
+    "ablator": "lean-ablator",
+    "command": "ablate Cedar/Thm --corollary-delete-lemmas-leaves 1 --shrink-challenge-minimal --shrink-solution-minimal --seed 11 --compact",
+    "lean_toolchain": "leanprover/lean4:v4.31.0",
+    "code_snapshot": "miner/",
+    "profile_hash": null,
+    "prompt_hash": null,
+    "scaffold_version": "8664035e15c8f897182b60f1cfbc633ff5f120fb",
+    "agent": null
+  },
+  "schema": {
+    "row_version": 0,
+    "row_version_notes": "ablator JSONL row (record.py schema): challenge_file_content + solution_file_content + solution_diff + deleted_lemmas + holes_filled.",
+    "assistant": "lean",
+    "core_fields": [
+      "proof_assistant",
+      "file_path",
+      "challenge_file_content",
+      "solution_file_content",
+      "solution_diff",
+      "deleted_lemmas",
+      "holes_filled",
+      "seed"
+    ],
+    "extras_namespace": "lean"
+  },
+  "stats": {
+    "n_challenges": 56,
+    "challenge_chars_histogram": {
+      "<2k": 23,
+      "2k-8k": 25,
+      "8k+": 8
+    },
+    "deleted_lemmas_histogram": {
+      "1": 56
+    },
+    "holes_histogram": {
+      "1": 36,
+      "2-3": 17,
+      "4+": 3
+    }
+  },
+  "blobs": [
+    {
+      "path": "challenges.jsonl",
+      "hash": "ece9b6f35262f7d72219884ee0325998ea6e1e522ca554d578683b0d0e3b32ea",
+      "size_bytes": 1249406,
+      "url": null,
+      "role": "challenges"
+    }
+  ]
+}

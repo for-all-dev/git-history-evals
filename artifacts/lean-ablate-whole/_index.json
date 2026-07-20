@@ -1,0 +1,2240 @@
+{
+  "dataset": "lean-ablate",
+  "proof_assistant": "lean",
+  "repos": {
+    "ArkLib": {
+      "git_repo": "github.com/Verified-zkEVM/ArkLib",
+      "revision": "5a83bfb4383503d70d7b5a05355d396855b3151b",
+      "lean_toolchain": "leanprover/lean4:v4.30.0",
+      "modes": {
+        "corollary-leaves": {
+          "validated": 299,
+          "mined": 587,
+          "malformed": 150,
+          "sol_bad": 138,
+          "blobs": {
+            "challenges.jsonl": {
+              "sha256": "eab88af5b2a5398c43cd8cc66937ba9d56d02807cfb5280212a76c4faa1c4c37",
+              "bytes": 9892587
+            },
+            "challenges.all.jsonl": {
+              "sha256": "3e1f89f4bc65290f58612970411e8d494ad43aa21da248405bc261deaf6f786e",
+              "bytes": 23265439
+            }
+          }
+        },
+        "corollary-whole": {
+          "validated": 299,
+          "mined": 587,
+          "malformed": 147,
+          "sol_bad": 141,
+          "blobs": {
+            "challenges.jsonl": {
+              "sha256": "96227fd8f44e9ef98e7a16bdc479652534d96ad74407feb9feb17ee8690d26d3",
+              "bytes": 9881601
+            },
+            "challenges.all.jsonl": {
+              "sha256": "99d0bf81dd0eb056c40859f3e3474c0917d586a6502743889ceb51f1734e14a1",
+              "bytes": 23260890
+            }
+          }
+        }
+      }
+    },
+    "Clear": {
+      "git_repo": "github.com/NethermindEth/Clear",
+      "revision": "6ef2e7eda01080e5d5fd7474354c1a71adab5071",
+      "lean_toolchain": "leanprover/lean4:v4.9.1",
+      "modes": {
+        "corollary-leaves": {
+          "validated": 26,
+          "mined": 28,
+          "malformed": 2,
+          "sol_bad": 0,
+          "blobs": {
+            "challenges.jsonl": {
+              "sha256": "4dafe97ed495fd6422ea4bd0508bbae4c081109841152cd99027da3d0d86043d",
+              "bytes": 843438
+            },
+            "challenges.all.jsonl": {
+              "sha256": "e4aceb38476bd30f229bfbecc864d9f9386223e4e30d6f9b67ecb3ded1df6ea2",
+              "bytes": 928800
+            }
+          }
+        },
+        "corollary-whole": {
+          "validated": 26,
+          "mined": 28,
+          "malformed": 2,
+          "sol_bad": 0,
+          "blobs": {
+            "challenges.jsonl": {
+              "sha256": "0bf5e0c97411013349cdb839b244768e923472a83f6aff978d4797848f3bf821",
+              "bytes": 843512
+            },
+            "challenges.all.jsonl": {
+              "sha256": "acf41cbce9cb736aea8f7e2819ec0aa73bde96585ca40dd84d8197d3193089ff",
+              "bytes": 928874
+            }
+          }
+        }
+      }
+    },
+    "CompPoly": {
+      "git_repo": "github.com/Verified-zkEVM/CompPoly",
+      "revision": "e95ba1b1cac21ac3e980725abcfb2a0c707d1062",
+      "lean_toolchain": "leanprover/lean4:v4.31.0",
+      "modes": {
+        "corollary-leaves": {
+          "validated": 927,
+          "mined": 1269,
+          "malformed": 311,
+          "sol_bad": 31,
+          "blobs": {
+            "challenges.jsonl": {
+              "sha256": "b994a8640d66409726d433d5f6e72f9edab12d58dd082acb5aef5ef4e3523953",
+              "bytes": 34324540
+            },
+            "challenges.all.jsonl": {
+              "sha256": "5df6be9996c75a016624ed2cf4fa999f3f549864978e84623935cbb4335a9839",
+              "bytes": 45459328
+            }
+          }
+        },
+        "corollary-whole": {
+          "validated": 928,
+          "mined": 1269,
+          "malformed": 288,
+          "sol_bad": 53,
+          "blobs": {
+            "challenges.jsonl": {
+              "sha256": "10db72963317bba30d6e3e0c3d4578dbdece52f50877231238b81e6f18c5130e",
+              "bytes": 34504986
+            },
+            "challenges.all.jsonl": {
+              "sha256": "8fd0165876c73fa000c3ce0234b9b49eb9384f9d9d08c7cbd5e1b06a1cee0a64",
+              "bytes": 45441840
+            }
+          }
+        }
+      }
+    },
+    "CvxLean": {
+      "git_repo": "github.com/verified-optimization/CvxLean",
+      "revision": "c62c2f292c6420f31a12e738ebebdfed50f6f840",
+      "lean_toolchain": "leanprover/lean4:v4.8.0-rc1",
+      "modes": {
+        "corollary-leaves": {
+          "validated": 25,
+          "mined": 29,
+          "malformed": 4,
+          "sol_bad": 0,
+          "blobs": {
+            "challenges.jsonl": {
+              "sha256": "916219af0c893aa5d81537dbb7ad7ed936cbaae6f1efbd55023ab74270a5e7d0",
+              "bytes": 216658
+            },
+            "challenges.all.jsonl": {
+              "sha256": "f6be67079bdc8ba74a43d33f4a0f47e60f91785c950ad5a4784b35cba44ada35",
+              "bytes": 294529
+            }
+          }
+        },
+        "corollary-whole": {
+          "validated": 25,
+          "mined": 29,
+          "malformed": 4,
+          "sol_bad": 0,
+          "blobs": {
+            "challenges.jsonl": {
+              "sha256": "fcab8367f6825418bf9fc91084fbd1e2fb67ce15d881c459edbe8d8f3edb84eb",
+              "bytes": 216555
+            },
+            "challenges.all.jsonl": {
+              "sha256": "5d531dbab7e4dad6a788d5572ad3a8e9931a1a36a44624dd8d44f54379c8489d",
+              "bytes": 294426
+            }
+          }
+        }
+      }
+    },
+    "FLoPS": {
+      "git_repo": "github.com/rutgers-apl/FLoPS",
+      "revision": "95081ac643663da507115abe23ebd5701433587f",
+      "lean_toolchain": "leanprover/lean4:v4.28.0",
+      "modes": {
+        "corollary-leaves": {
+          "validated": 151,
+          "mined": 183,
+          "malformed": 22,
+          "sol_bad": 10,
+          "blobs": {
+            "challenges.jsonl": {
+              "sha256": "1fb980743597e19e5088db589fb513dd060a6f2b02978ab9d1e80dbe13c2b807",
+              "bytes": 5153062
+            },
+            "challenges.all.jsonl": {
+              "sha256": "03383f9038afae62a99a78d57c2fe31427e0845208a76d562a78016299af3fe0",
+              "bytes": 5802228
+            }
+          }
+        },
+        "corollary-whole": {
+          "validated": 151,
+          "mined": 183,
+          "malformed": 18,
+          "sol_bad": 14,
+          "blobs": {
+            "challenges.jsonl": {
+              "sha256": "5873ca6cead20f49747a5c88b91af65ff14c63699d1c5ffd014c7509ab2542cc",
+              "bytes": 5148135
+            },
+            "challenges.all.jsonl": {
+              "sha256": "bb5347bea74854acfd1aeaaf431f5adceaf9ed770c6dfc874ba46d5e70d0cc3c",
+              "bytes": 5796117
+            }
+          }
+        }
+      }
+    },
+    "FVIntmax": {
+      "git_repo": "github.com/NethermindEth/FVIntmax",
+      "revision": "d7c4cbc5ec449471952ac5468f3b55bf61f5868e",
+      "lean_toolchain": "leanprover/lean4:v4.14.0-rc2",
+      "modes": {
+        "corollary-leaves": {
+          "validated": 47,
+          "mined": 49,
+          "malformed": 2,
+          "sol_bad": 0,
+          "blobs": {
+            "challenges.jsonl": {
+              "sha256": "3f68225478b0ddd5a6fa9e64d3674995fda4f29da0b602171473d8c23d806aa4",
+              "bytes": 2146997
+            },
+            "challenges.all.jsonl": {
+              "sha256": "9f7866b1e1f8427d87daa468afd4415f43491279499241f6dced6382f2dc8720",
+              "bytes": 2252425
+            }
+          }
+        },
+        "corollary-whole": {
+          "validated": 47,
+          "mined": 49,
+          "malformed": 2,
+          "sol_bad": 0,
+          "blobs": {
+            "challenges.jsonl": {
+              "sha256": "eb1999de7bd2af01197dec6edb4f3b67e9764f7933ffb6449f361fc81945cc77",
+              "bytes": 2149090
+            },
+            "challenges.all.jsonl": {
+              "sha256": "d2d3a115a6353d6448448c1cd4ab01f2285b898d6887efb8bf4b401f7b531993",
+              "bytes": 2254518
+            }
+          }
+        }
+      }
+    },
+    "Foundation": {
+      "git_repo": "github.com/FormalizedFormalLogic/Foundation",
+      "revision": "87d4dd68835a6c1eb8448b9c392d9ca51fe08d63",
+      "lean_toolchain": "leanprover/lean4:v4.31.0",
+      "modes": {
+        "corollary-leaves": {
+          "validated": 1026,
+          "mined": 1345,
+          "malformed": 182,
+          "sol_bad": 137,
+          "blobs": {
+            "challenges.jsonl": {
+              "sha256": "9eb9a195ab43a3ca50046d0b96aac25fb8de61848e39da99ad4c9c281620512f",
+              "bytes": 38083307
+            },
+            "challenges.all.jsonl": {
+              "sha256": "abb4b5fbf5dc459f9a8d03cf056b05086dcaff3f789fbba46cbdbdf6f88456a8",
+              "bytes": 50164390
+            }
+          }
+        },
+        "corollary-whole": {
+          "validated": 1033,
+          "mined": 1345,
+          "malformed": 170,
+          "sol_bad": 142,
+          "blobs": {
+            "challenges.jsonl": {
+              "sha256": "d12c5ef3ad54d626887f63c57f93c7be681163d101d2bb3eb4614ba7d2004507",
+              "bytes": 38320605
+            },
+            "challenges.all.jsonl": {
+              "sha256": "e785d3caac86090b1e36b6d8ee1c30c0b3f58b92e7db63ed16f5000033b20e06",
+              "bytes": 50177289
+            }
+          }
+        }
+      }
+    },
+    "LNSym": {
+      "git_repo": "github.com/leanprover/LNSym",
+      "revision": "5c05220ff970e3bdd7813ad0c9ef3741522c8b92",
+      "lean_toolchain": "leanprover/lean4:nightly-2024-10-07",
+      "modes": {
+        "corollary-leaves": {
+          "validated": 101,
+          "mined": 115,
+          "malformed": 11,
+          "sol_bad": 3,
+          "blobs": {
+            "challenges.jsonl": {
+              "sha256": "c63476de0e90ad43b511a4d4b4d8af9b60750885bc541637315ad337b8af6fcd",
+              "bytes": 4422281
+            },
+            "challenges.all.jsonl": {
+              "sha256": "2a71f4fa6d4174532cefabd69c6f9f84a62c5c1c33c65af26b2f9dd983694621",
+              "bytes": 5024778
+            }
+          }
+        },
+        "corollary-whole": {
+          "validated": 104,
+          "mined": 115,
+          "malformed": 8,
+          "sol_bad": 3,
+          "blobs": {
+            "challenges.jsonl": {
+              "sha256": "2fa828bd7c40f7907cf62462c4da706f30c762ab22f9923c159319d209797b0d",
+              "bytes": 4688426
+            },
+            "challenges.all.jsonl": {
+              "sha256": "764d2860eb3adc7fd28ddd236124c6423e501b523432a371fc6d6f7d89c6eb87",
+              "bytes": 5025414
+            }
+          }
+        }
+      }
+    },
+    "Lentil": {
+      "git_repo": "github.com/verse-lab/Lentil",
+      "revision": "bc3bc567928c4a4d0158496b7c18412f10b3304f",
+      "lean_toolchain": "leanprover/lean4:v4.31.0",
+      "modes": {
+        "corollary-leaves": {
+          "validated": 34,
+          "mined": 39,
+          "malformed": 4,
+          "sol_bad": 1,
+          "blobs": {
+            "challenges.jsonl": {
+              "sha256": "b0e3243f65571bd36c219f3818c8c8876714b7c71de82d0f5eace163bf7f5ff7",
+              "bytes": 455024
+            },
+            "challenges.all.jsonl": {
+              "sha256": "56ab6a069138d39cbe66b22a95178e500b3eff849316ee98730a899fc39a64c6",
+              "bytes": 554809
+            }
+          }
+        },
+        "corollary-whole": {
+          "validated": 34,
+          "mined": 39,
+          "malformed": 4,
+          "sol_bad": 1,
+          "blobs": {
+            "challenges.jsonl": {
+              "sha256": "b0e3243f65571bd36c219f3818c8c8876714b7c71de82d0f5eace163bf7f5ff7",
+              "bytes": 455024
+            },
+            "challenges.all.jsonl": {
+              "sha256": "56ab6a069138d39cbe66b22a95178e500b3eff849316ee98730a899fc39a64c6",
+              "bytes": 554809
+            }
+          }
+        }
+      }
+    },
+    "LeroyCompilerVerificationCourse": {
+      "git_repo": "github.com/leanprover/LeroyCompilerVerificationCourse",
+      "revision": "a2730e7f9228b9d7ecf4510f1f8652f2cae7ba01",
+      "lean_toolchain": "leanprover/lean4:v4.23.0-rc2",
+      "modes": {
+        "corollary-leaves": {
+          "validated": 15,
+          "mined": 18,
+          "malformed": 2,
+          "sol_bad": 1,
+          "blobs": {
+            "challenges.jsonl": {
+              "sha256": "faf1a6f89047e34b45fca1f0865529848c2a574f9dade98d9e1de1cf7f236351",
+              "bytes": 666520
+            },
+            "challenges.all.jsonl": {
+              "sha256": "4cb00c3da48ced82db3be5f242d2af5b2b0a2a0534ab15f66dc1e02e7b690401",
+              "bytes": 807881
+            }
+          }
+        },
+        "corollary-whole": {
+          "validated": 17,
+          "mined": 18,
+          "malformed": 0,
+          "sol_bad": 1,
+          "blobs": {
+            "challenges.jsonl": {
+              "sha256": "52d13471b4f9c25c07cac3a52a0137c66e61caa6d6516fc4d69a378bf065a05b",
+              "bytes": 788369
+            },
+            "challenges.all.jsonl": {
+              "sha256": "ef02cc9aee14d9d77490b6a64e1faa77fcb3b623386210f19db68796f6203205",
+              "bytes": 807044
+            }
+          }
+        }
+      }
+    },
+    "SampCert": {
+      "git_repo": "github.com/leanprover/SampCert",
+      "revision": "6e2392c165652063fefc628d8f047b77ca393b0f",
+      "lean_toolchain": "leanprover/lean4:v4.29.0",
+      "modes": {
+        "corollary-leaves": {
+          "validated": 167,
+          "mined": 177,
+          "malformed": 10,
+          "sol_bad": 0,
+          "blobs": {
+            "challenges.jsonl": {
+              "sha256": "0335fecaac797d5009068c798b9eae3491c62063aef6df04bd8a12bbb2f402a7",
+              "bytes": 7405334
+            },
+            "challenges.all.jsonl": {
+              "sha256": "958ca4c4226e3df517f6af478c0189a4360562aed7a1ce7107d3d47c7b717083",
+              "bytes": 7934238
+            }
+          }
+        },
+        "corollary-whole": {
+          "validated": 175,
+          "mined": 177,
+          "malformed": 2,
+          "sol_bad": 0,
+          "blobs": {
+            "challenges.jsonl": {
+              "sha256": "f97adb65da8ff01140eb43431a7b69fa4aa9a4679108769d8b7e573ecf647781",
+              "bytes": 7787031
+            },
+            "challenges.all.jsonl": {
+              "sha256": "f96e107a8591acdf04d36fb687a3fb0119779684a67be2979ae3db50da4bd759",
+              "bytes": 7946421
+            }
+          }
+        }
+      }
+    },
+    "SizzLean": {
+      "git_repo": "github.com/etheorem/etheorem",
+      "revision": "032ab6c6d67186ba60b734e0f2c44ba1bb8b6fb0",
+      "lean_toolchain": "leanprover/lean4:v4.29.1",
+      "modes": {
+        "corollary-leaves": {
+          "validated": 8,
+          "mined": 38,
+          "malformed": 27,
+          "sol_bad": 3,
+          "blobs": {
+            "challenges.jsonl": {
+              "sha256": "cae2e95e7f8c74a34302c8f664719985f0128ff7779d32d136b0f8c06f53f16a",
+              "bytes": 218846
+            },
+            "challenges.all.jsonl": {
+              "sha256": "0511a5a9c72aa79094b12001354c46a3a46b1bf6f06cbf4f8bd9fc6531501aa7",
+              "bytes": 798176
+            }
+          }
+        },
+        "corollary-whole": {
+          "validated": 8,
+          "mined": 38,
+          "malformed": 27,
+          "sol_bad": 3,
+          "blobs": {
+            "challenges.jsonl": {
+              "sha256": "64271e8eb195dde893497c25e2b0ca5bea805e2a2f03a2733f756329c6f2d282",
+              "bytes": 218775
+            },
+            "challenges.all.jsonl": {
+              "sha256": "4d01967d55d3a2112575ce03b8008835cfb1006bcb61dfbb25c290cede1fbf93",
+              "bytes": 798082
+            }
+          }
+        }
+      }
+    },
+    "TTBFL": {
+      "git_repo": "github.com/ionathanch/TTBFL",
+      "revision": "274b8d0410b7c1671f15f140e75634065bb06bf9",
+      "lean_toolchain": "leanprover/lean4:v4.29.0",
+      "modes": {
+        "corollary-leaves": {
+          "validated": 135,
+          "mined": 172,
+          "malformed": 24,
+          "sol_bad": 13,
+          "blobs": {
+            "challenges.jsonl": {
+              "sha256": "5a3526069bb62c495b3f741a3952354edb0ec00803282d3569d15ac6fb533011",
+              "bytes": 1879712
+            },
+            "challenges.all.jsonl": {
+              "sha256": "b70b64e6e8568665aad59a90f1d285026ce7c732d8ca03fd0dd503c069646a00",
+              "bytes": 2442325
+            }
+          }
+        },
+        "corollary-whole": {
+          "validated": 136,
+          "mined": 172,
+          "malformed": 23,
+          "sol_bad": 13,
+          "blobs": {
+            "challenges.jsonl": {
+              "sha256": "e0ce6f8163b9b1eea303d76cfd0cc3decd60fc94376555f136ca8159b9825003",
+              "bytes": 1916167
+            },
+            "challenges.all.jsonl": {
+              "sha256": "cdf5c2edfdf618204bcb8b02fd82bc1a065384f2f373be5340ad5f733e46e320",
+              "bytes": 2441871
+            }
+          }
+        }
+      }
+    },
+    "TensorLib": {
+      "git_repo": "github.com/leanprover/TensorLib",
+      "revision": "5eedd07b028057a317ae2fffbe48d6781bb34aff",
+      "lean_toolchain": "leanprover/lean4:v4.23.0",
+      "modes": {
+        "corollary-leaves": {
+          "validated": 2,
+          "mined": 2,
+          "malformed": 0,
+          "sol_bad": 0,
+          "blobs": {
+            "challenges.jsonl": {
+              "sha256": "fa3ae971cec62b670fb06603cb18efe5064c6dc98fe8cda6733c6bcaeb942f25",
+              "bytes": 84508
+            },
+            "challenges.all.jsonl": {
+              "sha256": "fa3ae971cec62b670fb06603cb18efe5064c6dc98fe8cda6733c6bcaeb942f25",
+              "bytes": 84508
+            }
+          }
+        },
+        "corollary-whole": {
+          "validated": 2,
+          "mined": 2,
+          "malformed": 0,
+          "sol_bad": 0,
+          "blobs": {
+            "challenges.jsonl": {
+              "sha256": "c826b8ae2c46821fdd55297144e8249c938091c5a2e87686f82847776a4efa87",
+              "bytes": 84091
+            },
+            "challenges.all.jsonl": {
+              "sha256": "c826b8ae2c46821fdd55297144e8249c938091c5a2e87686f82847776a4efa87",
+              "bytes": 84091
+            }
+          }
+        }
+      }
+    },
+    "TorchLean": {
+      "git_repo": "github.com/lean-dojo/TorchLean",
+      "revision": "a0c5bdf2bb02c25b270a2c89a12ad2335c86c530",
+      "lean_toolchain": "leanprover/lean4:v4.31.0",
+      "modes": {
+        "corollary-leaves": {
+          "validated": 700,
+          "mined": 740,
+          "malformed": 27,
+          "sol_bad": 13,
+          "blobs": {
+            "challenges.jsonl": {
+              "sha256": "0986f5a635d4874a0d4bee435fc001e9d798d4a9d516d92d92d132b90261858b",
+              "bytes": 27219561
+            },
+            "challenges.all.jsonl": {
+              "sha256": "012ba69fe7968d01913f74f6104d87e78efa225270510113bcb191a88ec57797",
+              "bytes": 28726340
+            }
+          }
+        },
+        "corollary-whole": {
+          "validated": 701,
+          "mined": 740,
+          "malformed": 26,
+          "sol_bad": 13,
+          "blobs": {
+            "challenges.jsonl": {
+              "sha256": "c8fffb177e4bceee05ca042cd5c7919528dd2fe420db52bd832cee72d54e7469",
+              "bytes": 27207453
+            },
+            "challenges.all.jsonl": {
+              "sha256": "2e7829574d818297f35ab350648881c9e81ed784448736a44ae848b2c1a3e3ce",
+              "bytes": 28695266
+            }
+          }
+        }
+      }
+    },
+    "VCV-io": {
+      "git_repo": "github.com/Verified-zkEVM/VCV-io",
+      "revision": "24fe01dbaf899b7bb2b19453ae2ada61b49b4255",
+      "lean_toolchain": "leanprover/lean4:v4.30.0",
+      "modes": {
+        "corollary-leaves": {
+          "validated": 772,
+          "mined": 1469,
+          "malformed": 640,
+          "sol_bad": 57,
+          "blobs": {
+            "challenges.jsonl": {
+              "sha256": "74469424d4284e9efdc73cb4563abb3b673d3cfa50f7efc11d1f37a5195d55aa",
+              "bytes": 29706610
+            },
+            "challenges.all.jsonl": {
+              "sha256": "1163b9d44e665c3e9f491df74116a23fb2cc5c88fca22507a9dfb647891655ac",
+              "bytes": 62248274
+            }
+          }
+        },
+        "corollary-whole": {
+          "validated": 773,
+          "mined": 1469,
+          "malformed": 613,
+          "sol_bad": 83,
+          "blobs": {
+            "challenges.jsonl": {
+              "sha256": "25d38305ab8e6b4116d091086113124e636ed0bd696aacd7699fb127158d71d9",
+              "bytes": 29714198
+            },
+            "challenges.all.jsonl": {
+              "sha256": "d2c5bbda9f192788c6a984ba89f45bbb53375b066b25c424ac5e7dea4af93398",
+              "bytes": 62278562
+            }
+          }
+        }
+      }
+    },
+    "adler-proofs": {
+      "git_repo": "github.com/septract/adler-proofs",
+      "revision": "e500f96af690e90eb185aa39caa798c07d671d82",
+      "lean_toolchain": null,
+      "modes": {
+        "corollary-leaves": {
+          "validated": 8,
+          "mined": 43,
+          "malformed": 0,
+          "sol_bad": 35,
+          "blobs": {
+            "challenges.jsonl": {
+              "sha256": "6363cd68099f97a7069e85c8c3f75148e9c728725fdb4d4c169403047ed415d7",
+              "bytes": 208200
+            },
+            "challenges.all.jsonl": {
+              "sha256": "976bd18c8ec77964800a9e6947c2e3883ac51a8636570e5f39c3e7e7cd685d51",
+              "bytes": 7603897
+            }
+          }
+        },
+        "corollary-whole": {
+          "validated": 8,
+          "mined": 43,
+          "malformed": 0,
+          "sol_bad": 35,
+          "blobs": {
+            "challenges.jsonl": {
+              "sha256": "a1089fd2510e1ad4ef7f524dd697366be4322da4221d2e7bfd6eb5c5a5550687",
+              "bytes": 208393
+            },
+            "challenges.all.jsonl": {
+              "sha256": "607ccbd2e83311fb3501632053730b60c278e7b1fa188e7eb7071c236572a6cf",
+              "bytes": 7606983
+            }
+          }
+        }
+      }
+    },
+    "aeneas": {
+      "git_repo": "github.com/AeneasVerif/aeneas",
+      "revision": "483333f74278333101795c4e55dbf09e50763f37",
+      "lean_toolchain": "leanprover/lean4:v4.31.0",
+      "modes": {
+        "corollary-leaves": {
+          "validated": 60,
+          "mined": 81,
+          "malformed": 15,
+          "sol_bad": 6,
+          "blobs": {
+            "challenges.jsonl": {
+              "sha256": "2da8111906d4efcc571052f0ae5ee43143b9b479bf4422ba066924175756cdc1",
+              "bytes": 2587652
+            },
+            "challenges.all.jsonl": {
+              "sha256": "336601d74814fad1306763be2597948f238c93916b7b77ab1c500596b180a4da",
+              "bytes": 3445657
+            }
+          }
+        },
+        "corollary-whole": {
+          "validated": 59,
+          "mined": 81,
+          "malformed": 16,
+          "sol_bad": 6,
+          "blobs": {
+            "challenges.jsonl": {
+              "sha256": "360429d025174afb62a43943f28b2fc444d54a8e668283ed35eed5c7120eb8e4",
+              "bytes": 2552064
+            },
+            "challenges.all.jsonl": {
+              "sha256": "a0581fc7d4248aad06f018eac73e09b4d2b8fd0bfb5c3e5e6aa0172919b0bcc7",
+              "bytes": 3449646
+            }
+          }
+        }
+      }
+    },
+    "apc-optimizer": {
+      "git_repo": "github.com/powdr-labs/apc-optimizer",
+      "revision": "bd367dd92ecaabcdc3a308473fbe966da9a1c03c",
+      "lean_toolchain": "leanprover/lean4:v4.30.0-rc1",
+      "modes": {
+        "corollary-leaves": {
+          "validated": 128,
+          "mined": 130,
+          "malformed": 2,
+          "sol_bad": 0,
+          "blobs": {
+            "challenges.jsonl": {
+              "sha256": "2b4e061e886d26e7abd5bea5d44b79b940635b0c487d966f49f6ee7338b3c3fe",
+              "bytes": 8285291
+            },
+            "challenges.all.jsonl": {
+              "sha256": "0d65d951dc89f572c1ecab69475b5b23a9c33ac50b8a313e5e231fd50782b4fb",
+              "bytes": 8480215
+            }
+          }
+        },
+        "corollary-whole": {
+          "validated": 128,
+          "mined": 130,
+          "malformed": 2,
+          "sol_bad": 0,
+          "blobs": {
+            "challenges.jsonl": {
+              "sha256": "4629fd35b5bd623b06581027983e62e70a816e6dc75a07e34ef70c6165f79edf",
+              "bytes": 8133301
+            },
+            "challenges.all.jsonl": {
+              "sha256": "6705296f1bd80a8345e889a20b6569647cc52326586105597118caa216aad95b",
+              "bytes": 8481259
+            }
+          }
+        }
+      }
+    },
+    "btc-verified": {
+      "git_repo": "github.com/ProofOfKeags/btc-verified",
+      "revision": "251ae35b2caf564608f0c6bc35933d7837bfe0c4",
+      "lean_toolchain": "leanprover/lean4:v4.30.0-rc2",
+      "modes": {
+        "corollary-leaves": {
+          "validated": 25,
+          "mined": 27,
+          "malformed": 0,
+          "sol_bad": 2,
+          "blobs": {
+            "challenges.jsonl": {
+              "sha256": "13931b0310d18808dcdbe2a696010faece32d4de3945c64da739ba2650afded9",
+              "bytes": 827693
+            },
+            "challenges.all.jsonl": {
+              "sha256": "f375a52eaf06ba95d27699689ce017bc9828d05f508c75e3eac530f9a30bc0ab",
+              "bytes": 862387
+            }
+          }
+        },
+        "corollary-whole": {
+          "validated": 25,
+          "mined": 27,
+          "malformed": 0,
+          "sol_bad": 2,
+          "blobs": {
+            "challenges.jsonl": {
+              "sha256": "790f3def3c801047e6d336b942b666cf60a5df604e7be8acd730d760093d0cd8",
+              "bytes": 828668
+            },
+            "challenges.all.jsonl": {
+              "sha256": "54a29ec7aca60c067061a4e2679f9c5c908da46df58aaea184cd0a29131324a3",
+              "bytes": 863362
+            }
+          }
+        }
+      }
+    },
+    "capless-lean": {
+      "git_repo": "github.com/Linyxus/capless-lean",
+      "revision": "9beeba12d520c447791349f079256254fc413f1b",
+      "lean_toolchain": "leanprover/lean4:v4.21.0-rc3",
+      "modes": {
+        "corollary-leaves": {
+          "validated": 93,
+          "mined": 93,
+          "malformed": 0,
+          "sol_bad": 0,
+          "blobs": {
+            "challenges.jsonl": {
+              "sha256": "f03facb6efcaf60e745d8118acb3a28074da3168764cc705e27c37ce135b4b3e",
+              "bytes": 1182994
+            },
+            "challenges.all.jsonl": {
+              "sha256": "f03facb6efcaf60e745d8118acb3a28074da3168764cc705e27c37ce135b4b3e",
+              "bytes": 1182994
+            }
+          }
+        },
+        "corollary-whole": {
+          "validated": 93,
+          "mined": 93,
+          "malformed": 0,
+          "sol_bad": 0,
+          "blobs": {
+            "challenges.jsonl": {
+              "sha256": "f03facb6efcaf60e745d8118acb3a28074da3168764cc705e27c37ce135b4b3e",
+              "bytes": 1182994
+            },
+            "challenges.all.jsonl": {
+              "sha256": "f03facb6efcaf60e745d8118acb3a28074da3168764cc705e27c37ce135b4b3e",
+              "bytes": 1182994
+            }
+          }
+        }
+      }
+    },
+    "cedar-spec": {
+      "git_repo": "github.com/cedar-policy/cedar-spec",
+      "revision": "795ddccff61c83aeb5d6a7ccd22abf5e00164c73",
+      "lean_toolchain": "leanprover/lean4:v4.31.0",
+      "modes": {
+        "corollary-leaves": {
+          "validated": 1033,
+          "mined": 1107,
+          "malformed": 74,
+          "sol_bad": 0,
+          "blobs": {
+            "challenges.jsonl": {
+              "sha256": "e852e00aa45c6447833c78ccf18c321a7e2057b99c329e61fb9871a623f2575e",
+              "bytes": 26715326
+            },
+            "challenges.all.jsonl": {
+              "sha256": "c9ab99cea4833664fe4c1f9c3909c1f6ea365a891b92c20d4ef7aa16330f63a8",
+              "bytes": 28726227
+            }
+          }
+        },
+        "corollary-whole": {
+          "validated": 1038,
+          "mined": 1107,
+          "malformed": 69,
+          "sol_bad": 0,
+          "blobs": {
+            "challenges.jsonl": {
+              "sha256": "4bb16c95195545b5420427847cb08f4d236433f368306f4ed03b86b22bc4597d",
+              "bytes": 26816209
+            },
+            "challenges.all.jsonl": {
+              "sha256": "3d0eff97119d771e912e024973b7bf241579fea44b877b1422f197edc4f4c144",
+              "bytes": 28708856
+            }
+          }
+        }
+      }
+    },
+    "clean": {
+      "git_repo": "github.com/Verified-zkEVM/clean",
+      "revision": "1e563b9c27991b3795eb440c1ee0757edb4ce8b1",
+      "lean_toolchain": "leanprover/lean4:v4.30.0",
+      "modes": {
+        "corollary-leaves": {
+          "validated": 238,
+          "mined": 334,
+          "malformed": 75,
+          "sol_bad": 21,
+          "blobs": {
+            "challenges.jsonl": {
+              "sha256": "2c884b5136634c62a8d7cad769be6b5459d30b8a0a4726619a4d9b043b67f353",
+              "bytes": 9091524
+            },
+            "challenges.all.jsonl": {
+              "sha256": "4bfaa695236e3e22c7b7cc12309eba3f5dfef2b79de108dc947ecda6fa1dc248",
+              "bytes": 12054464
+            }
+          }
+        },
+        "corollary-whole": {
+          "validated": 239,
+          "mined": 334,
+          "malformed": 69,
+          "sol_bad": 26,
+          "blobs": {
+            "challenges.jsonl": {
+              "sha256": "46f750649d6c24ce9fe0ef871e51fc521579c4c2e0972fe37cb4851fed7f31a3",
+              "bytes": 9222374
+            },
+            "challenges.all.jsonl": {
+              "sha256": "8399a56a972cf7d6bbe2ffce3cfb2d57ce0f633296981462df63134609378a4a",
+              "bytes": 12056582
+            }
+          }
+        }
+      }
+    },
+    "cslib": {
+      "git_repo": "github.com/leanprover/cslib",
+      "revision": "c0120dddfe75d4ab913691c0c184fc436927b19d",
+      "lean_toolchain": "leanprover/lean4:v4.32.0-rc1",
+      "modes": {
+        "corollary-leaves": {
+          "validated": 284,
+          "mined": 409,
+          "malformed": 102,
+          "sol_bad": 23,
+          "blobs": {
+            "challenges.jsonl": {
+              "sha256": "78069f12d6443c2aa558511cdb68abbd4aa8c5659ed2087e1b2eacceda132a0b",
+              "bytes": 6127546
+            },
+            "challenges.all.jsonl": {
+              "sha256": "efc5029641372808e97a98637b836aa3a98df11314abb587fe3f546ebe2610af",
+              "bytes": 9239248
+            }
+          }
+        },
+        "corollary-whole": {
+          "validated": 286,
+          "mined": 409,
+          "malformed": 98,
+          "sol_bad": 25,
+          "blobs": {
+            "challenges.jsonl": {
+              "sha256": "4952bfe2b4c92fa8ee3e24d4c5870073124b1d772d51b719e7e29bda3fca5eb4",
+              "bytes": 6160222
+            },
+            "challenges.all.jsonl": {
+              "sha256": "32bdd94509f4466852d4bb5c9cc0ddbe7bc77fea9285b159b948ee168a99daae",
+              "bytes": 9253406
+            }
+          }
+        }
+      }
+    },
+    "curve25519-dalek-lean-verify": {
+      "git_repo": "github.com/Beneficial-AI-Foundation/curve25519-dalek-lean-verify",
+      "revision": "b9fae801a9e47ac522ea6455a28b78e1d1e1fda5",
+      "lean_toolchain": "leanprover/lean4:v4.30.0-rc2",
+      "modes": {
+        "corollary-leaves": {
+          "validated": 168,
+          "mined": 227,
+          "malformed": 47,
+          "sol_bad": 12,
+          "blobs": {
+            "challenges.jsonl": {
+              "sha256": "42e10d4295f225eb36749049fe7c4134c820b6c351a5c2dce93ccd5d819e8736",
+              "bytes": 8118145
+            },
+            "challenges.all.jsonl": {
+              "sha256": "47489c1f75bbb02ca703e7c2e7a4c3cf76120ab50383e4501f7482bfba949890",
+              "bytes": 11738844
+            }
+          }
+        },
+        "corollary-whole": {
+          "validated": 168,
+          "mined": 227,
+          "malformed": 47,
+          "sol_bad": 12,
+          "blobs": {
+            "challenges.jsonl": {
+              "sha256": "610447a9ad0bfcc2f96bb611657be0837bd53b04a681e24cd27506fc9f5aa52f",
+              "bytes": 8121006
+            },
+            "challenges.all.jsonl": {
+              "sha256": "b6ae25e867b82e26fed6375ed8ab3d0ac26aa9ca69f08040dda089659d580e50",
+              "bytes": 11743416
+            }
+          }
+        }
+      }
+    },
+    "dolev-yao": {
+      "git_repo": "github.com/metareflection/dolev-yao",
+      "revision": "cc9d1a6dd800c1debc0a8cc9b7d2e331b84bd30c",
+      "lean_toolchain": "leanprover/lean4:v4.29.0-rc6",
+      "modes": {
+        "corollary-leaves": {
+          "validated": 1,
+          "mined": 1,
+          "malformed": 0,
+          "sol_bad": 0,
+          "blobs": {
+            "challenges.jsonl": {
+              "sha256": "4386390435c6bb957de5cc093b4c621c569ea54d5258487423c6f6abacd5c48b",
+              "bytes": 8644
+            },
+            "challenges.all.jsonl": {
+              "sha256": "4386390435c6bb957de5cc093b4c621c569ea54d5258487423c6f6abacd5c48b",
+              "bytes": 8644
+            }
+          }
+        },
+        "corollary-whole": {
+          "validated": 1,
+          "mined": 1,
+          "malformed": 0,
+          "sol_bad": 0,
+          "blobs": {
+            "challenges.jsonl": {
+              "sha256": "4386390435c6bb957de5cc093b4c621c569ea54d5258487423c6f6abacd5c48b",
+              "bytes": 8644
+            },
+            "challenges.all.jsonl": {
+              "sha256": "4386390435c6bb957de5cc093b4c621c569ea54d5258487423c6f6abacd5c48b",
+              "bytes": 8644
+            }
+          }
+        }
+      }
+    },
+    "evm-asm": {
+      "git_repo": "github.com/Verified-zkEVM/evm-asm",
+      "revision": "7d5875858bc3727250adb6880c8339048365b1b6",
+      "lean_toolchain": "leanprover/lean4:v4.30.0-rc1",
+      "modes": {
+        "corollary-leaves": {
+          "validated": 7323,
+          "mined": 7407,
+          "malformed": 10,
+          "sol_bad": 74,
+          "blobs": {
+            "challenges.jsonl": {
+              "sha256": "3384c06dcc80970aeb61713d5efeb444781d0239ecdc6506f3754caec22ba024",
+              "bytes": 238992124
+            },
+            "challenges.all.jsonl": {
+              "sha256": "6005170d7da74d364d2868ad2744dd5a17207e47424f254d59fb630feaa3f0a0",
+              "bytes": 249683261
+            }
+          }
+        },
+        "corollary-whole": {
+          "validated": 7328,
+          "mined": 7407,
+          "malformed": 5,
+          "sol_bad": 74,
+          "blobs": {
+            "challenges.jsonl": {
+              "sha256": "9a5b71736410944dafbfdca57edcf63e6256bf73933f2756d8beab73db2748cd",
+              "bytes": 239212783
+            },
+            "challenges.all.jsonl": {
+              "sha256": "9d4b402ab49d29300e17a11315f319da063271eba4256e6a0ee180f40a5e3336",
+              "bytes": 249700366
+            }
+          }
+        }
+      }
+    },
+    "formal-snarks-project": {
+      "git_repo": "github.com/BoltonBailey/formal-snarks-project",
+      "revision": "67ccc51f80693fce005979a333972b358dfbe83d",
+      "lean_toolchain": "leanprover/lean4:v4.30.0",
+      "modes": {
+        "corollary-leaves": {
+          "validated": 11,
+          "mined": 12,
+          "malformed": 1,
+          "sol_bad": 0,
+          "blobs": {
+            "challenges.jsonl": {
+              "sha256": "50c84246b7c572b29f8bb5c59e4aaabfef76d32defd0ae79ffb443b53e3c142d",
+              "bytes": 176214
+            },
+            "challenges.all.jsonl": {
+              "sha256": "4731616c9a8ce72ba04dcf033553859558afcd4b4496a1ec63c31214c096cf75",
+              "bytes": 196605
+            }
+          }
+        },
+        "corollary-whole": {
+          "validated": 11,
+          "mined": 12,
+          "malformed": 1,
+          "sol_bad": 0,
+          "blobs": {
+            "challenges.jsonl": {
+              "sha256": "2992d5070fdb975a8607961f06a8101005b455c286808fb301207a4e968be1c4",
+              "bytes": 177105
+            },
+            "challenges.all.jsonl": {
+              "sha256": "51682274bafce9f845de150e1f546bdd6b83abdf2c124b03a086c0ca2784ba03",
+              "bytes": 197297
+            }
+          }
+        }
+      }
+    },
+    "hax-proof-libs-lean": {
+      "git_repo": "github.com/cryspen/hax",
+      "revision": "dbd2026cc871063a455da37f88ade8f4167271bc",
+      "lean_toolchain": "leanprover/lean4:v4.29.0-rc1",
+      "modes": {
+        "corollary-leaves": {
+          "validated": 46,
+          "mined": 60,
+          "malformed": 14,
+          "sol_bad": 0,
+          "blobs": {
+            "challenges.jsonl": {
+              "sha256": "bc05f1654d3835041bc1d3d1d37078a08749f1f9c7be7db24da3f93d858ee912",
+              "bytes": 4267383
+            },
+            "challenges.all.jsonl": {
+              "sha256": "05dcec4064ff168b3491a1481116bd59fe12c6db382171862446d754b60f1c82",
+              "bytes": 5629964
+            }
+          }
+        },
+        "corollary-whole": {
+          "validated": 60,
+          "mined": 60,
+          "malformed": 0,
+          "sol_bad": 0,
+          "blobs": {
+            "challenges.jsonl": {
+              "sha256": "a70a63970dbbcfbf5e822045b7cd3843896d2ac6b1aa4969476ff53ea8f3af62",
+              "bytes": 5877533
+            },
+            "challenges.all.jsonl": {
+              "sha256": "a70a63970dbbcfbf5e822045b7cd3843896d2ac6b1aa4969476ff53ea8f3af62",
+              "bytes": 5877533
+            }
+          }
+        }
+      }
+    },
+    "hex-dev": {
+      "git_repo": "github.com/kim-em/hex-dev",
+      "revision": "8c974172dea442251aead59be634e19753c37b2f",
+      "lean_toolchain": "leanprover/lean4:v4.32.0-rc1",
+      "modes": {
+        "corollary-leaves": {
+          "validated": 3005,
+          "mined": 3403,
+          "malformed": 328,
+          "sol_bad": 70,
+          "blobs": {
+            "challenges.jsonl": {
+              "sha256": "afaa68063217ac60eddb3114877703ce7d1681d99a24384bbe5fa53d78b01f53",
+              "bytes": 142082876
+            },
+            "challenges.all.jsonl": {
+              "sha256": "0770117834ff407a93c3fb4c24b0e865e44d3858e3b7a841671d3711cf7881ff",
+              "bytes": 170526257
+            }
+          }
+        },
+        "corollary-whole": {
+          "validated": 2989,
+          "mined": 3403,
+          "malformed": 339,
+          "sol_bad": 75,
+          "blobs": {
+            "challenges.jsonl": {
+              "sha256": "54e1906fc7ae11440c13a5eecb4ceadcee54e6f78e60d2e52e7068d80d484f61",
+              "bytes": 140998480
+            },
+            "challenges.all.jsonl": {
+              "sha256": "d21cda3587f05e7fea8c8259dfc9f4a8b3f4265297bb254195bb817dc0adb8a4",
+              "bytes": 170542948
+            }
+          }
+        }
+      }
+    },
+    "iris-lean": {
+      "git_repo": "github.com/leanprover-community/iris-lean",
+      "revision": "5a790aed0dcad30219aa218c88a7fd306c092fae",
+      "lean_toolchain": null,
+      "modes": {
+        "corollary-leaves": {
+          "validated": 313,
+          "mined": 379,
+          "malformed": 44,
+          "sol_bad": 22,
+          "blobs": {
+            "challenges.jsonl": {
+              "sha256": "52ed882643954a7ab047627af825db19fe857c810d4fa0af60e88f68d7a5e1d2",
+              "bytes": 17823305
+            },
+            "challenges.all.jsonl": {
+              "sha256": "c1598f8ad310a01f2d6ee0637eddec70e0ead4064d5e71abcf7f774eb408a030",
+              "bytes": 23151938
+            }
+          }
+        },
+        "corollary-whole": {
+          "validated": 316,
+          "mined": 379,
+          "malformed": 41,
+          "sol_bad": 22,
+          "blobs": {
+            "challenges.jsonl": {
+              "sha256": "782afaa7f147ee05bbbdd0921ebbb3ae99a773c4ae125c3245b29aa668b299e4",
+              "bytes": 17920164
+            },
+            "challenges.all.jsonl": {
+              "sha256": "7917b12ba0ff3670f5872cba489603de0c815bfb024cd11ddd9c1686ae9d650b",
+              "bytes": 23152213
+            }
+          }
+        }
+      }
+    },
+    "jolt-tla": {
+      "git_repo": "github.com/CharlesHoskinson/jolt-tla",
+      "revision": "3918257edd8333d79e21d813a2fa70761aba538f",
+      "lean_toolchain": null,
+      "modes": {
+        "corollary-leaves": {
+          "validated": 25,
+          "mined": 86,
+          "malformed": 7,
+          "sol_bad": 54,
+          "blobs": {
+            "challenges.jsonl": {
+              "sha256": "59b6d5eca29d9039bb5b608f649ee60f7d280057b38afb0523626b3f3c72247c",
+              "bytes": 809785
+            },
+            "challenges.all.jsonl": {
+              "sha256": "01f0ae976f92ad604b6d030cf3d34ad383d2768b6c77494c5bec345f3cf6dc6c",
+              "bytes": 3199891
+            }
+          }
+        },
+        "corollary-whole": {
+          "validated": 25,
+          "mined": 86,
+          "malformed": 5,
+          "sol_bad": 56,
+          "blobs": {
+            "challenges.jsonl": {
+              "sha256": "7ccfc7cc817c140ab3a72fb96ac5872f5107a6ab4dc20f20ecbec762998916b7",
+              "bytes": 810079
+            },
+            "challenges.all.jsonl": {
+              "sha256": "873a34ed53f35899c3cf3c84935479729bc4af8908389a50c030cc96c168d85f",
+              "bytes": 3199741
+            }
+          }
+        }
+      }
+    },
+    "juvix-lean": {
+      "git_repo": "github.com/anoma/juvix-lean",
+      "revision": "f202e04219a84ce8f56b2c3fffa3409237c5daea",
+      "lean_toolchain": "leanprover/lean4:v4.19.0-rc2",
+      "modes": {
+        "corollary-leaves": {
+          "validated": 17,
+          "mined": 19,
+          "malformed": 2,
+          "sol_bad": 0,
+          "blobs": {
+            "challenges.jsonl": {
+              "sha256": "e519aa4f9ceb77926703b4a3e6507e4552ebc81ae9bad672e0a20cfdc2b83aff",
+              "bytes": 553249
+            },
+            "challenges.all.jsonl": {
+              "sha256": "1befc63227629d3a49b296460b36bd4378eb2b10d33085992af345d404f2e592",
+              "bytes": 628733
+            }
+          }
+        },
+        "corollary-whole": {
+          "validated": 17,
+          "mined": 19,
+          "malformed": 2,
+          "sol_bad": 0,
+          "blobs": {
+            "challenges.jsonl": {
+              "sha256": "e4b6d7b4d1fc2ee8cb59f88f3bea4099340ba167e9d60331b50d64e3a100c106",
+              "bytes": 508683
+            },
+            "challenges.all.jsonl": {
+              "sha256": "0a80a3b2ac9f7bcd5bc3c1a49ebf7375d52fdfaab3a270118aefcc730e3ad5f4",
+              "bytes": 630086
+            }
+          }
+        }
+      }
+    },
+    "lampe": {
+      "git_repo": "github.com/reilabs/lampe",
+      "revision": "919a38712d22d05fc83e59af17ef57077abda1e0",
+      "lean_toolchain": null,
+      "modes": {
+        "corollary-leaves": {
+          "validated": 232,
+          "mined": 324,
+          "malformed": 83,
+          "sol_bad": 9,
+          "blobs": {
+            "challenges.jsonl": {
+              "sha256": "dfdfe4aee313657bed40d1a737ab4495648193cfd33d6c838c71428c6ed9c975",
+              "bytes": 5157489
+            },
+            "challenges.all.jsonl": {
+              "sha256": "982a50122aa51fdf1cbf74699326aa2db2b858c5af2ba2ce6aac079431962a6f",
+              "bytes": 8184596
+            }
+          }
+        },
+        "corollary-whole": {
+          "validated": 218,
+          "mined": 324,
+          "malformed": 92,
+          "sol_bad": 14,
+          "blobs": {
+            "challenges.jsonl": {
+              "sha256": "abcd91f19a941768cf5aae30c6d88dfe5e324b3e04a9a266d1d4015d5200b6db",
+              "bytes": 4754849
+            },
+            "challenges.all.jsonl": {
+              "sha256": "b544ac58e6a879d44fe9cfbda4ca3a3d377fe3ad4b59701348db5d53a147c455",
+              "bytes": 8188772
+            }
+          }
+        }
+      }
+    },
+    "lean-formal-reasoning-program": {
+      "git_repo": "github.com/andaraiwin/lean-formal-reasoning-program",
+      "revision": "4a12da01571e50e52075d52808f76e029be0e7c9",
+      "lean_toolchain": "leanprover/lean4:v4.9.0-rc2",
+      "modes": {
+        "corollary-leaves": {
+          "validated": 13,
+          "mined": 51,
+          "malformed": 15,
+          "sol_bad": 23,
+          "blobs": {
+            "challenges.jsonl": {
+              "sha256": "a971cc5153aa18e6e874aeb1857c6f1e33f0395ce8f0da3c4e7e05235ba8e51c",
+              "bytes": 176669
+            },
+            "challenges.all.jsonl": {
+              "sha256": "a31f8aa73d39adc15dede8f608fcf81877ec8de8ff7fb2fde69cc63ef0e0148a",
+              "bytes": 1138265
+            }
+          }
+        },
+        "corollary-whole": {
+          "validated": 13,
+          "mined": 51,
+          "malformed": 14,
+          "sol_bad": 24,
+          "blobs": {
+            "challenges.jsonl": {
+              "sha256": "2222d2209074b0bf8d4a0a3f71d17a8ff11897a37688ec7d630b4c8f0ba2c9d4",
+              "bytes": 176993
+            },
+            "challenges.all.jsonl": {
+              "sha256": "bb743d3ff108bece271bd125ad4293aa212c8ef48c425cb09cc98c7aef104246",
+              "bytes": 1138528
+            }
+          }
+        }
+      }
+    },
+    "lean-mlir": {
+      "git_repo": "github.com/opencompl/lean-mlir",
+      "revision": "96baaa07cb7466e2057539f6b5d65d648803421f",
+      "lean_toolchain": "leanprover/lean4:nightly-2025-12-01",
+      "modes": {
+        "corollary-leaves": {
+          "validated": 89,
+          "mined": 237,
+          "malformed": 72,
+          "sol_bad": 76,
+          "blobs": {
+            "challenges.jsonl": {
+              "sha256": "984f8a8813572ded87ad543a74317a14d43d449bb17c8adc88a22d5925194a2b",
+              "bytes": 4485301
+            },
+            "challenges.all.jsonl": {
+              "sha256": "5166d77bf1ae3cb3083cacc871bc8d3cf55956fc7b7a504673a268b662c8c685",
+              "bytes": 17915664
+            }
+          }
+        },
+        "corollary-whole": {
+          "validated": 89,
+          "mined": 237,
+          "malformed": 72,
+          "sol_bad": 76,
+          "blobs": {
+            "challenges.jsonl": {
+              "sha256": "30dcb96df15ab8487aabb827df93ac2df68b1b7005026d8c3f564291d39060b4",
+              "bytes": 4380015
+            },
+            "challenges.all.jsonl": {
+              "sha256": "5438600c9b7a200b070c73a47b539449d9ed9109a0358e66d4cd59931e76f5ee",
+              "bytes": 17917230
+            }
+          }
+        }
+      }
+    },
+    "lean-yjs": {
+      "git_repo": "github.com/iasakura/lean-yjs",
+      "revision": "ac087458509b7363b89da76d157f13d02761fd6a",
+      "lean_toolchain": "leanprover/lean4:v4.26.0-rc2",
+      "modes": {
+        "corollary-leaves": {
+          "validated": 96,
+          "mined": 102,
+          "malformed": 4,
+          "sol_bad": 2,
+          "blobs": {
+            "challenges.jsonl": {
+              "sha256": "01d35ae49c89b5d697c067a5683668e2d109052e9d31d47bb6af5cb80addb371",
+              "bytes": 5584638
+            },
+            "challenges.all.jsonl": {
+              "sha256": "63c2a9b7239f7e9d5157ee03808aaf9b8c4fec59d089b1cd4171ce7a4c2e65ca",
+              "bytes": 5791088
+            }
+          }
+        },
+        "corollary-whole": {
+          "validated": 96,
+          "mined": 102,
+          "malformed": 4,
+          "sol_bad": 2,
+          "blobs": {
+            "challenges.jsonl": {
+              "sha256": "918e345740dab28d5d2e5c698cdeaa128e68d2794e7156678f8fd0ecd0db38eb",
+              "bytes": 5588092
+            },
+            "challenges.all.jsonl": {
+              "sha256": "ba3f1ff0328f1637ce6e1727ebf6baf8143d86f6518d5a13e6a7c91fec065c95",
+              "bytes": 5795042
+            }
+          }
+        }
+      }
+    },
+    "lean-zip": {
+      "git_repo": "github.com/kim-em/lean-zip",
+      "revision": "9e62f214671be676cc580110c9b8ca74eac21b3d",
+      "lean_toolchain": "leanprover/lean4:v4.30.0-rc2",
+      "modes": {
+        "corollary-leaves": {
+          "validated": 624,
+          "mined": 626,
+          "malformed": 2,
+          "sol_bad": 0,
+          "blobs": {
+            "challenges.jsonl": {
+              "sha256": "15db29aac7622866e1d160118de5b202879cf850fa6596c760a0d89ce4566ac7",
+              "bytes": 50064993
+            },
+            "challenges.all.jsonl": {
+              "sha256": "6a4c574208a8ea803c7fd5709286ebc0cdf32510c846aeed9d2229f23b1194e4",
+              "bytes": 50417834
+            }
+          }
+        },
+        "corollary-whole": {
+          "validated": 624,
+          "mined": 626,
+          "malformed": 2,
+          "sol_bad": 0,
+          "blobs": {
+            "challenges.jsonl": {
+              "sha256": "2e3ac7c5141427cffbdcffdd66741b1bc8891aed14725e86c9407cc9880c1a13",
+              "bytes": 50076158
+            },
+            "challenges.all.jsonl": {
+              "sha256": "70ce9c7c6664f321d5a3f46a894f65871adc8c55e35d5f1b4fe29f8acc8286ac",
+              "bytes": 50428874
+            }
+          }
+        }
+      }
+    },
+    "lean4lean": {
+      "git_repo": "github.com/digama0/lean4lean",
+      "revision": "8865b155abbf68d3a827fb3568bf6839780163c2",
+      "lean_toolchain": "leanprover/lean4:v4.29.0",
+      "modes": {
+        "corollary-leaves": {
+          "validated": 115,
+          "mined": 244,
+          "malformed": 86,
+          "sol_bad": 43,
+          "blobs": {
+            "challenges.jsonl": {
+              "sha256": "86fbf927876a94824ea12b76a20f03e4c4b501ca42c7732291b686b481db803d",
+              "bytes": 3425123
+            },
+            "challenges.all.jsonl": {
+              "sha256": "8172d479e2830e57939745276d74961ebbec28eb68b04844799b68a58c2859a9",
+              "bytes": 36099066
+            }
+          }
+        },
+        "corollary-whole": {
+          "validated": 117,
+          "mined": 244,
+          "malformed": 81,
+          "sol_bad": 46,
+          "blobs": {
+            "challenges.jsonl": {
+              "sha256": "a35b7f17b51eaf7ae4295dbae9a8e35fd8e971f42e5c2d76fa9a75af7fa3eb1a",
+              "bytes": 3481505
+            },
+            "challenges.all.jsonl": {
+              "sha256": "a2e1b84c101a2f60253d82f9ec590db26d958939b41469a5c248252af0b87817",
+              "bytes": 36103714
+            }
+          }
+        }
+      }
+    },
+    "leanda": {
+      "git_repo": "github.com/konnov/leanda",
+      "revision": "cefba4b23d7438a6980a6ed08456428c0cb26ae4",
+      "lean_toolchain": null,
+      "modes": {
+        "corollary-leaves": {
+          "validated": 123,
+          "mined": 132,
+          "malformed": 9,
+          "sol_bad": 0,
+          "blobs": {
+            "challenges.jsonl": {
+              "sha256": "b5d33c328f2cdcaab360ceaa0803f7fe5c8d40438f907fcf534f2cb51440dfb8",
+              "bytes": 6837917
+            },
+            "challenges.all.jsonl": {
+              "sha256": "1c37c165b57da1f9f14270b257b69b84ca5b168e1523a3210c558dbd42ae8786",
+              "bytes": 7282931
+            }
+          }
+        },
+        "corollary-whole": {
+          "validated": 123,
+          "mined": 132,
+          "malformed": 9,
+          "sol_bad": 0,
+          "blobs": {
+            "challenges.jsonl": {
+              "sha256": "c400cea6ac4bd4eae4d545e22b2fc84a824d0f7d2602207379fa2975c5f4130a",
+              "bytes": 6835632
+            },
+            "challenges.all.jsonl": {
+              "sha256": "f7b1d1e25f4c05667838badc01c8d0816c17c2ebacad44505b4fd7813a62409c",
+              "bytes": 7280387
+            }
+          }
+        }
+      }
+    },
+    "loom": {
+      "git_repo": "github.com/verse-lab/loom",
+      "revision": "78928abc9054b31d0bea85985496490baae95244",
+      "lean_toolchain": "leanprover/lean4:v4.24.0",
+      "modes": {
+        "corollary-leaves": {
+          "validated": 28,
+          "mined": 39,
+          "malformed": 11,
+          "sol_bad": 0,
+          "blobs": {
+            "challenges.jsonl": {
+              "sha256": "31c7286e368abba50cbbb30bd515eddc74a1821ac19f45e6be562c7db9ad4ee3",
+              "bytes": 565339
+            },
+            "challenges.all.jsonl": {
+              "sha256": "eab58f8c7db1b0d02a746db3afe390aed4235723697e0d7630e7bda3e41134ca",
+              "bytes": 906318
+            }
+          }
+        },
+        "corollary-whole": {
+          "validated": 28,
+          "mined": 39,
+          "malformed": 11,
+          "sol_bad": 0,
+          "blobs": {
+            "challenges.jsonl": {
+              "sha256": "31c7286e368abba50cbbb30bd515eddc74a1821ac19f45e6be562c7db9ad4ee3",
+              "bytes": 565339
+            },
+            "challenges.all.jsonl": {
+              "sha256": "eab58f8c7db1b0d02a746db3afe390aed4235723697e0d7630e7bda3e41134ca",
+              "bytes": 906318
+            }
+          }
+        }
+      }
+    },
+    "nickelean": {
+      "git_repo": "github.com/lexicone42/nickelean",
+      "revision": "9938f56b642143ad18af83b8851a7a1b04f50a91",
+      "lean_toolchain": "leanprover/lean4:v4.29.0-rc6",
+      "modes": {
+        "corollary-leaves": {
+          "validated": 17,
+          "mined": 57,
+          "malformed": 40,
+          "sol_bad": 0,
+          "blobs": {
+            "challenges.jsonl": {
+              "sha256": "6d184409305076cc77acfaa1a5dfbcf7f9b8ccaf5f440787c956a7b12ebddabe",
+              "bytes": 342774
+            },
+            "challenges.all.jsonl": {
+              "sha256": "85dbcb5586fb2195ddfe4952695e76338e33f137ecde05e68a432f6e28e6263d",
+              "bytes": 1244885
+            }
+          }
+        },
+        "corollary-whole": {
+          "validated": 17,
+          "mined": 57,
+          "malformed": 40,
+          "sol_bad": 0,
+          "blobs": {
+            "challenges.jsonl": {
+              "sha256": "bc71ba530d0dc2d979e42ec4431fed8224dee26ce2bd29600a8d226a2b73ae01",
+              "bytes": 342645
+            },
+            "challenges.all.jsonl": {
+              "sha256": "d194448eba71cbae59eb5770a8e204c9cff34ee2d9cc37f139d32a5a5097e9ab",
+              "bytes": 1244647
+            }
+          }
+        }
+      }
+    },
+    "posix-parsing": {
+      "git_repo": "github.com/keeganperry7/posix-parsing",
+      "revision": "e1dc3644c5f8c6601fe5d578c8edd4c9b28a6d1a",
+      "lean_toolchain": "leanprover/lean4:v4.23.0",
+      "modes": {
+        "corollary-leaves": {
+          "validated": 13,
+          "mined": 13,
+          "malformed": 0,
+          "sol_bad": 0,
+          "blobs": {
+            "challenges.jsonl": {
+              "sha256": "625f4d58f5a6ddc7ee1b9e8ae7a61f7cc6c9b617a159ef9682e05f0ba3d9733e",
+              "bytes": 164273
+            },
+            "challenges.all.jsonl": {
+              "sha256": "625f4d58f5a6ddc7ee1b9e8ae7a61f7cc6c9b617a159ef9682e05f0ba3d9733e",
+              "bytes": 164273
+            }
+          }
+        },
+        "corollary-whole": {
+          "validated": 13,
+          "mined": 13,
+          "malformed": 0,
+          "sol_bad": 0,
+          "blobs": {
+            "challenges.jsonl": {
+              "sha256": "e9c50e19a8ee02ec616879605d8f4e7018f3ba17bebb89c42dc8d431e8aea201",
+              "bytes": 163656
+            },
+            "challenges.all.jsonl": {
+              "sha256": "e9c50e19a8ee02ec616879605d8f4e7018f3ba17bebb89c42dc8d431e8aea201",
+              "bytes": 163656
+            }
+          }
+        }
+      }
+    },
+    "posix-submatching": {
+      "git_repo": "github.com/keeganperry7/posix-submatching",
+      "revision": "40eb11ec00990a6e73f8947b85f0c61d98074bb2",
+      "lean_toolchain": "leanprover/lean4:v4.31.0",
+      "modes": {
+        "corollary-leaves": {
+          "validated": 8,
+          "mined": 8,
+          "malformed": 0,
+          "sol_bad": 0,
+          "blobs": {
+            "challenges.jsonl": {
+              "sha256": "735ef35e853015e243e4d4c888da750b4e122471d61b31c84c0e4bf474082bfd",
+              "bytes": 155535
+            },
+            "challenges.all.jsonl": {
+              "sha256": "735ef35e853015e243e4d4c888da750b4e122471d61b31c84c0e4bf474082bfd",
+              "bytes": 155535
+            }
+          }
+        },
+        "corollary-whole": {
+          "validated": 8,
+          "mined": 8,
+          "malformed": 0,
+          "sol_bad": 0,
+          "blobs": {
+            "challenges.jsonl": {
+              "sha256": "6a2bebf2d04676daccb45071c7f40f43eb7fa5fa0a06f9655c63203729b628e6",
+              "bytes": 155637
+            },
+            "challenges.all.jsonl": {
+              "sha256": "6a2bebf2d04676daccb45071c7f40f43eb7fa5fa0a06f9655c63203729b628e6",
+              "bytes": 155637
+            }
+          }
+        }
+      }
+    },
+    "proven-zk": {
+      "git_repo": "github.com/reilabs/proven-zk",
+      "revision": "fd156e1a0a0771271b7871972f428b0c93b5b56e",
+      "lean_toolchain": "leanprover/lean4:v4.29.1",
+      "modes": {
+        "corollary-leaves": {
+          "validated": 10,
+          "mined": 10,
+          "malformed": 0,
+          "sol_bad": 0,
+          "blobs": {
+            "challenges.jsonl": {
+              "sha256": "fd0bd26a63d87ec24830334ecf4d788b9c9a4ae30c5c0f4d71326d5e993553c3",
+              "bytes": 162341
+            },
+            "challenges.all.jsonl": {
+              "sha256": "fd0bd26a63d87ec24830334ecf4d788b9c9a4ae30c5c0f4d71326d5e993553c3",
+              "bytes": 162341
+            }
+          }
+        },
+        "corollary-whole": {
+          "validated": 10,
+          "mined": 10,
+          "malformed": 0,
+          "sol_bad": 0,
+          "blobs": {
+            "challenges.jsonl": {
+              "sha256": "71ecf781ce9a11f4c60a1609e789752371a6daa93a82d8bbdd7339a53db01ae6",
+              "bytes": 162814
+            },
+            "challenges.all.jsonl": {
+              "sha256": "71ecf781ce9a11f4c60a1609e789752371a6daa93a82d8bbdd7339a53db01ae6",
+              "bytes": 162814
+            }
+          }
+        }
+      }
+    },
+    "ryu-lean4": {
+      "git_repo": "github.com/lexicone42/ryu-lean4",
+      "revision": "5dd60fd7a0f08822a6efa0f97e585ce8efa270d4",
+      "lean_toolchain": "leanprover/lean4:v4.29.0-rc4",
+      "modes": {
+        "corollary-leaves": {
+          "validated": 56,
+          "mined": 56,
+          "malformed": 0,
+          "sol_bad": 0,
+          "blobs": {
+            "challenges.jsonl": {
+              "sha256": "1e4d195e2a14951b17b5eef32d689ce18f489e61889698d0d5d02ad54896d2f1",
+              "bytes": 1823034
+            },
+            "challenges.all.jsonl": {
+              "sha256": "1e4d195e2a14951b17b5eef32d689ce18f489e61889698d0d5d02ad54896d2f1",
+              "bytes": 1823034
+            }
+          }
+        },
+        "corollary-whole": {
+          "validated": 56,
+          "mined": 56,
+          "malformed": 0,
+          "sol_bad": 0,
+          "blobs": {
+            "challenges.jsonl": {
+              "sha256": "897ac61acbc377f09b710a458c6d9262a9dbcfcbd9d128bc00aca94840ae1ab4",
+              "bytes": 1823733
+            },
+            "challenges.all.jsonl": {
+              "sha256": "897ac61acbc377f09b710a458c6d9262a9dbcfcbd9d128bc00aca94840ae1ab4",
+              "bytes": 1823733
+            }
+          }
+        }
+      }
+    },
+    "shortest-decimal": {
+      "git_repo": "github.com/lexicone42/shortest-decimal",
+      "revision": "4d5ea2d583f5fae86413317b4b01ebc4c4c91e4b",
+      "lean_toolchain": "leanprover/lean4:v4.29.0-rc6",
+      "modes": {
+        "corollary-leaves": {
+          "validated": 129,
+          "mined": 129,
+          "malformed": 0,
+          "sol_bad": 0,
+          "blobs": {
+            "challenges.jsonl": {
+              "sha256": "c1293ccad5d65201fbefdb75b8b327a26f4f5f9c52ec7a54fbf213698825926e",
+              "bytes": 3842502
+            },
+            "challenges.all.jsonl": {
+              "sha256": "c1293ccad5d65201fbefdb75b8b327a26f4f5f9c52ec7a54fbf213698825926e",
+              "bytes": 3842502
+            }
+          }
+        },
+        "corollary-whole": {
+          "validated": 129,
+          "mined": 129,
+          "malformed": 0,
+          "sol_bad": 0,
+          "blobs": {
+            "challenges.jsonl": {
+              "sha256": "90194004afc1802c0412206dcc03946d6a4518a7a58d42c8f7d98cd730b797b7",
+              "bytes": 3844522
+            },
+            "challenges.all.jsonl": {
+              "sha256": "90194004afc1802c0412206dcc03946d6a4518a7a58d42c8f7d98cd730b797b7",
+              "bytes": 3844522
+            }
+          }
+        }
+      }
+    },
+    "sparkle": {
+      "git_repo": "github.com/Verilean/sparkle",
+      "revision": "73bbc74ac3244ea44b7846c212dbfd42786eff27",
+      "lean_toolchain": "leanprover/lean4:v4.28.0",
+      "modes": {
+        "corollary-leaves": {
+          "validated": 329,
+          "mined": 349,
+          "malformed": 2,
+          "sol_bad": 18,
+          "blobs": {
+            "challenges.jsonl": {
+              "sha256": "90634c3cd957846d7d1c493b3baaaa157665ad54862f462cb90a2c52f0abc122",
+              "bytes": 6379024
+            },
+            "challenges.all.jsonl": {
+              "sha256": "b55f51927b8fc68d78496e663a59b03c36c5b3d500856a0cac0b3fa09596c24a",
+              "bytes": 6609240
+            }
+          }
+        },
+        "corollary-whole": {
+          "validated": 331,
+          "mined": 349,
+          "malformed": 0,
+          "sol_bad": 18,
+          "blobs": {
+            "challenges.jsonl": {
+              "sha256": "ce68fcae66b853ba5c769f23f554998d9c829960803e0de2bd77dbadc7e1bbee",
+              "bytes": 6403260
+            },
+            "challenges.all.jsonl": {
+              "sha256": "5868d0216542aa528031a1d4be9fca98a770bb6d05d988486eac6c149d3ba127",
+              "bytes": 6610751
+            }
+          }
+        }
+      }
+    },
+    "splean": {
+      "git_repo": "github.com/verse-lab/splean",
+      "revision": "e24286f51bd9ee207197d47ec587d592cdfb0ddc",
+      "lean_toolchain": "leanprover/lean4:v4.11.0",
+      "modes": {
+        "corollary-leaves": {
+          "validated": 69,
+          "mined": 185,
+          "malformed": 28,
+          "sol_bad": 88,
+          "blobs": {
+            "challenges.jsonl": {
+              "sha256": "6f1677d2eaf96d40a21563e587bfcc91071682aa1a81b26e3232d26d33ac889e",
+              "bytes": 1694942
+            },
+            "challenges.all.jsonl": {
+              "sha256": "205db8af74f1df4b360317925c4d7d7a54bcd83be0b7db515edeb60aad3cf3de",
+              "bytes": 6975186
+            }
+          }
+        },
+        "corollary-whole": {
+          "validated": 69,
+          "mined": 185,
+          "malformed": 28,
+          "sol_bad": 88,
+          "blobs": {
+            "challenges.jsonl": {
+              "sha256": "a8e7118a6dda351b59e4aafc55a6c55de1aa0f3bbdd976dacb9c1675bf79fd34",
+              "bytes": 1694624
+            },
+            "challenges.all.jsonl": {
+              "sha256": "343240b7d446740c91d1652730fccfdbad4a3599f5a2223c4486c6464b4b27d9",
+              "bytes": 6974890
+            }
+          }
+        }
+      }
+    },
+    "starkware-formal-proofs": {
+      "git_repo": "github.com/starkware-libs/formal-proofs",
+      "revision": "d0dd8279612a248cbc6bf6d286030bf0bb2a37ff",
+      "lean_toolchain": "leanprover/lean4:v4.13.0-rc3",
+      "modes": {
+        "corollary-leaves": {
+          "validated": 480,
+          "mined": 910,
+          "malformed": 381,
+          "sol_bad": 49,
+          "blobs": {
+            "challenges.jsonl": {
+              "sha256": "38fbbcf1302efa57efb9b0ec673118e65745c7b864b9912949d30746a9b7782d",
+              "bytes": 18401605
+            },
+            "challenges.all.jsonl": {
+              "sha256": "2eb6883d5dff7b5bc5e03ba5f0197f94e38c5e172d8d41f4f75891d33266ecf6",
+              "bytes": 33525848
+            }
+          }
+        },
+        "corollary-whole": {
+          "validated": 479,
+          "mined": 910,
+          "malformed": 379,
+          "sol_bad": 52,
+          "blobs": {
+            "challenges.jsonl": {
+              "sha256": "cdcf45d20ef30eba1d680ec5b401dc66c1d4d8c8913c30594562303fa024526e",
+              "bytes": 18328460
+            },
+            "challenges.all.jsonl": {
+              "sha256": "3ee6e6ec4633f37325377dbc6803b253a9d847577f85cd42284d7662f66eedff",
+              "bytes": 33539829
+            }
+          }
+        }
+      }
+    },
+    "symcrust": {
+      "git_repo": "github.com/microsoft/SymCrypt",
+      "revision": "c2e575ace0ea4b6b7a4184c1f19b81d1d5b2b5be",
+      "lean_toolchain": null,
+      "modes": {
+        "corollary-leaves": {
+          "validated": 322,
+          "mined": 367,
+          "malformed": 11,
+          "sol_bad": 34,
+          "blobs": {
+            "challenges.jsonl": {
+              "sha256": "6b4ff1ae768444e4e9a0f47860a703eb0eb6020f07d696dea97c57d92f53a4d9",
+              "bytes": 18896539
+            },
+            "challenges.all.jsonl": {
+              "sha256": "207b9cf1b4741fc5121da42730c26e3b75bff178d166bdec38310bfa3272b7de",
+              "bytes": 23959161
+            }
+          }
+        },
+        "corollary-whole": {
+          "validated": 324,
+          "mined": 367,
+          "malformed": 9,
+          "sol_bad": 34,
+          "blobs": {
+            "challenges.jsonl": {
+              "sha256": "44c51e3e0f0a254e83cc0240967cbd051ed889546cd24f8076e1c8fbd392a4b8",
+              "bytes": 18998087
+            },
+            "challenges.all.jsonl": {
+              "sha256": "2263d31bfcf7e9e378fc070e20939af9e1f90e0f99916d229075058d253565fb",
+              "bytes": 23961525
+            }
+          }
+        }
+      }
+    },
+    "veil": {
+      "git_repo": "github.com/verse-lab/veil",
+      "revision": "6a12daa8d3e0e8a9808a40ecab17ca030b557063",
+      "lean_toolchain": "leanprover/lean4:v4.24.0",
+      "modes": {
+        "corollary-leaves": {
+          "validated": 6,
+          "mined": 6,
+          "malformed": 0,
+          "sol_bad": 0,
+          "blobs": {
+            "challenges.jsonl": {
+              "sha256": "a0b870c27cdeb80cc31837a5f715981f4c6694f29518cdbc6f52455b2f4cff4e",
+              "bytes": 191962
+            },
+            "challenges.all.jsonl": {
+              "sha256": "a0b870c27cdeb80cc31837a5f715981f4c6694f29518cdbc6f52455b2f4cff4e",
+              "bytes": 191962
+            }
+          }
+        },
+        "corollary-whole": {
+          "validated": 6,
+          "mined": 6,
+          "malformed": 0,
+          "sol_bad": 0,
+          "blobs": {
+            "challenges.jsonl": {
+              "sha256": "55e2f978978835a04a7898f7942a3a5c1e1341bf661a60e4415fb69a8eba9f46",
+              "bytes": 191982
+            },
+            "challenges.all.jsonl": {
+              "sha256": "55e2f978978835a04a7898f7942a3a5c1e1341bf661a60e4415fb69a8eba9f46",
+              "bytes": 191982
+            }
+          }
+        }
+      }
+    },
+    "verified-compiler": {
+      "git_repo": "github.com/marcusrossel/verified-compiler",
+      "revision": "6940e67e5ec2d846310a927c2211d2b94f69162c",
+      "lean_toolchain": "leanprover/lean4:v4.29.0",
+      "modes": {
+        "corollary-leaves": {
+          "validated": 6,
+          "mined": 6,
+          "malformed": 0,
+          "sol_bad": 0,
+          "blobs": {
+            "challenges.jsonl": {
+              "sha256": "42b4893e25d1b43a146c68e1bfee31a2f2e3e0e1663be703de987e02ac115c88",
+              "bytes": 151816
+            },
+            "challenges.all.jsonl": {
+              "sha256": "42b4893e25d1b43a146c68e1bfee31a2f2e3e0e1663be703de987e02ac115c88",
+              "bytes": 151816
+            }
+          }
+        },
+        "corollary-whole": {
+          "validated": 6,
+          "mined": 6,
+          "malformed": 0,
+          "sol_bad": 0,
+          "blobs": {
+            "challenges.jsonl": {
+              "sha256": "42b4893e25d1b43a146c68e1bfee31a2f2e3e0e1663be703de987e02ac115c88",
+              "bytes": 151816
+            },
+            "challenges.all.jsonl": {
+              "sha256": "42b4893e25d1b43a146c68e1bfee31a2f2e3e0e1663be703de987e02ac115c88",
+              "bytes": 151816
+            }
+          }
+        }
+      }
+    },
+    "verified-consensus": {
+      "git_repo": "github.com/fradamt/verified-consensus",
+      "revision": "e403284a81a272924891b88471e28acc47b556f0",
+      "lean_toolchain": "leanprover/lean4:v4.30.0-rc2",
+      "modes": {
+        "corollary-leaves": {
+          "validated": 272,
+          "mined": 273,
+          "malformed": 1,
+          "sol_bad": 0,
+          "blobs": {
+            "challenges.jsonl": {
+              "sha256": "7cda7ca0645e1307ffbee0e446e8a163f956a7794817965d7e2fb2ba052233ec",
+              "bytes": 10037276
+            },
+            "challenges.all.jsonl": {
+              "sha256": "81f3b0114f8c43052d34e747abc45d38aefc3b869e6ead50db52ae3fd4deef72",
+              "bytes": 10104850
+            }
+          }
+        },
+        "corollary-whole": {
+          "validated": 272,
+          "mined": 273,
+          "malformed": 1,
+          "sol_bad": 0,
+          "blobs": {
+            "challenges.jsonl": {
+              "sha256": "5d2ba8706a6398abeaa52e5c5a9872e4b4169d7d95b4edec6f287857e50214e5",
+              "bytes": 10041926
+            },
+            "challenges.all.jsonl": {
+              "sha256": "9ca3663557cb8a254a40192c451d8e95952dce37092d53ba7cf96531770f6d06",
+              "bytes": 10109500
+            }
+          }
+        }
+      }
+    },
+    "verity": {
+      "git_repo": "github.com/lfglabs-dev/verity",
+      "revision": "eeb7a3abe85dd88cc8ee2ece5a77da9b2aba2978",
+      "lean_toolchain": "leanprover/lean4:v4.22.0",
+      "modes": {
+        "corollary-leaves": {
+          "validated": 1262,
+          "mined": 1766,
+          "malformed": 462,
+          "sol_bad": 42,
+          "blobs": {
+            "challenges.jsonl": {
+              "sha256": "4bf00cbe42ff73689b24d9b300cd2f8b0c65dcc765d9c7a51e4a566c3cb66f6e",
+              "bytes": 144748194
+            },
+            "challenges.all.jsonl": {
+              "sha256": "450ddfd11ee63d430d39723574bb69985db619cafb109208827225cb8d61799f",
+              "bytes": 251204322
+            }
+          }
+        },
+        "corollary-whole": {
+          "validated": 1260,
+          "mined": 1766,
+          "malformed": 464,
+          "sol_bad": 42,
+          "blobs": {
+            "challenges.jsonl": {
+              "sha256": "fab209aa6100fd62c7bce23fcecd44d654be9fe434d3be1c2487f9797da771e9",
+              "bytes": 144028388
+            },
+            "challenges.all.jsonl": {
+              "sha256": "b7e480bb52cec874041fa21a24c8ab22652234a493375a393e3a9ac4d28d7d44",
+              "bytes": 251141383
+            }
+          }
+        }
+      }
+    },
+    "yul-compiler": {
+      "git_repo": "github.com/powdr-labs/yul-compiler",
+      "revision": "37ead3d1abddd98ef5c69ef434de8bbe6bb868af",
+      "lean_toolchain": "leanprover/lean4:v4.31.0",
+      "modes": {
+        "corollary-leaves": {
+          "validated": 155,
+          "mined": 164,
+          "malformed": 9,
+          "sol_bad": 0,
+          "blobs": {
+            "challenges.jsonl": {
+              "sha256": "349540c6baccaabc3672d5b320b91b3016ceddda07cda9f20c664a341a6755b6",
+              "bytes": 9741719
+            },
+            "challenges.all.jsonl": {
+              "sha256": "8df5188b3e5630e54ee67282fa1b193525dcc6ca2569582e169c9ba1335a44cd",
+              "bytes": 10187467
+            }
+          }
+        },
+        "corollary-whole": {
+          "validated": 155,
+          "mined": 164,
+          "malformed": 9,
+          "sol_bad": 0,
+          "blobs": {
+            "challenges.jsonl": {
+              "sha256": "961ee26d98fcad5e11b46ec32aa7133ab9306a2a4804d2e7c995593cf534a1ae",
+              "bytes": 9742366
+            },
+            "challenges.all.jsonl": {
+              "sha256": "7c2026ba0cbf91cab52e8601d5fb904b75fce5dae0dacf06263b5ae0effe351b",
+              "bytes": 10186666
+            }
+          }
+        }
+      }
+    },
+    "yul-semantics": {
+      "git_repo": "github.com/powdr-labs/yul-semantics",
+      "revision": "f4e6187d684c0ebaee751750c5c368a4226abb73",
+      "lean_toolchain": "leanprover/lean4:v4.31.0",
+      "modes": {
+        "corollary-leaves": {
+          "validated": 25,
+          "mined": 25,
+          "malformed": 0,
+          "sol_bad": 0,
+          "blobs": {
+            "challenges.jsonl": {
+              "sha256": "fbd6ff89fc6ac53ebf1feba4478300f6872b3131a2fcab439ef0e26e0aa3a340",
+              "bytes": 666107
+            },
+            "challenges.all.jsonl": {
+              "sha256": "fbd6ff89fc6ac53ebf1feba4478300f6872b3131a2fcab439ef0e26e0aa3a340",
+              "bytes": 666107
+            }
+          }
+        },
+        "corollary-whole": {
+          "validated": 25,
+          "mined": 25,
+          "malformed": 0,
+          "sol_bad": 0,
+          "blobs": {
+            "challenges.jsonl": {
+              "sha256": "4c8cb598f1e7837cf9f8dc403631be442bcaf584a3fa654a2903de4db5a93604",
+              "bytes": 666187
+            },
+            "challenges.all.jsonl": {
+              "sha256": "4c8cb598f1e7837cf9f8dc403631be442bcaf584a3fa654a2903de4db5a93604",
+              "bytes": 666187
+            }
+          }
+        }
+      }
+    }
+  },
+  "totals": {
+    "corollary-leaves": {
+      "validated": 21692,
+      "mined": 26157
+    },
+    "corollary-whole": {
+      "validated": 21718,
+      "mined": 26157
+    }
+  },
+  "note": "Records are deduplicated on the (challenge, solution) text \u2014 what a solver sees. An earlier release keyed dedup on the (deleted lemma, corollary) pair and shipped ~2x the records, half of them byte-identical challenges under different challenge_ids."
+}

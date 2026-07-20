@@ -99,6 +99,11 @@ type deleted_lemma = {
 type corollary = {
   co_name : string;
   co_fan_in : int;
+  (* How many in-file lemmas this corollary rests on (directly, and transitively). The deleted
+     lemma is one of them, so these say how large a share of the corollary's support the solver
+     must rebuild — and how much context it has to work through. *)
+  co_n_deps_direct : int;
+  co_n_deps_transitive : int;
   co_metrics : Metrics.t;
 }
 
@@ -625,7 +630,7 @@ let walk_all (spans : Span.t array) (spec : spec) (centrality : string -> int)
    syntactic (no prover). *)
 let slice_delete (spans : Span.t array) (spec : spec)
     ~(by_opener : (int, Uses.lemma) Hashtbl.t) ~(del : (int, Uses.lemma) Hashtbl.t)
-    ~(to_ablate : (int, unit) Hashtbl.t) ~(solution : bool) : string =
+    ~(to_ablate : (int, unit) Hashtbl.t) ~(cor_set : int list) ~(solution : bool) : string =
   let n = Array.length spans in
   let src_range lo hi =
     let b = Buffer.create 64 in
@@ -653,10 +658,19 @@ let slice_delete (spans : Span.t array) (spec : spec)
     | Some l -> List.exists (fun nm -> Hashtbl.mem deleted_names nm) l.Uses.body_names
     | None -> false
   in
-  (* seed: the first [count] holes (file order); all of them if no --count *)
+  (* Seed from THE COROLLARY (the theorem the deletion was drawn for), closing over its
+     transitive in-file dependencies; fall back to the holes when there is no corollary
+     (plain --delete-lemmas). Seeding from the holes made the corollary invisible to the
+     output — the holes are the users of the deleted lemma, a property of the *lemma*, not
+     of the corollary — so two corollaries sharing a deleted lemma emitted byte-identical
+     challenges. Anchoring on the corollary makes each record the question it claims to be:
+     delete L, then rebuild it so that THIS corollary still goes through. *)
   let seed =
-    let all = Hashtbl.fold (fun o () acc -> o :: acc) to_ablate [] |> List.sort compare in
-    match spec.count with Some k -> List.filteri (fun i _ -> i < k) all | None -> all
+    match cor_set with
+    | [] ->
+        let all = Hashtbl.fold (fun o () acc -> o :: acc) to_ablate [] |> List.sort compare in
+        (match spec.count with Some k -> List.filteri (fun i _ -> i < k) all | None -> all)
+    | cors -> List.sort_uniq compare cors
   in
   (* Keep-set computed BEFORE ablating, shared by challenge and solution: the full
      statement+body dependency closure of the target holes over the *original* file.
@@ -747,6 +761,24 @@ let cor_closure (by_name : (string, Uses.lemma) Hashtbl.t)
   !acc
   |> List.filter (fun (l : Uses.lemma) -> Hashtbl.mem cand_openers l.Uses.opener)
   |> List.sort (fun (a : Uses.lemma) (b : Uses.lemma) -> compare a.Uses.opener b.Uses.opener)
+
+(* (direct, transitive) in-file dependency counts for a corollary. Unlike [cor_closure] this
+   does NOT filter to deletable candidates: it measures the corollary's whole support. *)
+let cor_dep_counts (by_name : (string, Uses.lemma) Hashtbl.t) (start : Uses.lemma) : int * int =
+  let direct = cor_deps_of by_name start in
+  let seen = Hashtbl.create 32 in
+  let stack = ref direct in
+  while !stack <> [] do
+    match !stack with
+    | [] -> ()
+    | (l : Uses.lemma) :: tl ->
+        stack := tl;
+        if l.Uses.opener <> start.Uses.opener && not (Hashtbl.mem seen l.Uses.opener) then begin
+          Hashtbl.replace seen l.Uses.opener ();
+          stack := cor_deps_of by_name l @ !stack
+        end
+  done;
+  (List.length direct, Hashtbl.length seen)
 
 let ablate_delete (spans : Span.t array) (spec : spec) (rng : Rng.t) : result =
   let n = Array.length spans in
@@ -1135,24 +1167,36 @@ let ablate_delete (spans : Span.t array) (spec : spec) (rng : Rng.t) : result =
     if spec.truncate && !last_admit_end >= 0 then
       Shape.collapse_blank_lines (String.sub raw 0 !last_admit_end)
     else if spec.shrink_challenge_minimal then
-      slice_delete spans spec ~by_opener ~del ~to_ablate ~solution:false
+      slice_delete spans spec ~by_opener ~del ~to_ablate
+        ~cor_set:(List.map (fun (c : Uses.lemma) -> c.Uses.opener) !corollary_seeds)
+        ~solution:false
     else if spec.shrink_challenge then Shape.shrink ?count:spec.count raw chal_segs
     else Shape.collapse_blank_lines raw
   in
   let solution =
     if spec.shrink_solution_minimal then
-      slice_delete spans spec ~by_opener ~del ~to_ablate ~solution:true
+      slice_delete spans spec ~by_opener ~del ~to_ablate
+        ~cor_set:(List.map (fun (c : Uses.lemma) -> c.Uses.opener) !corollary_seeds)
+        ~solution:true
     else if spec.shrink_solution then Shape.shrink ?count:spec.count original sol_segs
     else original
   in
   let corollaries =
+    let by_name_all : (string, Uses.lemma) Hashtbl.t = Hashtbl.create 64 in
+    List.iter
+      (fun (l : Uses.lemma) ->
+        if not (Hashtbl.mem by_name_all l.Uses.name) then Hashtbl.replace by_name_all l.Uses.name l)
+      lemmas;
     List.rev_map
       (fun (c : Uses.lemma) ->
         let block = src_range c.opener c.block_end in
         let body = src_range (c.opener + 1) c.block_end in
+        let n_direct, n_trans = cor_dep_counts by_name_all c in
         {
           co_name = c.Uses.name;
           co_fan_in = List.length c.Uses.users;
+          co_n_deps_direct = n_direct;
+          co_n_deps_transitive = n_trans;
           co_metrics = Metrics.compute ~block ~body;
         })
       !corollary_seeds

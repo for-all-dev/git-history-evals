@@ -1,0 +1,24 @@
+{
+  "repo": "lean-yjs",
+  "git_repo": "github.com/iasakura/lean-yjs",
+  "revision": "ac087458509b7363b89da76d157f13d02761fd6a",
+  "lean_toolchain": "leanprover/lean4:v4.26.0-rc2",
+  "proof_assistant": "lean",
+  "ablator": "ablators/lean (corollary-delete-lemmas-leaves-all)",
+  "ablator_flags": [
+    "--corollary-delete-lemmas-leaves-all",
+    "--shrink-solution-minimal",
+    "--compact",
+    "--seed",
+    "42"
+  ],
+  "seed": 42,
+  "validation": "ablate-baseline --dry-run (preflight compile of challenge + solution)",
+  "counts": {
+    "mined_total": 102,
+    "good_kept": 96,
+    "well_formed": 96,
+    "malformed": 4,
+    "sol_bad": 2
+  }
+}

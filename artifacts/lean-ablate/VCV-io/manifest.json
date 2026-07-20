@@ -1,0 +1,24 @@
+{
+  "repo": "VCV-io",
+  "git_repo": "github.com/Verified-zkEVM/VCV-io",
+  "revision": "24fe01dbaf899b7bb2b19453ae2ada61b49b4255",
+  "lean_toolchain": "leanprover/lean4:v4.30.0",
+  "proof_assistant": "lean",
+  "ablator": "ablators/lean (corollary-delete-lemmas-leaves-all)",
+  "ablator_flags": [
+    "--corollary-delete-lemmas-leaves-all",
+    "--shrink-solution-minimal",
+    "--compact",
+    "--seed",
+    "42"
+  ],
+  "seed": 42,
+  "validation": "ablate-baseline --dry-run (preflight compile of challenge + solution)",
+  "counts": {
+    "mined_total": 1469,
+    "good_kept": 772,
+    "well_formed": 772,
+    "sol_bad": 57,
+    "malformed": 640
+  }
+}
