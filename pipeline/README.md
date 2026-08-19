@@ -17,6 +17,7 @@ Or one stage at a time:
 | `run.sh index <scratch>` | regenerate `_index.json` (counts + sha256 per blob) |
 | `run.sh eval <scratch> <n> [model]` | sample, solve, train the difficulty model, test on a disjoint sample |
 | `upload_ablations.sh` | publish to `s3://forall-ablations/lean/<mode>/<repo>/` (needs `BUCKET_*_KEY`) |
+| `publish_hf.sh` | rebuild + publish `for-all-dev/ablation-eval` easy/hard splits (needs `BUCKET_*_KEY`, `HF_TOKEN`) |
 
 `repos.tsv` (name, language, url, revision, path, toolchain) is the **single source of truth** for
 the corpus. The source repos are not submodules — they are multi-GB once built, and only their
@@ -131,6 +132,34 @@ lemma.
 | `eval_sample.sh`, `sample_disjoint.py`, `score_predictions.py` | solve a sample; draw a disjoint one; measure AUC / Brier |
 | `validate_whole.sh`, `revalidate_leaf.sh` | standalone re-validation of an existing batch |
 | `upload_ablations.sh` | publish to the Space |
+| `build_hf_splits.py`, `publish_hf.sh` | rebuild + publish the HuggingFace easy/hard splits, source-verified |
+
+## Publishing to HuggingFace
+
+`for-all-dev/ablation-eval` (the dataset the paper cites) is **not** a live view of the DO
+Space — it is a re-uploaded copy assembled from `artifacts/lean-ablate{,-whole}/`. Regenerate
+it with:
+
+```bash
+pipeline/publish_hf.sh <scratch-dir>          # dry run: build + verify + report drift, no upload
+pipeline/publish_hf.sh <scratch-dir> --yes    # also push to HF (needs HF_TOKEN)
+```
+
+`build_hf_splits.py build` concatenates every repo's `challenges.jsonl` for a mode into one
+split (`corollary-leaves` -> `easy.jsonl`, `corollary-whole` -> `hard.jsonl`), embedding each
+repo's `manifest.json` under a `"manifest"` key per row — the split name *is* the mode tag,
+matching the convention already on the 2026-07-27 snapshot (no separate top-level `mode`
+field). Every source blob — read from `artifacts/` if present, else pulled from the DO Space
+tree `upload_ablations.sh` publishes to — is sha256-verified against
+`artifacts/lean-ablate-whole/_index.json` before it's allowed into a split; any mismatch aborts
+the whole build (nothing partial is written). `drift-check` then compares the freshly built
+splits (row count, sha256) against what HuggingFace's datasets-server + Hub API report for the
+*live* dataset — no download needed, since HF LFS objects are content-addressed by sha256.
+
+**Citable revision:** the paper should cite `for-all-dev/ablation-eval@658c31b44d491a7207e067c18bd655372cd0fa8c`
+(commit last modified 2026-07-27T19:32:21Z — reconfirm via the `.sha` field of
+`https://huggingface.co/api/datasets/for-all-dev/ablation-eval`). See issue #140 / the PR that
+introduced this section for the 2026-08-19 drift check against `artifacts/`.
 
 ## TODO
 
