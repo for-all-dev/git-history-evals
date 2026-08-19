@@ -65,10 +65,16 @@ to 3,340 (12% → 87%) with no ablator change at all:
 2. **C FFI needs `-D_GNU_SOURCE`.** hex-dev's FFI calls `dlsym(RTLD_DEFAULT, ...)`, which glibc only
    declares under `_GNU_SOURCE`. Without it the FFI target fails and everything downstream goes
    unbuilt. The `cc` wrapper in `flake.nix` handles it.
-3. **Vendored mathlib goes missing / half-cloned.** `lake exe cache get` restores it. The half-clones
-   are *self-inflicted*: the dry-run harness symlinks `.lake` from its work copy back into the source
-   tree, so lake's git operations write through and can corrupt the source. `rebuild_repos.sh` drops
-   and refetches those. (The harness should get a scratch package dir — see TODO.)
+3. **Vendored mathlib goes missing / half-cloned.** `lake exe cache get` restores it. Historically the
+   half-clones were *self-inflicted* (#119): the dry-run harness symlinks `.lake` from its work copy
+   back into the source tree (deliberately — it is a heavy prebuilt dep dir, never copied), and
+   `check` used to run `lake env lean` with `cwd` inside that work copy, so lake's own workspace
+   resolution — git re-clones, the compiled-lakefile-config cache — wrote through the symlink and
+   corrupted the shared source. `check` no longer invokes `lake` at all: it compiles via bare `lean`
+   against a `LEAN_PATH` reconstructed from `.lake/build/lib`, with the one remaining `lake env`
+   call (an FFI-environment snapshot for packages like hex-dev) taken once per repo in `prepare`,
+   against the pristine root, never the work copy. `rebuild_repos.sh` still exists to repair
+   pre-existing damage from before the fix, but a validation run should no longer produce any.
 
 **Do not gate on a cheap probe.** `lake env true` only checks dependency *resolution* and happily
 passes a tree whose mathlib has no `.olean` files. Probing "the first `.lean` file in the tree" picks
