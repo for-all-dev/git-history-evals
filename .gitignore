@@ -53,3 +53,12 @@ artifacts/**/writer_transcript.json
 /baselines/baseline-results.jsonl
 /challenges.jsonl
 /.elan/
+
+# LaTeX build artifacts (but NOT .olcli.json which pins project config)
+*.aux
+*.bbl
+*.blg
+*.log
+*.out
+*.pdf
+*.synctex.gz
