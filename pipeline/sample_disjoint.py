@@ -7,18 +7,18 @@ the shortfall is made up 1-at-a-time from the repos with the FEWEST remaining pr
 Dedup is on the challenge TEXT, not `challenge_id`: an earlier ablator shipped byte-identical
 challenges under different ids, which silently leaked problems across a train/test split.
 
-Usage: sample_disjoint.py <out-dir> <n> [--exclude <other-sample.jsonl> ...]
+Usage: sample_disjoint.py <out-dir> <n> [--exclude <other-sample.jsonl> ...] [--seed <seed>]
 """
 
 from __future__ import annotations
 
+import argparse
 import glob
 import hashlib
 import json
 import os
 import random
 import shutil
-import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -29,14 +29,32 @@ def h(rec: dict) -> str:
 
 
 def main() -> None:
-    out_dir = sys.argv[1]
-    n_target = int(sys.argv[2])
+    parser = argparse.ArgumentParser(
+        description="Draw a per-repo sample from validated leaf ablations."
+    )
+    parser.add_argument("out_dir", help="Output directory")
+    parser.add_argument("n_target", type=int, help="Target number of problems")
+    parser.add_argument(
+        "--exclude",
+        nargs="*",
+        default=[],
+        help="JSONL file(s) of excluded challenges",
+    )
+    parser.add_argument(
+        "--seed",
+        type=int,
+        default=42,
+        help="Random seed for sampling reproducibility",
+    )
+    args = parser.parse_args()
+
+    out_dir = args.out_dir
+    n_target = args.n_target
+    seed = args.seed
     excluded: set[str] = set()
-    if "--exclude" in sys.argv:
-        for p in sys.argv[sys.argv.index("--exclude") + 1 :]:
-            if p.startswith("--"):
-                break
-            excluded |= {h(json.loads(line)) for line in open(p) if line.strip()}
+    for p in args.exclude:
+        with open(p) as f:
+            excluded |= {h(json.loads(line)) for line in f if line.strip()}
 
     reg = dict(
         line.rstrip("\n").split("\t")
@@ -80,11 +98,11 @@ def main() -> None:
         if not k:
             continue
         rows = pool[repo][:]
-        random.Random(hash(out_dir) & 0xFFFF).shuffle(rows)
+        random.Random(seed).shuffle(rows)
         pick = rows[:k]
         with open(f"{out_dir}/{repo}.jsonl", "w") as f:
             f.writelines(pick)
-        manifest.append({"repo": repo, "n": len(pick), "src": reg[repo]})
+        manifest.append({"repo": repo, "n": len(pick), "src": reg[repo], "seed": seed})
         n += len(pick)
     json.dump(manifest, open(f"{out_dir}/manifest.json", "w"), indent=1)
     with open(f"{out_dir}/sample.jsonl", "w") as out:
@@ -99,3 +117,4 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+

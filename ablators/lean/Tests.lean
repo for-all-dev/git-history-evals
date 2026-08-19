@@ -260,6 +260,49 @@ def letDocTests : StateT Tally IO Unit := do
   check "doc: helper statement gone" (! has dc.text "theorem helper")
   check "doc: solution restores doc comment" (has dc.solution "/-- helper doc -/")
 
+-- Attribute-tagged decls (@[simp], @[grind], @[instance] / attribute-tagged instances)
+-- must be preserved in minimal solution slices even when not syntactically mentioned by name.
+def attrTests : StateT Tally IO Unit := do
+  -- 1. @[simp] case
+  let simpSrc := "@[simp] theorem simp_lem : 1 = 1 := rfl\n\n\
+    theorem target_simp : True := trivial\n\n\
+    theorem user_simp : 1 = 1 := by\n\
+      have _ : True := target_simp\n\
+      simp\n\n\
+    theorem unrelated_simp : True := trivial\n"
+  let msSimp := ablate (tokenize simpSrc) { deleteLemmas := true, deleteCount := some 1,
+                                            shrinkSolutionMinimal := true } (Rng.mk 0) (fun _ => (0:Int))
+  check "attr simp: simp_lem preserved in solution slice" (has msSimp.solution "simp_lem")
+  check "attr simp: user preserved in solution slice" (has msSimp.solution "user_simp")
+  check "attr simp: unrelated dropped from solution slice" (! has msSimp.solution "unrelated_simp")
+
+  -- 2. instance case
+  let instSrc := "@[instance] instance : Inhabited Unit where\n\
+      default := ()\n\n\
+    theorem target_inst : True := trivial\n\n\
+    theorem user_inst : (default : Unit) = () := by\n\
+      have _ : True := target_inst\n\
+      rfl\n\n\
+    theorem unrelated_inst : True := trivial\n"
+  let msInst := ablate (tokenize instSrc) { deleteLemmas := true, deleteCount := some 1,
+                                            shrinkSolutionMinimal := true } (Rng.mk 0) (fun _ => (0:Int))
+  check "attr instance: instance preserved in solution slice" (has msInst.solution "instance")
+  check "attr instance: user preserved in solution slice" (has msInst.solution "user_inst")
+  check "attr instance: unrelated dropped from solution slice" (! has msInst.solution "unrelated_inst")
+
+  -- 3. @[grind] case
+  let grindSrc := "@[grind] theorem grind_lem : 1 = 1 := rfl\n\n\
+    theorem target_grind : True := trivial\n\n\
+    theorem user_grind : True := by\n\
+      have _ : True := target_grind\n\
+      grind\n\n\
+    theorem unrelated_grind : True := trivial\n"
+  let msGrind := ablate (tokenize grindSrc) { deleteLemmas := true, deleteCount := some 1,
+                                              shrinkSolutionMinimal := true } (Rng.mk 0) (fun _ => (0:Int))
+  check "attr grind: grind_lem preserved in solution slice" (has msGrind.solution "grind_lem")
+  check "attr grind: user preserved in solution slice" (has msGrind.solution "user_grind")
+  check "attr grind: unrelated dropped from solution slice" (! has msGrind.solution "unrelated_grind")
+
 def main : IO UInt32 := do
   let (_, tally) ← (do
     let toks := tokenize SAMPLE
@@ -346,6 +389,7 @@ def main : IO UInt32 := do
     corollaryAllTests
     letDocTests
     diffTests
+    attrTests
   ).run {}
   let total := tally.passed + tally.failed
   IO.println s!"ablate-test: {tally.passed}/{total} passed"

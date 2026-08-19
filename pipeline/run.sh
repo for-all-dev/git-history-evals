@@ -74,7 +74,7 @@ stage_validate() {
 stage_eval() {
   local S="$1" n="${2:-100}" model="${3:-$MODEL_DEFAULT}"
   say "sample A (n=$n) -> $model, max-turns $TURNS"
-  python3 pipeline/sample_disjoint.py "$S/evalA" "$n"
+  python3 pipeline/sample_disjoint.py "$S/evalA" "$n" --seed 42
   bash pipeline/eval_sample.sh "$S/evalA" "$model" "$TURNS" 8
   cat "$S"/evalA/res_*.jsonl > "$S/evalA/results.jsonl" 2>/dev/null
 
@@ -84,7 +84,7 @@ stage_eval() {
   ( cd baselines && uv run difficulty train "$S/evalA/table.jsonl" --out "$S/model.joblib" )
 
   say "sample B (n=$n, disjoint) -> score FIRST, then solve"
-  python3 pipeline/sample_disjoint.py "$S/evalB" "$n" --exclude "$S/evalA/sample.jsonl"
+  python3 pipeline/sample_disjoint.py "$S/evalB" "$n" --exclude "$S/evalA/sample.jsonl" --seed 43
   ( cd baselines && uv run difficulty score "$S/evalB/sample.jsonl" --model "$S/model.joblib" \
       --out-jsonl "$S/evalB/scored.jsonl" )
   bash pipeline/eval_sample.sh "$S/evalB" "$model" "$TURNS" 8
