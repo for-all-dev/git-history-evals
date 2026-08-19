@@ -4,8 +4,10 @@
 #   run.sh mine     <scratch> [leaves|whole]   ablate every repo (syntactic — no build needed)
 #   run.sh validate <scratch> [leaves|whole]   compile challenge + ground truth; write artifacts
 #   run.sh index    <scratch>                  regenerate artifacts/.../_index.json
-#   run.sh eval     <scratch> <n> [model]      sample n, run the solver, train + test the
-#                                              difficulty model on a disjoint second sample
+#   run.sh eval     <scratch> <n> [model] [--mode leaves|whole]
+#                                              sample n from the given split (default leaves),
+#                                              run the solver, train + test the difficulty model
+#                                              on a disjoint second sample
 #   run.sh all      <scratch>                  mine -> validate -> index -> eval (both modes)
 #
 # Repos come from `repos.tsv` (name, language, url, revision, path, toolchain) — the single
@@ -72,45 +74,69 @@ stage_validate() {
 # the first by challenge TEXT (not challenge_id — an earlier ablator shipped byte-identical
 # challenges under different ids, which leaked problems across the split).
 stage_eval() {
-  local S="$1" n="${2:-100}" model="${3:-$MODEL_DEFAULT}"
-  say "sample A (n=$n) -> $model, max-turns $TURNS"
-  python3 pipeline/sample_disjoint.py "$S/evalA" "$n" --seed 42
-  bash pipeline/eval_sample.sh "$S/evalA" "$model" "$TURNS" 8
-  cat "$S"/evalA/res_*.jsonl > "$S/evalA/results.jsonl" 2>/dev/null
+  local S="$1" n="${2:-100}" model="${3:-$MODEL_DEFAULT}" mode="${4:-leaves}"
+  # leaves is the pre-#125 default, so it keeps the original evalA/evalB dir names for
+  # backwards compatibility; whole (and any future split) gets its own namespace.
+  local sub=""; [ "$mode" != leaves ] && sub="_$mode"
+  local A="$S/evalA$sub" B="$S/evalB$sub" model_out="$S/model$sub.joblib"
+
+  say "sample A (n=$n, mode=$mode) -> $model, max-turns $TURNS"
+  python3 pipeline/sample_disjoint.py "$A" "$n" --seed 42 --mode "$mode"
+  bash pipeline/eval_sample.sh "$A" "$model" "$TURNS" 8 --mode "$mode"
+  cat "$A"/res_*.jsonl > "$A/results.jsonl" 2>/dev/null
 
   say "training the difficulty model on sample A"
-  ( cd baselines && uv run difficulty build-table "$S/evalA/sample.jsonl" "$S/evalA/results.jsonl" \
-      --out-jsonl "$S/evalA/table.jsonl" )
-  ( cd baselines && uv run difficulty train "$S/evalA/table.jsonl" --out "$S/model.joblib" )
+  ( cd baselines && uv run difficulty build-table "$A/sample.jsonl" "$A/results.jsonl" \
+      --out-jsonl "$A/table.jsonl" )
+  ( cd baselines && uv run difficulty train "$A/table.jsonl" --out "$model_out" )
 
-  say "sample B (n=$n, disjoint) -> score FIRST, then solve"
-  python3 pipeline/sample_disjoint.py "$S/evalB" "$n" --exclude "$S/evalA/sample.jsonl" --seed 43
-  ( cd baselines && uv run difficulty score "$S/evalB/sample.jsonl" --model "$S/model.joblib" \
-      --out-jsonl "$S/evalB/scored.jsonl" )
-  bash pipeline/eval_sample.sh "$S/evalB" "$model" "$TURNS" 8
-  cat "$S"/evalB/res_*.jsonl > "$S/evalB/results.jsonl" 2>/dev/null
+  say "sample B (n=$n, disjoint, mode=$mode) -> score FIRST, then solve"
+  python3 pipeline/sample_disjoint.py "$B" "$n" --exclude "$A/sample.jsonl" --seed 43 --mode "$mode"
+  ( cd baselines && uv run difficulty score "$B/sample.jsonl" --model "$model_out" \
+      --out-jsonl "$B/scored.jsonl" )
+  bash pipeline/eval_sample.sh "$B" "$model" "$TURNS" 8 --mode "$mode"
+  cat "$B"/res_*.jsonl > "$B/results.jsonl" 2>/dev/null
 
   say "held-out discrimination (ROC-AUC) + calibration (Brier)"
-  python3 pipeline/score_predictions.py "$S/evalB/scored.jsonl" "$S/evalB/results.jsonl" \
-    | tee "$S/evalB/metrics.txt"
+  python3 pipeline/score_predictions.py "$B/scored.jsonl" "$B/results.jsonl" \
+    | tee "$B/metrics.txt"
 }
 
 cmd="${1:-}"; S="${2:-}"
 [ -z "$cmd" ] || [ -z "$S" ] && { sed -n '2,12p' "$0"; exit 2; }
 mkdir -p "$S"
 
+# Pull a `--mode <leaves|whole>` flag out of the remaining args wherever it appears (used by
+# `eval`); everything else keeps its original positional meaning.
+MODE=leaves
+rest=("${@:3}")
+filtered=()
+i=0
+while [ $i -lt ${#rest[@]} ]; do
+  if [ "${rest[$i]}" = "--mode" ]; then
+    MODE="${rest[$((i + 1))]:?--mode requires a value}"
+    i=$((i + 2))
+  else
+    filtered+=("${rest[$i]}")
+    i=$((i + 1))
+  fi
+done
+set -- "$cmd" "$S" "${filtered[@]}"
+
 case "$cmd" in
   mine)     stage_mine "$S" "${3:-leaves}" ;;
   validate) stage_validate "$S" "${3:-leaves}" ;;
   index)    python3 pipeline/write_index.py ;;
-  eval)     stage_eval "$S" "${3:-100}" "${4:-$MODEL_DEFAULT}" ;;
+  eval)     stage_eval "$S" "${3:-100}" "${4:-$MODEL_DEFAULT}" "$MODE" ;;
   all)
     for mode in leaves whole; do
       stage_mine "$S" "$mode"
       stage_validate "$S" "$mode"
     done
     python3 pipeline/write_index.py
-    stage_eval "$S" "${3:-100}"
+    for mode in leaves whole; do
+      stage_eval "$S" "${3:-100}" "${4:-$MODEL_DEFAULT}" "$mode"
+    done
     ;;
   *) sed -n '2,12p' "$0"; exit 2 ;;
 esac
