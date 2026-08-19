@@ -22,6 +22,7 @@ from apply_ablate.diff import unified_or_empty
 from apply_ablate.obs import log, set_attrs, span
 from apply_ablate.provers import Prover, get_prover
 from apply_ablate.record import AblationRecord
+import time
 
 # proof-source extensions the agent may read (no internet / git / other files)
 PROOF_EXTS = {".thy", ".lean", ".v"}
@@ -530,6 +531,11 @@ class SolveResult(BaseModel):
     solution_compiles: bool | None = (
         None  # dry-run: did the ablator's solution compile?
     )
+    turns_used: int | None = None  # actual number of requests used
+    input_tokens: int | None = None  # input tokens consumed
+    output_tokens: int | None = None  # output tokens consumed
+    elapsed_seconds: float | None = None  # wall-clock time in seconds
+    max_turns: int | None = None  # the --max-turns this run was invoked with
 
 
 def _hole_count(content: str) -> int:
@@ -619,6 +625,7 @@ def solve_one(
     # nothing. That inflates PASS rates, so skip it (excluded from scoring upstream).
     # The real fix is in the ablators (don't emit a record when 0 lemmas are deleted);
     # this is the harness safety net that keeps numbers honest regardless of ablator.
+    start_time = time.perf_counter()
     if record.solution_diff.strip() == "":
         return SolveResult(
             task_id=record.task_id,
@@ -628,6 +635,8 @@ def solve_one(
             gave_up=False,
             trivial=True,
             error="trivial-challenge: empty solution diff (nothing deleted/holed)",
+            max_turns=max_turns,
+            elapsed_seconds=time.perf_counter() - start_time,
         )
     prover = get_prover(record.assistant)
     target = apply_record(record, src, work, overwrite=True)
@@ -685,6 +694,8 @@ def solve_one(
             gave_up=False,
             error=f"malformed-challenge: {pre.trimmed(1500)}",
             malformed_challenge=True,
+            max_turns=max_turns,
+            elapsed_seconds=time.perf_counter() - start_time,
         )
     if dry_run:
         # Well-posedness check: the ablator's OWN ground-truth solution must compile
@@ -726,6 +737,8 @@ def solve_one(
             dry_run=True,
             solution_compiles=sol_ok,
             error=sol_note,
+            max_turns=max_turns,
+            elapsed_seconds=time.perf_counter() - start_time,
         )
     deps = SolveDeps(
         work_dir=work,
@@ -788,6 +801,9 @@ def solve_one(
                 solution_diff=unified_or_empty(record.challenge_file_content, final),
                 agent_solution=final,
                 original_solution=record.solution_text(),
+                max_turns=max_turns,
+                turns_used=max_turns,
+                elapsed_seconds=time.perf_counter() - start_time,
             )
         # A challenge that does not FIT in the model's context window is not a wrong
         # answer — the model never saw the problem. Scoring it as a failure blames the
@@ -805,6 +821,8 @@ def solve_one(
             gave_up=False,
             context_exceeded=oversized,
             error=f"{type(e).__name__}: {e}",
+            max_turns=max_turns,
+            elapsed_seconds=time.perf_counter() - start_time,
         )
     # Score the agent's final delivered file by RECOMPILING it (don't trust the agent's
     # self-reported `succeeded`): pass iff it has no holes/axioms and compiles clean.
@@ -836,6 +854,7 @@ def solve_one(
         else ("tampered" if tamper else ("gave_up" if v.gave_up else "fail")),
     )
     diff = unified_or_empty(record.challenge_file_content, final)
+    usage = out.usage()
     return SolveResult(
         task_id=record.task_id,
         assistant=record.assistant,
@@ -848,4 +867,9 @@ def solve_one(
         solution_diff=diff,
         agent_solution=final,
         original_solution=record.solution_text(),
+        max_turns=max_turns,
+        turns_used=usage.requests,
+        input_tokens=usage.input_tokens,
+        output_tokens=usage.output_tokens,
+        elapsed_seconds=time.perf_counter() - start_time,
     )
