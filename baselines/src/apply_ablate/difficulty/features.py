@@ -115,6 +115,13 @@ def extract_features(record: dict[str, Any]) -> dict[str, Any]:
     feats["task_id"] = record.get("task_id")
     feats["file_path"] = record.get("file_path")
     feats["proof_assistant"] = record.get("proof_assistant")
+    # Which ablation mode this challenge was drawn under ("leaves" / "whole"), when the
+    # source challenges.jsonl was produced by sample_disjoint.py / sample_paired.py. Not a
+    # model feature (excluded from DEFAULT_FEATURES) -- it's a join-disambiguation column:
+    # challenge_id does NOT encode mode (see ablators/lean/Ablator/Record.lean:87-96), so a
+    # paired easy/hard sample shares challenge_id across modes and needs `sample_mode` to
+    # join to the right result row.
+    feats["sample_mode"] = record.get("sample_mode")
 
     # --- counts ---
     feats["n_proofs"] = _num(record.get("n_proofs"))
