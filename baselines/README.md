@@ -19,7 +19,9 @@ is **not** in this package yet.
 repo via `manifest.repo` -> splice + solve + real-compile score via the existing
 `ablate-baseline` driver (`--repo` slicing). See its module docstring for full
 prerequisites (a **built** repo checkout + toolchain + `ANTHROPIC_API_KEY`) — a
-`--dry-run` needs none of those except the checkout.
+`--dry-run` needs none of those except the checkout. For a small demo subset of repos,
+`pipeline/fetch_closure.sh <repo>` downloads a prebuilt `.lake` closure instead of building
+one yourself (`pipeline/README.md`'s "Prebuilt closures" section, #143).
 
 ```bash
 uv run python quickstart.py --list-repos
