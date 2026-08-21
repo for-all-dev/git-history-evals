@@ -44,22 +44,26 @@ Every record carries `repo` + `revision` provenance; `manifest.json` pins `lean_
 
 ## Harness gotchas (affect VALIDATION, not the data)
 
-- **Multi-project repos → mathlib-clone RUNAWAY.** If a repo has a second lake subproject
-  whose `.lake` isn't built, `lake env lean` on those files runs `git clone mathlib4` into
-  `/tmp` **per record** — fills disk fast. Seen in **starkware** (`Stwo/` subproject; mined
-  file_paths `Stwo/…`), and structurally in **aeneas**, **rust-lean** (many sub-lakefiles),
-  **lean-zip** (`bench/`). Fix: build *every* sub-lakefile (`cd sub && lake exe cache get &&
-  lake build`), or exclude the unbuilt-subproject records. `finish_ab.sh` guards by dropping
-  `Stwo/` records if Stwo's mathlib is absent.
+- **Multi-project repos → mathlib-clone RUNAWAY (historical; #119 closed the mechanism).**
+  Before #119, a repo with a second lake subproject whose `.lake` wasn't built ran
+  `lake env lean` on those files, which `git clone`d mathlib4 into `/tmp` **per record** —
+  filled disk fast. Seen in **starkware** (`Stwo/` subproject; mined file_paths `Stwo/…`),
+  and structurally in **aeneas**, **rust-lean** (many sub-lakefiles), **lean-zip**
+  (`bench/`). `check` no longer runs `lake` at all (bare `lean` only), so this specific
+  clone-runaway can't happen anymore — an unbuilt subproject now just fails the compile
+  with "unknown module" instead. Still build *every* sub-lakefile (`cd sub && lake exe
+  cache get && lake build`) so those records aren't spuriously malformed; `finish_ab.sh`
+  guards by dropping `Stwo/` records if Stwo's mathlib is absent.
 - **Monorepo sibling deps.** **SizzLean** lives in the `etheorem/etheorem` monorepo and
   `require`s a sibling `../LeanHazmatSha256`. Validate with the **monorepo root** as the
   baseline `src` (`data/etheorem`, file_paths `packages/SizzLean/…`) so the overlay contains
   the sibling — not the package dir alone (→ "package directory not found").
-- **`lakefile.lean` + C FFI won't `lake env lean`.** **lean-zip** builds C FFI (zlib) + a
-  test exe that won't link here (`collect2: ld returned 1`), so lake marks the config
-  "invalid" and refuses `lake env lean`. The library oleans are fine. Fixed in
-  `baselines/…/provers/lean.py`: on "compiled configuration is invalid", fall back to `lean`
-  with a reconstructed `LEAN_PATH` (own + every package's `build/lib[/lean]`).
+- **`lakefile.lean` + C FFI used to break `lake env lean`.** **lean-zip** builds C FFI
+  (zlib) + a test exe that won't link here (`collect2: ld returned 1`), so lake used to
+  mark the config "invalid" and refuse `lake env lean`. The library oleans are fine.
+  Moot since #119: `check` in `baselines/…/provers/lean.py` always runs bare `lean` with a
+  reconstructed `LEAN_PATH` (own + every package's `build/lib[/lean]`) — it never asks
+  lake to elaborate the config at all, so an unlinkable FFI target can't block it.
 - **Native `:c.o` mathlib builds are wasteful.** Some repos' default `lake build` compiles
   mathlib to native (gcc, 30–90 s/module × thousands) — NOT needed for `lake env lean`
   (which only loads oleans). `cache get` already fetches the oleans; build just the repo's

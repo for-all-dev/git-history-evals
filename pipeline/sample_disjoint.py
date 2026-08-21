@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Draw a per-repo sample from the validated leaf ablations, deduplicated by challenge text.
+"""Draw a per-repo sample from the validated ablations, deduplicated by challenge text.
 
 Allocation: 2 problems from every repo that has >=2; repos with fewer contribute what they have;
 the shortfall is made up 1-at-a-time from the repos with the FEWEST remaining problems first.
@@ -8,20 +8,31 @@ Dedup is on the challenge TEXT, not `challenge_id`: an earlier ablator shipped b
 challenges under different ids, which silently leaked problems across a train/test split.
 
 Usage: sample_disjoint.py <out-dir> <n> [--exclude <other-sample.jsonl> ...] [--seed <seed>]
+                           [--mode {leaves,whole}]
+
+`--mode` selects the artifact pool: `leaves` (default, backwards compatible) draws from
+`artifacts/lean-ablate/*/challenges.jsonl` (the "easy" split); `whole` draws from
+`artifacts/lean-ablate-whole/*/challenges.jsonl` (the "hard" split). Every emitted challenge row
+and the manifest are tagged with `sample_mode` so downstream results are self-describing.
 """
 
 from __future__ import annotations
 
-import argparse
 import glob
 import hashlib
 import json
 import os
 import random
 import shutil
+import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
+
+MODE_ARTIFACT_DIR = {
+    "leaves": "artifacts/lean-ablate",
+    "whole": "artifacts/lean-ablate-whole",
+}
 
 
 def h(rec: dict) -> str:
@@ -29,32 +40,33 @@ def h(rec: dict) -> str:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(
-        description="Draw a per-repo sample from validated leaf ablations."
-    )
-    parser.add_argument("out_dir", help="Output directory")
-    parser.add_argument("n_target", type=int, help="Target number of problems")
-    parser.add_argument(
-        "--exclude",
-        nargs="*",
-        default=[],
-        help="JSONL file(s) of excluded challenges",
-    )
-    parser.add_argument(
-        "--seed",
-        type=int,
-        default=42,
-        help="Random seed for sampling reproducibility",
-    )
-    args = parser.parse_args()
-
-    out_dir = args.out_dir
-    n_target = args.n_target
-    seed = args.seed
+    out_dir = sys.argv[1]
+    n_target = int(sys.argv[2])
     excluded: set[str] = set()
-    for p in args.exclude:
-        with open(p) as f:
-            excluded |= {h(json.loads(line)) for line in f if line.strip()}
+    seed = 42  # Default seed
+    mode = "leaves"  # Default mode: backwards compatible with the pre-#125 leaves-only pool
+
+    # Parse optional arguments
+    if "--exclude" in sys.argv:
+        for p in sys.argv[sys.argv.index("--exclude") + 1 :]:
+            if p.startswith("--"):
+                break
+            excluded |= {h(json.loads(line)) for line in open(p) if line.strip()}
+
+    if "--seed" in sys.argv:
+        seed_idx = sys.argv.index("--seed")
+        seed = int(sys.argv[seed_idx + 1])
+
+    if "--mode" in sys.argv:
+        mode_idx = sys.argv.index("--mode")
+        mode = sys.argv[mode_idx + 1]
+
+    if mode not in MODE_ARTIFACT_DIR:
+        print(
+            f"error: --mode must be one of {sorted(MODE_ARTIFACT_DIR)}, got {mode!r}",
+            file=sys.stderr,
+        )
+        sys.exit(2)
 
     reg = dict(
         line.rstrip("\n").split("\t")
@@ -62,18 +74,21 @@ def main() -> None:
         if line.strip()
     )
     pool: dict[str, list[str]] = {}
-    for f in sorted(glob.glob(str(ROOT / "artifacts/lean-ablate/*/challenges.jsonl"))):
+    glob_pattern = str(ROOT / MODE_ARTIFACT_DIR[mode] / "*/challenges.jsonl")
+    for f in sorted(glob.glob(glob_pattern)):
         repo = os.path.basename(os.path.dirname(f))
         seen: set[str] = set()
         rows = []
         for line in open(f):
             if not line.strip():
                 continue
-            k = h(json.loads(line))
+            rec = json.loads(line)
+            k = h(rec)
             if k in excluded or k in seen:
                 continue
             seen.add(k)
-            rows.append(line)
+            rec["sample_mode"] = mode
+            rows.append(json.dumps(rec) + "\n")
         if rows:
             pool[repo] = rows
 
@@ -102,7 +117,9 @@ def main() -> None:
         pick = rows[:k]
         with open(f"{out_dir}/{repo}.jsonl", "w") as f:
             f.writelines(pick)
-        manifest.append({"repo": repo, "n": len(pick), "src": reg[repo], "seed": seed})
+        manifest.append(
+            {"repo": repo, "n": len(pick), "src": reg[repo], "seed": seed, "mode": mode}
+        )
         n += len(pick)
     json.dump(manifest, open(f"{out_dir}/manifest.json", "w"), indent=1)
     with open(f"{out_dir}/sample.jsonl", "w") as out:
@@ -110,11 +127,10 @@ def main() -> None:
             out.writelines(open(f"{out_dir}/{m['repo']}.jsonl").readlines())
     uniq = {h(json.loads(line)) for line in open(f"{out_dir}/sample.jsonl")}
     print(
-        f"sampled {n} problems across {len(manifest)} repos -> {out_dir} "
+        f"sampled {n} problems (mode={mode}) across {len(manifest)} repos -> {out_dir} "
         f"({len(uniq)} unique, {len(uniq & excluded)} overlap with excluded)"
     )
 
 
 if __name__ == "__main__":
     main()
-

@@ -70,35 +70,6 @@ def find_lemma_user_files(
     return found
 
 
-def copy_repo(
-    src: Path, dst: Path, *, overwrite: bool, include_git: bool = False
-) -> None:
-    """Copy the `src` tree to `dst`, skipping `.git` and symlinking heavy dep dirs."""
-    if not src.is_dir():
-        raise ApplyError(f"source directory does not exist: {src}")
-    if dst.exists():
-        if not overwrite:
-            if any(dst.iterdir()):
-                raise ApplyError(
-                    f"destination {dst} is not empty (pass --overwrite to replace it)"
-                )
-        else:
-            shutil.rmtree(dst)
-    skip = ([] if include_git else [".git"]) + list(_LINK_DIRS)
-    shutil.copytree(
-        src,
-        dst,
-        ignore=shutil.ignore_patterns(*skip),
-        symlinks=True,
-        dirs_exist_ok=True,
-    )
-    # Symlink the skipped heavy dep dirs back to the pristine source.
-    for name in _LINK_DIRS:
-        s = src / name
-        if s.is_dir() and not (dst / name).exists():
-            (dst / name).symlink_to(s.resolve())
-
-
 def resolve_target(root: Path, file_path: str) -> Path:
     """Map a record's `file_path` to a concrete file under `root`.
 

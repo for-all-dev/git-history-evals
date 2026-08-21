@@ -145,6 +145,10 @@ def score(
             "challenge_id": r.get("challenge_id"),
             "task_id": r.get("task_id"),
             "file_path": r.get("file_path"),
+            # carried through so pipeline/score_predictions.py can key its join on
+            # (challenge_id, sample_mode) -- challenge_id alone does not disambiguate a
+            # paired easy/hard sample (see pipeline/sample_paired.py)
+            "sample_mode": r.get("sample_mode"),
             "difficulty": s,
         }
         for r, s in zip(feat_rows, scores, strict=True)

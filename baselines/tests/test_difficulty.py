@@ -311,3 +311,61 @@ def test_build_table_positional_fallback_and_mismatch(tmp_path: Path):
     # second row's task_id/file_path disagree -> unmatched, warned
     assert rows[1]["matched_by"] is None and rows[1]["label"] is None
     assert any("mismatch" in w for w in warnings)
+
+
+def test_build_table_pairs_by_challenge_id_and_mode(tmp_path: Path):
+    """A paired easy/hard sample (pipeline/sample_paired.py) shares `challenge_id` across
+    modes on purpose (the ablator's id hash excludes mode -- see
+    ablators/lean/Ablator/Record.lean:87-96). When the challenges file is itself
+    mode-tagged, the join must land on the SAME mode's result, not whichever one happens
+    to be in the results file."""
+    chals = [
+        {
+            "challenge_id": "shared",
+            "sample_mode": "leaves",
+            "task_id": "t",
+            "file_path": "F",
+            "deleted_lemmas": [],
+            "holes_filled": [],
+        },
+    ]
+    # pooled results: both modes' outcomes for the SAME challenge_id, disagreeing on PASS
+    results = [
+        {"challenge_id": "shared", "sample_mode": "whole", "succeeded": False},
+        {"challenge_id": "shared", "sample_mode": "leaves", "succeeded": True},
+    ]
+    cpath, rpath = tmp_path / "c.jsonl", tmp_path / "r.jsonl"
+    _write_jsonl(cpath, chals)
+    _write_jsonl(rpath, results)
+    rows, warnings = dataset.build_table(cpath, rpath)
+    assert warnings == []
+    assert len(rows) == 1
+    assert rows[0]["outcome"] == "pass" and rows[0]["label"] == 1
+    assert rows[0]["matched_by"] == "challenge_id"
+
+
+def test_build_table_pooled_results_do_not_silently_collide(tmp_path: Path):
+    """If the challenges file lacks a mode tag but the pooled results carry two different
+    modes' rows under the same `challenge_id`, the join is genuinely ambiguous -- it must
+    be skipped (and warned about), never silently resolved to whichever row loaded last."""
+    chals = [
+        {
+            "challenge_id": "shared",
+            "task_id": "t",
+            "file_path": "F",
+            "deleted_lemmas": [],
+            "holes_filled": [],
+        },
+    ]
+    results = [
+        {"challenge_id": "shared", "sample_mode": "leaves", "succeeded": True},
+        {"challenge_id": "shared", "sample_mode": "whole", "succeeded": False},
+    ]
+    cpath, rpath = tmp_path / "c.jsonl", tmp_path / "r.jsonl"
+    _write_jsonl(cpath, chals)
+    _write_jsonl(rpath, results)
+    rows, warnings = dataset.build_table(cpath, rpath)
+    assert len(rows) == 1
+    assert rows[0]["matched_by"] is None
+    assert rows[0]["outcome"] is None and rows[0]["label"] is None
+    assert any("ambiguous" in w for w in warnings)

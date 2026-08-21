@@ -9,6 +9,14 @@ what `class_weight="balanced"` training produces.
 Non-scorable outcomes (malformed / trivial / context_exceeded) are dropped: the model never
 saw those problems, so they are not evidence about the *solver*.
 
+`challenge_id` does not encode ablation mode (see ablators/lean/Ablator/Record.lean:87-96), so
+a paired easy/hard sample (`pipeline/sample_paired.py`) shares `challenge_id` across the two
+modes on purpose. If `scored.jsonl` / `results.jsonl` ever pool rows from both modes, keying
+`pred` by a bare `challenge_id` would let the second mode's row silently overwrite the first's
+prediction or outcome. So the join key is `(challenge_id, sample_mode)`; when `sample_mode` is
+absent on both sides (legacy / single-mode files) that degenerates to `(challenge_id, None)`
+on both sides, i.e. the old behaviour.
+
 Usage: score_predictions.py <scored.jsonl> <results.jsonl>
 """
 
@@ -17,8 +25,14 @@ from __future__ import annotations
 import json
 import re
 import sys
+from typing import Any
 
 OVER = re.compile(r"too large for model|maximum context length", re.I)
+
+
+def _key(r: dict[str, Any]) -> tuple[str, Any] | None:
+    cid = r.get("challenge_id")
+    return (cid, r.get("sample_mode")) if cid else None
 
 
 def main() -> None:
@@ -26,14 +40,17 @@ def main() -> None:
     pred = {}
     for line in open(scored_path):
         r = json.loads(line)
+        key = _key(r)
+        if key is None:
+            continue
         # the model emits `difficulty` = P(fail); we want P(pass)
-        pred[r["challenge_id"]] = 1.0 - float(r["difficulty"])
+        pred[key] = 1.0 - float(r["difficulty"])
 
     y, p, dropped = [], [], 0
     for line in open(results_path):
         r = json.loads(line)
-        cid = r.get("challenge_id")
-        if cid not in pred:
+        key = _key(r)
+        if key is None or key not in pred:
             continue
         err = r.get("error") or ""
         if (
@@ -45,7 +62,7 @@ def main() -> None:
             dropped += 1
             continue
         y.append(1 if r.get("succeeded") else 0)
-        p.append(pred[cid])
+        p.append(pred[key])
 
     n = len(y)
     if not n:
