@@ -47,10 +47,30 @@ def _cross_check(chal: dict[str, Any], res: dict[str, Any]) -> bool:
 def build_table(
     challenges: Path, results: Path
 ) -> tuple[list[dict[str, Any]], list[str]]:
-    """Join features to labels. Returns (rows, warnings)."""
+    """Join features to labels. Returns (rows, warnings).
+
+    `challenge_id` alone is NOT mode-specific: the ablator's id hash excludes ablation mode
+    (see ablators/lean/Ablator/Record.lean:87-96), so a paired easy/hard sample
+    (`pipeline/sample_paired.py`) shares `challenge_id` across the two modes on purpose. If
+    `results` pools outcomes from both modes, a bare `challenge_id` dict would silently let
+    the second mode's row overwrite the first. So the join keys on
+    `(challenge_id, sample_mode)` first; when `sample_mode` is absent on both sides (legacy /
+    single-mode data) that degenerates to `(challenge_id, None)` on both sides, i.e. the old
+    behaviour. Only when the strict key misses do we fall back to a bare `challenge_id` match
+    -- and only if it is unambiguous; an ambiguous bare match (the actual collision hazard)
+    is warned and skipped rather than silently resolved by whichever row happened to load
+    last.
+    """
     chal_recs = load_jsonl(challenges)
     res_recs = load_jsonl(results)
-    by_cid = {r["challenge_id"]: r for r in res_recs if r.get("challenge_id")}
+    by_key: dict[tuple[str, Any], dict[str, Any]] = {}
+    by_cid_all: dict[str, list[dict[str, Any]]] = {}
+    for r in res_recs:
+        cid = r.get("challenge_id")
+        if not cid:
+            continue
+        by_key[(cid, r.get("sample_mode"))] = r
+        by_cid_all.setdefault(cid, []).append(r)
 
     warnings: list[str] = []
     rows: list[dict[str, Any]] = []
@@ -58,8 +78,21 @@ def build_table(
         cid = chal.get("challenge_id")
         res: dict[str, Any] | None = None
         matched_by: str | None = None
-        if cid and cid in by_cid:
-            res, matched_by = by_cid[cid], "challenge_id"
+        warned = False
+        if cid and (cid, chal.get("sample_mode")) in by_key:
+            res, matched_by = by_key[(cid, chal.get("sample_mode"))], "challenge_id"
+        elif cid and cid in by_cid_all:
+            candidates = by_cid_all[cid]
+            if len(candidates) == 1:
+                res, matched_by = candidates[0], "challenge_id"
+            else:
+                warnings.append(
+                    f"row {i}: ambiguous challenge_id={cid!r} matches "
+                    f"{len(candidates)} result rows across modes "
+                    f"(challenge sample_mode={chal.get('sample_mode')!r}); "
+                    "skipping rather than silently picking one"
+                )
+                warned = True
         elif i < len(res_recs):
             res, matched_by = res_recs[i], "position"
             if not _cross_check(chal, res):
@@ -69,13 +102,15 @@ def build_table(
                     f"vs result task_id={res.get('task_id')!r} file={res.get('file_path')!r})"
                 )
                 res, matched_by = None, None
+                warned = True
 
         row = extract_features(chal)
         if res is None:
             row.update(
                 {"outcome": None, "label": None, "trainable": None, "matched_by": None}
             )
-            warnings.append(f"row {i}: no matching result (challenge_id={cid!r})")
+            if not warned:
+                warnings.append(f"row {i}: no matching result (challenge_id={cid!r})")
         else:
             row.update(
                 {
