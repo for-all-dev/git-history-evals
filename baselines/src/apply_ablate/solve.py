@@ -208,8 +208,8 @@ def _retrying_async_client(max_wait: float = 90.0, attempts: int = 8):
 def make_agent(model: str):
     """A pydantic-ai Agent for a `<provider>:<name>` model id.
 
-    Anthropic (the default, prefix optional) gets an explicit retry/backoff client,
-    mirroring experiments/. Mistral (`mistral:labs-leanstral-1-5`, the Lean-4 prover
+    Anthropic (the default, prefix optional) gets an explicit retry/backoff client.
+    Mistral (`mistral:labs-leanstral-1-5`, the Lean-4 prover
     Leanstral) is also supported — it reads `MISTRAL_API_KEY` from the env and gets a
     429-backoff HTTP client. Any other known pydantic-ai prefix falls through.
     """
