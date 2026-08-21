@@ -67,7 +67,9 @@ uv run pytest             # tests
   `./baselines-old/`). Package `apply_ablate`: `solve.py` is a pydantic-ai ReAct loop
   that re-derives the deleted lemma(s) into a compiling, hole-free file; `provers/`
   has the Coq/Isabelle/Lean backends (`coqc`, session-aware `isabelle build` with
-  prebuilt-deps + `skip_proofs`, `lake env lean`); `apply.py` splices a challenge into
+  prebuilt-deps + `skip_proofs`, bare `lean` with a reconstructed `LEAN_PATH` — never
+  `lake env`, which would write through the `.lake` symlink into src, #119);
+  `apply.py` splices a challenge into
   a work copy (symlinking heavy dep dirs like `.lake`); `record.py` is the shared JSONL
   schema; `obs.py` wires Logfire (`instrument_pydantic_ai` + per-compile/per-outcome
   spans). Pre-flight validation marks challenges that don't compile `malformed` and

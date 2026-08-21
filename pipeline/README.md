@@ -66,10 +66,16 @@ to 3,340 (12% → 87%) with no ablator change at all:
 2. **C FFI needs `-D_GNU_SOURCE`.** hex-dev's FFI calls `dlsym(RTLD_DEFAULT, ...)`, which glibc only
    declares under `_GNU_SOURCE`. Without it the FFI target fails and everything downstream goes
    unbuilt. The `cc` wrapper in `flake.nix` handles it.
-3. **Vendored mathlib goes missing / half-cloned.** `lake exe cache get` restores it. The half-clones
-   are *self-inflicted*: the dry-run harness symlinks `.lake` from its work copy back into the source
-   tree, so lake's git operations write through and can corrupt the source. `rebuild_repos.sh` drops
-   and refetches those. (The harness should get a scratch package dir — see TODO.)
+3. **Vendored mathlib goes missing / half-cloned.** `lake exe cache get` restores it. Historically the
+   half-clones were *self-inflicted* (#119): the dry-run harness symlinks `.lake` from its work copy
+   back into the source tree (deliberately — it is a heavy prebuilt dep dir, never copied), and
+   `check` used to run `lake env lean` with `cwd` inside that work copy, so lake's own workspace
+   resolution — git re-clones, the compiled-lakefile-config cache — wrote through the symlink and
+   corrupted the shared source. `check` no longer invokes `lake` at all: it compiles via bare `lean`
+   against a `LEAN_PATH` reconstructed from `.lake/build/lib`, with the one remaining `lake env`
+   call (an FFI-environment snapshot for packages like hex-dev) taken once per repo in `prepare`,
+   against the pristine root, never the work copy. `rebuild_repos.sh` still exists to repair
+   pre-existing damage from before the fix, but a validation run should no longer produce any.
 
 **Do not gate on a cheap probe.** `lake env true` only checks dependency *resolution* and happily
 passes a tree whose mathlib has no `.olean` files. Probing "the first `.lean` file in the tree" picks
@@ -132,6 +138,7 @@ lemma.
 | `eval_sample.sh`, `sample_disjoint.py`, `score_predictions.py` | solve a sample; draw a disjoint one; measure AUC / Brier |
 | `validate_whole.sh`, `revalidate_leaf.sh` | standalone re-validation of an existing batch |
 | `upload_ablations.sh` | publish to the Space |
+| `licenses.tsv`, `survey_licenses.py`, `LICENSE_SURVEY.md` | per-repo license survey at each repo's **pinned revision** (source of truth for a `license`/`license_url` field and the dataset-card license table; see #118) |
 | `build_hf_splits.py`, `publish_hf.sh` | rebuild + publish the HuggingFace easy/hard splits, source-verified |
 
 ## Publishing to HuggingFace
@@ -167,5 +174,6 @@ introduced this section for the 2026-08-19 drift check against `artifacts/`.
   only *read* it — except lake will re-clone through the symlink and corrupt the source. Give the work
   copy a scratch package dir, or mount `.lake` read-only.
 - l4v's generated design spec (above).
+- Resolve the 5 flagged repos in `pipeline/LICENSE_SURVEY.md` (no license file at the pinned revision, or a non-commercial-only custom license) before camera-ready: keep with justification or drop from the corpus.
 - The Rocq corpus: `docs/rocq-ablate-candidates.md`. Filesystems (FSCQ, Perennial) and Raft/Paxos
   (verdi-raft) exist only there — Lean has neither.

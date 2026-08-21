@@ -12,6 +12,8 @@ from apply_ablate.apply import (
     overlay_repo,
     resolve_target,
 )
+from apply_ablate.provers.base import CheckResult
+from apply_ablate.provers.lean import LeanProver
 from apply_ablate.record import AblationRecord, load_record
 
 
@@ -194,6 +196,70 @@ def test_apply_record_drops_target_vo_symlink(tmp_path: Path):
     vo.write_bytes(b"FRESH-VO")
     assert (src / "Util" / "NatUtil.vo").read_bytes() == b"PRISTINE-VO"  # src intact
     assert target.read_text().startswith("(* holed *)")
+
+
+def _lean_src(tmp_path: Path) -> Path:
+    """A minimal lean package: a lakefile + a prebuilt `.lake/build/lib` (the heavy dep
+    dir `overlay_repo` symlinks back to src rather than copying) + one source file."""
+    src = tmp_path / "src"
+    src.mkdir()
+    (src / "lakefile.toml").write_text("name = 'demo'\n")
+    lib = src / ".lake" / "build" / "lib"
+    lib.mkdir(parents=True)
+    (lib / "Demo.olean").write_bytes(b"olean")
+    (src / "A.lean").write_text("theorem t : True := trivial\n")
+    return src
+
+
+def _lean_record() -> AblationRecord:
+    return AblationRecord.model_validate(
+        {
+            "proof_assistant": "lean",
+            "file_path": "A.lean",
+            "challenge_file_content": "theorem t : True := by sorry\n",
+            "solution_file_content": "theorem t : True := trivial\n",
+            "deleted_lemmas": [],
+        }
+    )
+
+
+def test_lean_check_never_invokes_lake_through_overlay(tmp_path: Path, monkeypatch):
+    """`.lake` in the overlay is (correctly) a symlink back to `src` — it is a heavy
+    prebuilt dep dir `overlay_repo` never copies. The regression this guards is #119:
+    `LeanProver.check` used to run `lake env lean` with `cwd` resolving inside the
+    overlay, so lake's own workspace-resolution writes (dependency re-clone, compiled-
+    lakefile-config cache) followed that symlink straight into the pristine source and
+    corrupted it. `check` must now compile exclusively via bare `lean`, and the one
+    `lake` invocation it may still make (the FFI-env snapshot) must run with `cwd`
+    against the pristine root, never with `cwd` under the overlay's `.lake` symlink."""
+    src = _lean_src(tmp_path)
+    dst = tmp_path / "dst"
+    target = apply_record(_lean_record(), src, dst, overwrite=False)
+    assert target.read_text() == "theorem t : True := by sorry\n"
+    lake_link = dst / ".lake"
+    assert lake_link.is_symlink()
+    assert lake_link.resolve() == (src / ".lake").resolve()
+
+    calls: list[tuple[list[str], Path]] = []
+
+    def fake_run(cmd, cwd, *, timeout, env=None):
+        calls.append((cmd, Path(cwd)))
+        return CheckResult(ok=cmd[0] == "lean", cmd=cmd, stdout="", stderr="")
+
+    monkeypatch.setattr("apply_ablate.provers.lean.run", fake_run)
+    prover = LeanProver()
+    res = prover.check(dst, Path("A.lean"), allow_holes=True, timeout=5)
+    assert res.ok
+
+    lean_calls = [c for c in calls if c[0][0] == "lean"]
+    assert len(lean_calls) == 1, "the compile must go through bare `lean`, not `lake`"
+
+    lake_calls = [c for c in calls if c[0][0] == "lake"]
+    for cmd, cwd in lake_calls:
+        assert not str(cwd.resolve()).startswith(str(dst.resolve())), (
+            f"lake invocation {cmd} ran with cwd under the overlay ({cwd}) — it would "
+            "write through the `.lake` symlink into the pristine src"
+        )
 
 
 def test_overlay_exclude_deep_sibling(tmp_path: Path):
