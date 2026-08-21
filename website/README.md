@@ -50,6 +50,29 @@ Deploy: point Vercel at this directory (root `website/`); the committed
 can't set COOP/COEP (e.g. GitHub Pages), `public/wasm/lean/coi-serviceworker.js`
 provides the isolation fallback.
 
+## Leaderboard (issue #142)
+
+`#leaderboard` (top-nav tab) is a second static page rendering agentic-baseline results — no
+backend, no build-time data fetch. It `fetch()`s `public/leaderboard/index.json` and the file it
+points at, both plain static assets, so publishing a real result is a data-only PR (see below).
+
+- Data format: a JSON array of `apply_ablate.aggregate.GroupResult` objects — the exact output of
+  `ablate-aggregate` (`baselines/src/apply_ablate/aggregate.py`, landed in #160), keyed by
+  `(model, mode, max_turns)`. `src/leaderboard/types.ts` mirrors that schema.
+- Columns: model, split (`mode`), turn budget (`max_turns`), macro PASS + 95% CI, micro PASS + CI,
+  the **scorable denominator** (`scorable / total`), repo count, and the full outcome breakdown —
+  `malformed` and `context_exceeded` are shown, not folded into a PASS rate, so a submission that
+  hides broken/unreachable challenges is visibly incomparable to one that doesn't.
+- Real model-grid results (issue #130) don't exist yet, so `public/leaderboard/` currently ships a
+  small, clearly-labeled **sample** (`*.sample.*`) produced by actually running the aggregator over
+  synthetic rows — not hand-transcribed. `index.json.status: "sample"` makes the page render an
+  explicit "awaiting model grid" banner instead of presenting that sample as real results.
+- **Submitting a real result**: run `ablate-baseline` per repo for the (model, mode, turn budget)
+  cell, build a manifest, run `uv run ablate-aggregate manifest.json --out-json results.json` from
+  `baselines/`, drop `results.json` into `website/public/leaderboard/`, flip `index.json` to
+  `{"status": "real", "file": "results.json"}`, and PR it. Full steps + rationale:
+  `public/leaderboard/README.md`.
+
 ## AFP importer (issue #113)
 
 The **Import AFP entry** control loads a real [Archive of Formal

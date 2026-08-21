@@ -1,0 +1,43 @@
+[
+  {
+    "model": "claude-sonnet-4-5",
+    "mode": "leaves",
+    "max_turns": 30,
+    "total": 18,
+    "outcomes": {
+      "pass": 10,
+      "dry_run": 0,
+      "trivial": 1,
+      "malformed": 1,
+      "context_exceeded": 2,
+      "tampered": 0,
+      "gave_up": 0,
+      "turn_limit": 0,
+      "error": 0,
+      "fail": 4
+    },
+    "scorable": 14,
+    "micro_pass": 10,
+    "micro_rate": 0.7142857142857143,
+    "micro_ci_lo": 0.42857142857142855,
+    "micro_ci_hi": 0.9285714285714286,
+    "macro_n_repos": 2,
+    "macro_rate": 0.7083333333333333,
+    "macro_ci_lo": 0.41666666666666663,
+    "macro_ci_hi": 0.9375,
+    "per_repo": {
+      "lean.sample": {
+        "total": 7,
+        "scorable": 6,
+        "pass": 4,
+        "rate": 0.6666666666666666
+      },
+      "rocq.sample": {
+        "total": 11,
+        "scorable": 8,
+        "pass": 6,
+        "rate": 0.75
+      }
+    }
+  }
+]
