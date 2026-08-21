@@ -44,6 +44,10 @@ artifacts/**/writer_transcript.json
 # (repos are pinned in pipeline/repos.tsv; datasets live in the forall-ablations Space)
 /data/lean/
 /data/**/.lake/
+
+# local snapshot of retired HF dataset repos (issue #138) — mirrored to the DO Space,
+# too bulky (and one-off) to vendor here
+/data/_archive/
 /.ablate-heaps/
 /afp-*/
 /scratchpad_pilot/
