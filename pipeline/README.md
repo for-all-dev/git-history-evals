@@ -137,6 +137,7 @@ lemma.
 | `eval_sample.sh`, `sample_disjoint.py`, `score_predictions.py` | solve a sample; draw a disjoint one; measure AUC / Brier |
 | `validate_whole.sh`, `revalidate_leaf.sh` | standalone re-validation of an existing batch |
 | `upload_ablations.sh` | publish to the Space |
+| `licenses.tsv`, `survey_licenses.py`, `LICENSE_SURVEY.md` | per-repo license survey at each repo's **pinned revision** (source of truth for a `license`/`license_url` field and the dataset-card license table; see #118) |
 
 ## TODO
 
@@ -144,5 +145,6 @@ lemma.
   only *read* it — except lake will re-clone through the symlink and corrupt the source. Give the work
   copy a scratch package dir, or mount `.lake` read-only.
 - l4v's generated design spec (above).
+- Resolve the 5 flagged repos in `pipeline/LICENSE_SURVEY.md` (no license file at the pinned revision, or a non-commercial-only custom license) before camera-ready: keep with justification or drop from the corpus.
 - The Rocq corpus: `docs/rocq-ablate-candidates.md`. Filesystems (FSCQ, Perennial) and Raft/Paxos
   (verdi-raft) exist only there — Lean has neither.
