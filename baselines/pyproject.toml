@@ -20,6 +20,7 @@ dependencies = [
 [project.scripts]
 apply-ablate = "apply_ablate.cli:main"
 ablate-baseline = "apply_ablate.baseline:main"
+ablate-aggregate = "apply_ablate.aggregate:main"
 difficulty = "apply_ablate.difficulty.cli:main"
 
 [build-system]
