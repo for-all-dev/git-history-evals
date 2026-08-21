@@ -23,7 +23,10 @@ PREREQUISITES (read this before running)
   built* by default (`pipeline/clone_repos.sh lean`) — a fresh clone is not
   enough. Without a build, every row will preflight-check as `malformed`,
   which reads as "the model is bad" when it is really "the checkout is cold".
-  See `pipeline/README.md`'s "Validation is a build problem" section.
+  See `pipeline/README.md`'s "Validation is a build problem" section. For a
+  handful of repos, `pipeline/fetch_closure.sh <repo>` downloads a prebuilt
+  closure instead of building one yourself — see its "Prebuilt closures"
+  section (#143).
 - The matching toolchain on PATH for that repo's `proof_assistant` (Lean:
   `elan`/`lake`; Coq: `coqc`; Isabelle: `isabelle`) — `pipeline/repos.tsv`
   records each repo's pinned toolchain version.

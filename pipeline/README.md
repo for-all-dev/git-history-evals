@@ -18,6 +18,7 @@ Or one stage at a time:
 | `run.sh eval <scratch> <n> [model]` | sample, solve, train the difficulty model, test on a disjoint sample |
 | `upload_ablations.sh` | publish to `s3://forall-ablations/lean/<mode>/<repo>/` (needs `BUCKET_*_KEY`) |
 | `publish_hf.sh` | rebuild + publish `for-all-dev/ablation-eval` easy/hard splits (needs `BUCKET_*_KEY`, `HF_TOKEN`) |
+| `pack_closures.sh <repo>...` / `fetch_closure.sh <repo>` | publish/download a prebuilt `.lake` build closure so a third party can score challenges without building the repo themselves (needs `BUCKET_*_KEY`) — see "Prebuilt closures" below |
 
 `repos.tsv` (name, language, url, revision, path, toolchain) is the **single source of truth** for
 the corpus. The source repos are not submodules — they are multi-GB once built, and only their
@@ -85,6 +86,55 @@ post-hoc: scan the dry-run results for environmental error signatures (`unknown 
 shows them. `health_probe.sh` compiles a file the miner actually produced records for, which is the
 closest a pre-flight check can get.
 
+## Prebuilt closures
+
+The single largest adoption blocker: scoring a challenge needs a **built** `.olean` closure for
+its repo, and building one from scratch is an hours-long `lake exe cache get` + `lake build`
+(the "Validation is a build problem" section above). `upload_ablations.sh` ships JSONL only, so
+nobody outside this machine could actually score a prediction. `pack_closures.sh` /
+`fetch_closure.sh` close that gap for a **demo subset**, not the full 57-repo corpus (~1TB+
+built) — see issue #143.
+
+```bash
+BUCKET_ACCESS_KEY=... BUCKET_SECRET_KEY=... pipeline/pack_closures.sh <repo> [<repo> ...]
+BUCKET_ACCESS_KEY=... BUCKET_SECRET_KEY=... pipeline/fetch_closure.sh <repo> [<dest-dir>]
+```
+
+`pack_closures.sh` tars the repo's whole checkout directory (`repos.tsv`'s `checkout` column —
+not just `.lake`, since a few repos have several lake roots nested under one checkout),
+zstd-compresses it (`-T4` max, so a pack run doesn't starve other builds/evals sharing the
+machine), uploads it PRIVATE to `s3://forall-ablations/lean/closures/<name>-<revision-short>.tar.zst`,
+and records name/revision/sha256/sizes as a row in `closures.tsv`. `fetch_closure.sh` downloads,
+verifies the sha256 against that row, and unpacks to `data/lean/<repo>` (or an explicit
+`<dest-dir>`) in one command.
+
+**Published demo subset** (small→large, no-deps→mathlib-dep, MIT/Apache-2.0 only per
+`licenses.tsv`) — sha256s in `closures.tsv` are authoritative; sizes below are as-published:
+
+| repo | license | mathlib dep | uncompressed | compressed |
+|---|---|---|---|---|
+| `verified-compiler` | MIT | no | 2.0 MB | 0.55 MB |
+| `LNSym` | Apache-2.0 | no | 818 MB | 596 MB |
+| `capless-lean` | MIT | yes | 1.5 GB | 723 MB |
+| `FVIntmax` | Apache-2.0 | yes | 5.0 GB | 1.7 GB |
+| `ArkLib` | Apache-2.0 | yes | 8.8 GB | 2.6 GB |
+
+Each was round-tripped end to end before publishing: `fetch_closure.sh` into a scratch dir, then
+`apply-ablate <repo>/challenges.jsonl 0 <fetched> <work> --full-check` from `./baselines/` —
+both the holed challenge and the recovered solution compiled clean against the fetched closure
+alone, with no `lake build`/`cache get` and no olean mtimes changing. This surfaced a live
+instance of the "`lake build` does not build every module" gotcha above: LNSym's `Correctness`
+`lean_lib` (a separate target, not on the default build) had never been built in `data/lean/LNSym`,
+so its own challenges — all 101 mined rows come from `Correctness/Correctness.lean` — failed
+`unknown module prefix 'Correctness'` against the first pack. Fixed with a targeted
+`lake build Correctness` (2.5s, deps already warm) and re-packed; not a `pack_closures.sh` bug,
+but a reminder that "the repo builds" and "the specific modules a dataset mines from are built"
+are different claims.
+
+**Limitation:** this is a 5-repo demo subset, not the full corpus — publishing all 57 built
+closures (~1TB+) was explicitly out of scope for #143. The other 52 repos still need
+`clone_repos.sh` + a real build.
+
 ## Evaluating, and the difficulty model
 
 `run.sh eval` samples 2 problems per repo (making up any shortfall from the repos with the fewest
@@ -138,6 +188,7 @@ lemma.
 | `eval_sample.sh`, `sample_disjoint.py`, `score_predictions.py` | solve a sample; draw a disjoint one; measure AUC / Brier |
 | `validate_whole.sh`, `revalidate_leaf.sh` | standalone re-validation of an existing batch |
 | `upload_ablations.sh` | publish to the Space |
+| `pack_closures.sh`, `fetch_closure.sh`, `closures.tsv` | publish/download prebuilt `.lake` build closures for a demo subset of repos (see "Prebuilt closures" above; #143) |
 | `licenses.tsv`, `survey_licenses.py`, `LICENSE_SURVEY.md` | per-repo license survey at each repo's **pinned revision** (source of truth for a `license`/`license_url` field and the dataset-card license table; see #118) |
 | `build_hf_splits.py`, `publish_hf.sh` | rebuild + publish the HuggingFace easy/hard splits, source-verified |
 
