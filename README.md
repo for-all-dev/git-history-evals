@@ -1,121 +1,115 @@
 # git-history-evals
 
-Proof-engineering evals mined from real-world formal-methods git histories. Each challenge is a theorem whose proof was completed at commit `t+1`; the eval asks a language model to reproduce the proof given the state at commit `t`, and scores it on compile success plus drift metrics against the human reference.
+**Proof-engineering evals built by syntactic proof ablation.**
 
-Two Python projects live here:
+Take a real, verified proof file. Pick a theorem — the **corollary**. Take its transitive in-file
+dependency closure, delete one lemma from that closure, and replace the proof steps that cited it
+with holes (`sorry` / `Admitted` / `oops`). Slice the file down to the corollary's closure so the
+context stays small. That ablated file is the challenge; the original is the solution. The solver
+must re-derive the deleted lemma and close the holes so the file compiles.
 
-- `scaffold/` — quantitative miner + qualitative study. Walks a target repo's git history, classifies commits, and extracts per-theorem challenge slots. See `scaffold/README.md`.
-- `experiments/` — the eval *runner*. Baseline (single-shot Claude) and pydantic-ai ReAct agent drivers, plus a layered Docker + tmux + `docker compose` pipeline that runs one container per fiat-crypto SHA in parallel. See `experiments/README.md`.
+Both sides of every published pair are checked by the real prover before publication, so the
+ground truth is a proof that actually compiles rather than an inference about what a commit meant
+to do.
 
-Target repos (git submodules under `data/`): fiat-crypto (Coq), CompCert (Coq), BRiCk (Coq), l4v (Isabelle).
+The published dataset is **[`for-all-dev/ablation-eval`](https://huggingface.co/datasets/for-all-dev/ablation-eval)**
+(`easy` / `hard` splits). The **Proof Ablation Playground** in `website/` runs all three ablators as WASM
+client-side, so you can paste a theory and see the challenge it becomes without installing a
+prover (see `website/README.md`).
+
+> The project began as a git-history miner: challenges were `(commit t, commit t+1)` pairs. That
+> method was retired in August 2026 in favour of ablation. `docs/SoW.md` records the pivot and why.
+
+## Two modes
+
+Both delete one lemma from a corollary's closure; they differ in how the lemma's *users* are holed.
+
+| mode | what gets holed | artifacts |
+|---|---|---|
+| `corollary-leaves` | only the **leaf tactic steps** that cited the lemma — the rest of each user's proof survives | `artifacts/lean-ablate/` |
+| `corollary-whole` | each user's **entire proof body** — solve from the statement alone (strictly harder) | `artifacts/lean-ablate-whole/` |
+
+## What's here
+
+- `ablators/{lean,rocq,isabelle}` — three ablators (Lean 4/lake, OCaml/dune, Rust/cargo) sharing
+  one record schema, each also compiled to WASM for the website.
+- `baselines/` — the prover-agnostic agentic baseline harness (`ablate-baseline`): a pydantic-ai
+  ReAct loop that re-derives the deleted lemma, scored by real compilation.
+- `pipeline/` — mine → build → validate → index → publish → eval. `repos.tsv` pins the corpus.
+- `artifacts/` — per-repo manifests (repo, revision, ablator flags, seed, counts) per mode.
+- `data/` — source repos by language (`data/lean/…`, `data/isabelle/l4v`, `data/rocq/…`).
+- `website/` — the Proof Ablation Playground.
 
 ## Prereqs
 
-- `docker` + `docker compose` (v2)
-- `tmux`
-- `jq`
-- `uv` (Python package manager)
-- `ANTHROPIC_API_KEY` — set in a `.env` at the repo root
+- `nix` (flakes enabled) — `flake.nix` provides the pipeline toolchain
+- `uv` (only if you want to run `baselines/` outside nix)
+- `ANTHROPIC_API_KEY` in a `.env` at the repo root, for baseline runs
 
-## One-time setup
+## Quickstart
 
 ```bash
-git submodule update --init --recursive data/fiat-crypto
-echo "ANTHROPIC_API_KEY=sk-ant-..." >> .env
-cd experiments && uv sync && cd ..
+nix develop                                   # wrapped cc, elan/lake, ablate-baseline, s3cmd
+bash pipeline/clone_repos.sh lean             # fetch source repos at pinned revisions
+bash pipeline/run.sh all /path/to/scratch     # mine -> validate -> index -> eval, both modes
 ```
 
-## Mainline: dockerized end-to-end run
+One stage at a time:
 
-One command builds the images, generates a per-run `compose.yml`, and spawns a detached tmux session with one window per mined fiat-crypto SHA:
+| command | what |
+|---|---|
+| `run.sh mine <scratch> [leaves\|whole]` | ablate every repo (syntactic — needs no build) |
+| `run.sh validate <scratch> [leaves\|whole]` | really compile challenge + ground truth; write `artifacts/` |
+| `run.sh index <scratch>` | regenerate `_index.json` (counts + sha256 per blob) |
+| `run.sh eval <scratch> <n> [model]` | sample, solve, train the difficulty model, test on a disjoint sample |
+
+Publishing:
 
 ```bash
-cd experiments
-./orchestrate/run-all.sh --mode both --max-parallel 4
+bash pipeline/upload_ablations.sh   # bulk JSONL -> s3://forall-ablations/lean/<mode>/<repo>/
+bash pipeline/publish_hf.sh         # easy/hard splits -> for-all-dev/ablation-eval
 ```
 
-On success it prints a block like:
+See `pipeline/README.md` — and **read its "Validation is a build problem" section before trusting
+any `malformed` count**: an incompletely built source tree reports every challenge as malformed.
 
-```
-Started session: proof-eval-<run-id>
-Results dir:    experiments/results/<run-id>/
-Compose file:   experiments/results/<run-id>/compose.yml
-Attach with:    ./attach.sh <run-id>
-Aggregate with: ./aggregate.sh <run-id>
-```
+## Running a baseline
 
-Useful flags:
-
-- `--mode {baseline|agent|both}` — which driver(s) to run inside each container (default `both`)
-- `--max-parallel N` — cap on concurrent per-SHA image builds and containers (default 4)
-- `--shas <sha1,sha2,...>` — restrict to an explicit SHA list; otherwise all SHAs from `meta.json` are used
-- `--skip-build` — assume images are already built
-- `--run-id <id>` — override the timestamp-based run id
-- `--dry-run` — print the plan without executing
-
-Attach to the running session (each SHA has its own tmux window):
+From inside the relevant prover's nix shell (so `coqc` / `isabelle` / `lean` are on PATH):
 
 ```bash
-./orchestrate/attach.sh <run-id>
+cd baselines
+uv run ablate-baseline <challenges.jsonl> <src-checkout> --max-turns 40 --out results.jsonl
 ```
 
-Once all windows have finished, aggregate:
+Outcomes are `PASS` / `trivial` / `malformed` / `turn-limit` / `harness-err`; `trivial` and
+`malformed` are excluded from the PASS rate. Results and the ablator bugs that running it exposed
+are written up in `docs/ablation-baseline-findings.md`.
+
+## Ablating one file directly
 
 ```bash
-./orchestrate/aggregate.sh <run-id>
+nix develop ablators/lean
+lake exe ablate MyTheory.lean --corollary-delete-lemmas-leaves --shrink-solution-minimal --compact
 ```
 
-This copies the per-SHA Docker named volumes (`results-<sha-prefix>`) into `experiments/results/<run-id>/raw/`, concatenates per-mode JSONLs, invokes `summary.py`, and updates the `experiments/results/latest` symlink.
-
-## Inspecting results
-
-```
-experiments/results/<run-id>/
-├── compose.yml              # snapshot of the generated compose file
-├── run.log                  # per-run controller log
-├── raw/<sha-prefix>/        # one dir per SHA, copied from the named volume
-│   ├── agent.jsonl
-│   ├── baseline.jsonl
-│   └── transcripts/<slot>_d<size>.json
-├── agent.jsonl              # concatenated across SHAs
-├── baseline.jsonl
-├── summary.json             # per-(mode, deletion_size) + drift + Pearson r
-└── summary.md               # three tables: baseline, agent, baseline-vs-agent
-```
-
-The drift columns in `summary.md` (vo_bytes, compile_time, proof_chars/lines, tactic_count, n_assumptions) answer "is the LLM more/less X than the human reference?" directly. Per-metric Pearson r vs `deletion_size` is the faithfulness check.
-
-Re-aggregating a prior run is safe and idempotent (named volumes persist):
-
-```bash
-./orchestrate/aggregate.sh <old-run-id>
-```
-
-## Single-slot local iteration (no Docker)
-
-For fast iteration on prompt / agent changes against a host fiat-crypto checkout:
-
-```bash
-export FIAT_CRYPTO_DIR=/abs/path/to/fiat-crypto
-cd experiments
-uv run eval-baseline --max-challenges 1 --skip-a
-uv run eval-agent    --max-challenges 1 --skip-a
-uv run python summary.py --inputs "results/**/*.jsonl" --markdown /tmp/summary.md
-```
+Equivalents: `dune exec bin/main.exe -- file.v …` (`ablators/rocq`),
+`cargo run --features cli --bin ablate -- file.thy …` (`ablators/isabelle/rust`).
 
 ## Testing
 
 ```bash
-cd experiments
-uv run pytest -v                   # Python tests
-bash orchestrate/test_*.sh         # bash smoke tests (no Docker required)
+cd baselines && uv run ruff check && uv run ty check && uv run pytest
+nix develop ablators/lean --command lake exe ablate-test
+nix develop ablators/rocq --command dune test
 ```
 
 ## More depth
 
 - `CLAUDE.md` — repo-wide agent/developer context
-- `artifacts/MANIFEST_SCHEMA.md` — mined-dataset persistence model (git for manifests, DO Spaces for bulk, HuggingFace for published cuts) and the per-dataset `manifest.json` spec
-- `experiments/README.md` — pipeline internals and layout
-- `experiments/results/README.md` — per-run artifact layout and two-layer persistence
-- `scaffold/README.md` — mining + qualitative study pipelines
-- GitHub epic [#27](https://github.com/for-all-dev/git-history-evals/issues/27) — history of how the `experiments/` pipeline was built
+- `docs/SoW.md` — statement of work, milestones, and the August 2026 pivot
+- `docs/ablation-baseline-findings.md` — agentic baseline results and parity work across provers
+- `docs/dataset-issues.md` — the dataset inspection that motivated retiring git-history mining
+- `pipeline/README.md` — pipeline internals, l4v/Isabelle constraints, validation caveats
+- `baselines/README.md` — `apply-ablate` stages and prover backends
+- `website/README.md` — WASM playground architecture and deployment

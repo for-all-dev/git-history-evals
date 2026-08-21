@@ -1,7 +1,7 @@
 # Ablation-baseline findings (agentic harness on real repos)
 
-This covers the **agentic** baseline in `harness/` (`ablate-baseline`) — distinct from
-the single-shot whole-file baseline in `baselines/` over the published HuggingFace
+This covers the **agentic** baseline in `baselines/` (`ablate-baseline`) — distinct from
+the retired single-shot whole-file baseline that ran over the git-history HuggingFace
 cuts (`docs/dataset-issues.md`). Here challenges come from the ablators' *leaf*
 deletion (`--delete-lemmas-leaves --count 5 --shrink-challenge-minimal
 --shrink-solution-minimal`); a pydantic-ai ReAct agent re-derives the deleted lemma(s)
@@ -28,14 +28,14 @@ into a compiling, hole-free file, and we score by real compilation.
 | malformed | 0/5 |
 
 fiat-crypto's number-theory lemmas are hard; 1/5 with budget the dominant limiter again.
-0 malformed confirms the rocq-ablator fixes below.
+0 malformed confirms the Rocq-ablator fixes below.
 
 ### Environment gotcha (coqc version)
 
 The `.vo` deps must be built and checked with the **same** coqc. fiat-crypto's `make`
-uses the opam **Coq 8.20.0** on PATH; the `rocq-ablator` nix shell ships **Rocq 9.1.1**
+uses the opam **Coq 8.20.0** on PATH; the `ablators/rocq` nix shell ships **Rocq 9.1.1**
 (whose split-out `Stdlib` isn't even present → `From Coq Require …` fails). Run the Coq
-baseline with the opam coqc (default PATH), *not* inside the rocq-ablator shell. The
+baseline with the opam coqc (default PATH), *not* inside the `ablators/rocq` shell. The
 ablator binary is built in its shell once; the baseline only needs `coqc` on PATH.
 Build deps via `make -f Makefile.coq <targets>` (the top `Makefile` drags in uninited
 `bedrock2`/`coqutil` submodules; `Makefile.coq` builds only the Coq closure).
@@ -76,7 +76,7 @@ Single-file checks (`lake env lean`, `coqc`) only read them, so the symlink is s
 ## Lean-ablator bugs surfaced by ryu (both fixed)
 
 Real Lean (mathlib-style) exercised two span/boundary bugs the synthetic fixtures
-never hit. Both are fixed in `lean-ablator/Ablator/Span.lean`, with regressions in
+never hit. Both are fixed in `ablators/lean/Ablator/Span.lean`, with regressions in
 `Tests.lean` (`letDocTests`); malformed dropped **6/13 → 0/13** (all challenges *and*
 ground-truth solutions now compile).
 
@@ -99,17 +99,34 @@ ground-truth solutions now compile).
    its decl. Hit `Classify`, `Value`, `FullRoundtrip`, and (downstream) `Interval`,
    `ShortestRep`.
 
-**Parity TODO:** the same two bugs almost certainly exist in the Isabelle (rust/scala)
-and Coq (OCaml) ablators' analogous span logic; port `findDeclBody`/`attachedStart`
-once a real Coq/Isabelle corpus is buildable here.
+**Parity TODO (scoped).** The two fixes do *not* port symmetrically; only one of them
+crosses provers at all.
+
+- **`attachedStart` ports to neither.** Both other ablators already attach leading
+  comments to the declaration that follows them, so bug 2 cannot occur there. The Rocq
+  ablator accumulates space and comment tokens into `cur` and flushes them with the next
+  sentence (`ablators/rocq/lib/span.ml:106`), so a doc comment is part of its decl's span.
+  The Isabelle ablator collects non-command tokens as `Ignored` spans and folds them into
+  the following command (`ablators/isabelle/rust/src/span.rs:114`). Nothing to port.
+- **`findDeclBody` ports to Rocq only.** Isabelle theory syntax has no `:=` proof
+  delimiter, so bug 1 has no analogue there. Rocq does, and its `has_assign`
+  (`ablators/rocq/lib/span.ml:80`) is `List.exists (Token.is_symbol_named ":=")` over the
+  span — *no depth tracking at all*, so it is strictly weaker than the pre-fix Lean
+  `findAssign`, which at least required depth 0. A `Definition`/`Let` with a `:=` nested
+  inside a type will confuse it the same way. This is the one genuine port.
+- **The real cross-prover gap is attribute retention**, which is missing in *both* the
+  Rocq and Isabelle ablators: attributes/annotations preceding a declaration are not
+  carried with it when the declaration is deleted or holed. That, not the two Lean span
+  bugs, is what should be fixed in lockstep once a real Coq/Isabelle corpus is buildable
+  here.
 
 ## Isabelle session-aware checking + the SMT-solver wall
 
-`harness/provers/isabelle.py` now auto-discovers a target theory's enclosing AFP/l4v
-`ROOT`, computes its in-session import closure, and checks just that closure as one
+`baselines/src/apply_ablate/provers/isabelle.py` now auto-discovers a target theory's
+enclosing AFP/l4v `ROOT`, computes its in-session import closure, and checks just that closure as one
 throwaway session (cross-session deps pruned to only those the closure imports; heavy
 `thys/` never registered wholesale). Validated end-to-end on a synthetic multi-theory
-session (valid → ok; `oops` → caught). Unit tests in `harness/tests/test_prover_cmds.py`
+session (valid → ok; `oops` → caught). Unit tests in `baselines/tests/test_prover_cmds.py`
 cover the ROOT parser, import closure, dep-session pruning, and discovery.
 
 **But** real AFP Solidity / l4v proofs replay `smt`/`sledgehammer` tactics, which need
