@@ -13,7 +13,7 @@ set -uo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO="$(cd "$HERE/../../.." && pwd)"
-HARNESS="$REPO/harness"
+HARNESS="$REPO/baselines"
 WORK="$HERE/_work"
 FIX="$HERE/fixtures"
 rm -rf "$WORK"; mkdir -p "$WORK"
@@ -31,6 +31,14 @@ run_prover() {
   echo "===================== $name ====================="
   if ! command -v nix >/dev/null 2>&1; then
     echo "SKIP $name: nix not found"; skipped=$((skipped+1)); return
+  fi
+  # Canary: make sure the prover's nix dev shell actually builds/enters before
+  # committing to the full gen+check run. A missing/unreachable toolchain (no
+  # network to fetch flake inputs, no substituter cache, etc.) should read as a
+  # clear per-prover SKIP, not an opaque FAIL indistinguishable from a real bug.
+  if ! nix develop "path:$flake" --no-write-lock-file -c true >/dev/null 2>&1; then
+    echo "SKIP $name: nix dev shell for $flake did not build (toolchain unavailable in this environment)"
+    skipped=$((skipped+1)); return
   fi
   local src="$WORK/$name/src" dst="$WORK/$name/dst" jsonl="$WORK/$name/out.jsonl"
   mkdir -p "$WORK/$name"

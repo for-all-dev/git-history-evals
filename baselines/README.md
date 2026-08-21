@@ -12,6 +12,21 @@ This is the prover-agnostic substrate for the upcoming pydantic-ai proving loop 
 a model repeatedly edits the holed file and recompiles). That loop is the next step and
 is **not** in this package yet.
 
+## Quickstart: load from HuggingFace + solve + score
+
+`quickstart.py` is the runnable "download the data and make a solver" demo (issue
+#141): `load_dataset("for-all-dev/ablation-eval", split="easy")` -> filter to one
+repo via `manifest.repo` -> splice + solve + real-compile score via the existing
+`ablate-baseline` driver (`--repo` slicing). See its module docstring for full
+prerequisites (a **built** repo checkout + toolchain + `ANTHROPIC_API_KEY`) — a
+`--dry-run` needs none of those except the checkout.
+
+```bash
+uv run python quickstart.py --list-repos
+uv run python quickstart.py --repo <name> --src ../data/lean/<name> --dry-run
+uv run python quickstart.py --repo <name> --src ../data/lean/<name> --limit 3
+```
+
 ## Usage
 
 ```bash

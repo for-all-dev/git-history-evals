@@ -56,7 +56,73 @@ interlocking lemmas that were never simultaneously absent is not. That curve is 
 methodological contribution in the GSM-Symbolic tradition, not merely a defense. The knob
 already exists (`--count N` over the corollary closure).
 
-## Preliminary evidence (weak, but points the right way)
+## Direct measurement: The Stack / Software Heritage membership check (issue #137)
+
+This replaces the stars/age proxy below as the lead instrument. Ran
+`pipeline/membership_check.py` over all 57 repos in `pipeline/repos.tsv`; output committed at
+`pipeline/membership.tsv`.
+
+**Method.** The Stack v1/v2 aren't full-text searchable without downloading terabytes of
+parquet (v2 is also gated on HuggingFace, so `datasets-server` search 404s without an accepted
+license click-through). But **The Stack v2 is built directly from a dated Software Heritage
+(SWH) graph snapshot** — "3.28B files belonging to 104.2M GitHub repositories were collected by
+traversing the Software Heritage 2023-09-06 graph dataset" (the-stack-v2 dataset card) — and
+SWH's public API records, per origin, the dated history of every crawl ("visit") it has made. So
+instead of a popularity proxy, the script queries SWH directly for each repo's origin and visit
+history and compares the **earliest visit date** against the documented snapshot cutoffs:
+
+- Stack v1 cutoff: **2022-06** (files "downloaded from public GitHub repositories between
+  November 2021 and June 2022" — the-stack v1 dataset card)
+- Stack v2 cutoff: **2023-09-06** (SWH graph snapshot date)
+
+`earliest_visit <= cutoff` is necessary but not sufficient for actual dataset inclusion (SWH
+crawling by that date doesn't guarantee the-stack's own license/dedup filtering kept the repo),
+so the table reports `likely_in` / `too_recent` / `not_in_swh` / `UNKNOWN`, not a hard
+yes/no — still strictly more direct than a variable (stars) that only proxies duplication count
+through a broken chain (see below). `--infinigram` optionally cross-checks the repo's
+`owner/name` slug against AI2's infini-gram API (`v4_dolma-v1_7_llama` index) as a secondary,
+noisier signal (a slug can appear in link lists without the code being duplicated).
+
+**Result, run 2026-08-21 (57/57 repos resolved, zero UNKNOWN):**
+
+| Stack v2 status (SWH visit <= 2023-09-06) | count |
+|---|---|
+| `likely_in` | **2** (`starkware-formal-proofs`, `symcrust`) |
+| `too_recent` (SWH has visited, but only after the cutoff) | 9 |
+| `not_in_swh` (no SWH visit found at all) | 46 |
+| `UNKNOWN` (API failure) | 0 |
+
+Only `symcrust` (the vendored `microsoft/SymCrypt`, earliest visit 2022-03) clears the *Stack
+v1* cutoff too. This corroborates the "Corpus facts" recency skew below through a direct
+instrument rather than an inferred one: **the overwhelming majority of this corpus (55/57 by
+this measure) was never crawled by Software Heritage before either Stack snapshot**, so
+knowledge-level memorization of these specific repos' code from Stack-derived pretraining is
+implausible for all but two of them. infini-gram slug counts (Dolma v1.7) were 0 for every repo
+except `lean-mlir` (2) and `symcrust` (3) — consistent with the SWH picture and too sparse to
+say more than "consistent."
+
+**Correlation with pass rate: not yet run.** The join key is `repo name` (this table's `name`
+column = `challenge["repo"]` in ablator output = the `repo` field in
+`baselines/apply_ablate` result JSONL) against a macro-averaged per-repo pass rate. No baseline
+run currently covers enough of the 57-repo corpus to compute that — see
+`macro_pass_rate_join_hook()` in `pipeline/membership_check.py` for the documented hook
+(raises `NotImplementedError` rather than fabricating numbers) and implementation sketch. Wire
+it up once a corpus-wide baseline exists.
+
+### Reproduce
+
+```bash
+python3 pipeline/membership_check.py --infinigram --out pipeline/membership.tsv
+```
+Network access required; every API call is wrapped so a transient failure records `UNKNOWN`
+rather than crashing the run (SWH unauthenticated rate limit is 120 req/hr — the script
+throttles with `--sleep`, default 0.6s).
+
+## Robustness footnote: repo popularity (stars/age) — weak instrument, do not lead with it
+
+Superseded by the direct SWH/Stack measurement above; kept as a secondary robustness check
+because it was the first thing tried and its qualitative direction (no evidence memorization
+drives pass rate) agrees with the direct measurement.
 
 Joined the per-repo pass rates in `docs/leanstral-baseline-100.md` against GitHub
 popularity/age metadata. If memorization drove performance, pass rate should rise with how
@@ -97,7 +163,7 @@ done > stars.tsv
 Note: `gh` prints a `mise` banner to stdout in this environment — the `grep -E '^[0-9]'`
 filter above is load-bearing.
 
-## Why repo popularity is a WEAK instrument (do not publish on it)
+### Why repo popularity is a WEAK instrument (do not publish on it)
 
 Stars proxy contamination only insofar as they proxy **duplication count in the training
 corpus**, which is the variable that actually drives memorization (Carlini et al.,
@@ -122,7 +188,7 @@ nearly free. See below.
 |---|---|---|
 | **Temporal holdout / live benchmarks** | LiveCodeBench, LiveBench, GSM1K (*A Careful Examination of LLM Performance on Grade School Arithmetic*) | **Yes — cheapest for us of anyone.** Gold standard; needs no corpus access, no logprobs |
 | **N-gram / substring overlap vs. training corpus** | GPT-3 and Llama papers; standard in model cards | Not against closed corpora. Open approximation: AI2 **infini-gram**, **WIMBD** |
-| **Corpus membership check** | The Stack / Software Heritage (documented snapshot dates + inclusion lists) | **Yes — this is the correct version of what stars gesture at.** Direct measurement, ~an afternoon |
+| **Corpus membership check** | The Stack / Software Heritage (documented snapshot dates + inclusion lists) | **Done — see "Direct measurement" above.** `pipeline/membership_check.py` / `pipeline/membership.tsv` |
 | **Membership inference from logprobs** | Min-K% Prob (Shi et al.), Min-K%++, reference-model perplexity | Open-weight models only; most frontier APIs withhold logprobs |
 | **Exchangeability / ordering test** | Oren et al., *Proving Test Set Contamination in Black Box Language Models* | Needs logprobs |
 | **Verbatim-completion / guided prompting** | Golchin & Surdeanu, *Time Travel in LLMs* | **Yes, cheap** |
@@ -140,12 +206,14 @@ nearly free. See below.
    to this project; likely the paper's most interesting figure.
 3. **Verbatim recall probe.** Given the lemma name + surrounding context but not the body,
    can the model state it? Decorrelates memorization from ability.
-4. **The Stack / infini-gram membership check** per repo. Replaces the stars proxy with a
-   direct measurement at comparable cost.
+4. ~~**The Stack / infini-gram membership check** per repo.~~ **Done** — see "Direct
+   measurement" above (`pipeline/membership_check.py`, `pipeline/membership.tsv`). Replaced
+   the stars proxy with a direct measurement; the pass-rate correlation step is still blocked
+   on a corpus-wide baseline run (documented hook, no fabricated numbers).
 5. **Min-K%** on whichever open-weight models are in the grid. Secondary signal.
-6. **Stars / age** → robustness footnote, if included at all.
+6. **Stars / age** → robustness footnote (done, see above), included only for agreement-check.
 
-Items 1–3 are ~3 weeks of runs with tooling that already exists. Item 4 is an afternoon.
+Items 1–3 are ~3 weeks of runs with tooling that already exists. Item 4 took an afternoon.
 
 ## Corpus facts useful for building the temporal split
 

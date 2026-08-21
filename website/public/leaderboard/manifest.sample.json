@@ -1,0 +1,14 @@
+[
+  {
+    "path": "res_rocq.sample.jsonl",
+    "model": "claude-sonnet-4-5",
+    "mode": "leaves",
+    "max_turns": 30
+  },
+  {
+    "path": "res_lean.sample.jsonl",
+    "model": "claude-sonnet-4-5",
+    "mode": "leaves",
+    "max_turns": 30
+  }
+]

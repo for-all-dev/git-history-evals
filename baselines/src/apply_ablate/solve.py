@@ -208,10 +208,12 @@ def _retrying_async_client(max_wait: float = 90.0, attempts: int = 8):
 def make_agent(model: str):
     """A pydantic-ai Agent for a `<provider>:<name>` model id.
 
-    Anthropic (the default, prefix optional) gets an explicit retry/backoff client.
-    Mistral (`mistral:labs-leanstral-1-5`, the Lean-4 prover
-    Leanstral) is also supported — it reads `MISTRAL_API_KEY` from the env and gets a
-    429-backoff HTTP client. Any other known pydantic-ai prefix falls through.
+    Anthropic (the default, bare name or `anthropic:` prefix) gets an explicit
+    retry/backoff client. Mistral (`mistral:labs-leanstral-1-5`,
+    the Lean-4 prover Leanstral) and OpenAI (`openai:gpt-5.6-sol`, etc.) are also
+    supported — each reads its provider's `*_API_KEY` from the env and gets a
+    429-backoff HTTP client. Any other known pydantic-ai prefix falls through to
+    `pydantic_ai.models.infer_model`.
     """
     from pydantic_ai import Agent, ModelRetry, RunContext
 
@@ -223,7 +225,18 @@ def make_agent(model: str):
             model.removeprefix("mistral:"),
             provider=MistralProvider(http_client=_retrying_async_client()),
         )
-    else:
+    elif model.startswith("openai:"):
+        from pydantic_ai.models.openai import OpenAIChatModel
+        from pydantic_ai.providers.openai import OpenAIProvider
+
+        model_obj = OpenAIChatModel(
+            model.removeprefix("openai:"),
+            provider=OpenAIProvider(
+                api_key=os.environ.get("OPENAI_API_KEY"),
+                http_client=_retrying_async_client(),
+            ),
+        )
+    elif model.startswith("anthropic:") or ":" not in model:
         # default provider is Anthropic; the prefix is optional for it
         name = model.removeprefix("anthropic:")
         from anthropic import AsyncAnthropic
@@ -234,6 +247,11 @@ def make_agent(model: str):
         model_obj = AnthropicModel(
             name, provider=AnthropicProvider(anthropic_client=client)
         )
+    else:
+        # genuine fall-through: any other known pydantic-ai provider prefix
+        from pydantic_ai.models import infer_model
+
+        model_obj = infer_model(model)
     # Allow several tool-call validation retries: large proof files occasionally trip a
     # transient tool-arg validation error, which would otherwise abort the whole run.
     # CRUCIAL: raise max_tokens well above pydantic-ai's 4096 default — `submit_solution`

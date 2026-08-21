@@ -1,0 +1,6 @@
+{
+  "status": "sample",
+  "note": "Sample data only, for UI development — NOT real results. The real model grid (issue #130) has not landed yet. When it does, this file's \"status\" flips to \"real\" and \"file\" points at the committed ablate-aggregate output.",
+  "file": "results.sample.json",
+  "generated_by": "apply_ablate.aggregate (baselines/), see manifest.sample.json + res_*.sample.jsonl in this directory"
+}
