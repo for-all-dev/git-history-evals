@@ -226,10 +226,12 @@ def make_agent(model: str):
             provider=MistralProvider(http_client=_retrying_async_client()),
         )
     elif model.startswith("openai:"):
-        from pydantic_ai.models.openai import OpenAIChatModel
+        # Responses API, not chat/completions: gpt-5.6 reasoning models reject
+        # function tools alongside reasoning_effort on /v1/chat/completions
+        from pydantic_ai.models.openai import OpenAIResponsesModel
         from pydantic_ai.providers.openai import OpenAIProvider
 
-        model_obj = OpenAIChatModel(
+        model_obj = OpenAIResponsesModel(
             model.removeprefix("openai:"),
             provider=OpenAIProvider(
                 api_key=os.environ.get("OPENAI_API_KEY"),

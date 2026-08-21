@@ -32,11 +32,11 @@ def test_bare_and_anthropic_prefix_route_to_anthropic(model: str) -> None:
 
 
 def test_openai_prefix_routes_to_openai_chat_model() -> None:
-    from pydantic_ai.models.openai import OpenAIChatModel
+    from pydantic_ai.models.openai import OpenAIResponsesModel
 
     agent = make_agent("openai:gpt-5.6-sol")
 
-    assert isinstance(agent.model, OpenAIChatModel)
+    assert isinstance(agent.model, OpenAIResponsesModel)
     assert agent.model.model_name == "gpt-5.6-sol"
 
 
