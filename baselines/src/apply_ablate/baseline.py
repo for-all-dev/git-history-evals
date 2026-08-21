@@ -11,13 +11,15 @@ ANTHROPIC_API_KEY available (loaded from the repo `.env`).
 
 from __future__ import annotations
 
+import json
+import subprocess
 import tempfile
 from pathlib import Path
 from typing import Annotated
 
 import typer
 
-from apply_ablate.record import AblationRecord, load_record
+from apply_ablate.record import AblationRecord, count_records, load_record
 from apply_ablate.solve import solve_one
 
 app = typer.Typer(add_completion=False, help=__doc__)
@@ -38,7 +40,79 @@ def _load_env() -> None:
 
 
 def _count_records(jsonl: Path) -> int:
-    return sum(1 for ln in jsonl.read_text(encoding="utf-8").splitlines() if ln.strip())
+    return count_records(jsonl)
+
+
+def _git_head(src: Path) -> str | None:
+    """Best-effort HEAD sha of `src`, or None if it isn't a git checkout."""
+    try:
+        out = subprocess.run(
+            ["git", "-C", str(src), "rev-parse", "HEAD"],
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+    except (OSError, subprocess.SubprocessError):  # pragma: no cover - defensive
+        return None
+    if out.returncode != 0:
+        return None
+    return out.stdout.strip() or None
+
+
+def _select_indices(challenges: Path, repo: str | None) -> tuple[list[int], set[str]]:
+    """Resolve which record indices to run, given `--repo`.
+
+    A single lightweight pass over the file's rows (raw JSON, no full
+    `AblationRecord` validation — that happens once per selected row in the main
+    loop) determines each row's `manifest.repo`.
+
+    Returns (indices, distinct repo names seen) and raises `typer.Exit` with an
+    actionable message when the input mixes repos and `--repo` wasn't given, or when
+    `--repo` matches nothing.
+    """
+    repos_seen: dict[str, int] = {}
+    by_repo: dict[str | None, list[int]] = {}
+    lines = [
+        ln for ln in challenges.read_text(encoding="utf-8").splitlines() if ln.strip()
+    ]
+    for i, ln in enumerate(lines):
+        try:
+            obj = json.loads(ln)
+        except json.JSONDecodeError:
+            obj = {}
+        row_repo = (obj.get("manifest") or {}).get("repo")
+        repos_seen[row_repo or "(no manifest)"] = (
+            repos_seen.get(row_repo or "(no manifest)", 0) + 1
+        )
+        by_repo.setdefault(row_repo, []).append(i)
+
+    n = len(lines)
+    distinct = set(repos_seen)
+    if repo is not None:
+        indices = by_repo.get(repo, [])
+        if not indices:
+            available = ", ".join(sorted(distinct)) or "(none)"
+            typer.echo(
+                f"error: --repo {repo!r} matches no rows in {challenges}. "
+                f"Repos present: {available}",
+                err=True,
+            )
+            raise typer.Exit(code=2)
+        return indices, distinct
+
+    # No --repo: fine as long as every row agrees on the same repo (or none carries
+    # a manifest at all — legacy single-repo datasets predate this field).
+    non_none_repos = {r for r in by_repo if r is not None}
+    if len(non_none_repos) > 1:
+        breakdown = ", ".join(f"{r!r}: {c}" for r, c in sorted(repos_seen.items()))
+        typer.echo(
+            f"error: {challenges} mixes rows from {len(non_none_repos)} repos "
+            f"({breakdown}). Pass --repo <name> to select one repo's slice instead "
+            f"of running every row against a single checkout.",
+            err=True,
+        )
+        raise typer.Exit(code=2)
+    return list(range(n)), distinct
 
 
 @app.command()
@@ -60,6 +134,14 @@ def run(
     model: Annotated[
         str, typer.Option("--model", help="pydantic-ai model id.")
     ] = "anthropic:claude-sonnet-4-6",
+    repo: Annotated[
+        str | None,
+        typer.Option(
+            "--repo",
+            help="Run only rows whose manifest.repo matches this name (required "
+            "when `challenges` mixes rows from more than one repo).",
+        ),
+    ] = None,
     limit: Annotated[
         int, typer.Option("--limit", help="Max challenges to run (0 = all).")
     ] = 0,
@@ -89,14 +171,39 @@ def run(
     from apply_ablate.obs import init_logfire, log, set_attrs, span
 
     init_logfire()
-    n = _count_records(challenges)
-    n = n if limit <= 0 else min(limit, n)
+    all_count = _count_records(challenges)
+    indices, distinct_repos = _select_indices(challenges, repo)
+    if limit > 0:
+        indices = indices[:limit]
+    n = len(indices)
+    if len(distinct_repos) == 1 and repo is None:
+        typer.echo(f"repo: {next(iter(distinct_repos))}", err=True)
+    elif repo is not None:
+        typer.echo(f"repo: {repo} ({len(indices)}/{all_count} rows)", err=True)
+
+    head = _git_head(src)
+    warned_revisions: set[str] = set()
+
     results = []
     with out.open("w", encoding="utf-8") as fh, tempfile.TemporaryDirectory() as td:
-        for i in range(n):
+        for pos, i in enumerate(indices):
             rec = load_record(challenges, i)
+            if (
+                head
+                and rec.manifest
+                and rec.manifest.revision
+                and rec.manifest.revision != head
+                and rec.manifest.revision not in warned_revisions
+            ):
+                warned_revisions.add(rec.manifest.revision)
+                typer.echo(
+                    f"warning: row {i} expects revision {rec.manifest.revision} "
+                    f"but {src} is checked out at {head} — malformed/compile "
+                    "failures may just be a stale checkout, not the model.",
+                    err=True,
+                )
             work = Path(td) / f"work_{i}"
-            typer.echo(f"[{i + 1}/{n}] {rec.assistant} {rec.file_path} …", err=True)
+            typer.echo(f"[{pos + 1}/{n}] {rec.assistant} {rec.file_path} …", err=True)
             with span(
                 "challenge",
                 index=i,

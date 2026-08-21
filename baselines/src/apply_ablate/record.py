@@ -38,6 +38,17 @@ class DeletedLemma(BaseModel):
     text: str = ""
 
 
+class RecordManifest(BaseModel):
+    """Provenance of the source repo a row was mined from, embedded per-row when a
+    dataset multiplexes several repos into one JSONL (e.g. the published HF card's
+    multi-repo `easy.jsonl`). Lets a consumer slice a mixed file back down to one
+    repo's rows (`--repo`) and sanity-check the checkout it's running against."""
+
+    model_config = ConfigDict(extra="ignore")
+    repo: str | None = None
+    revision: str | None = None
+
+
 class AblationRecord(BaseModel):
     """One row of an ablator JSONL: a self-contained (challenge, solution) pair."""
 
@@ -57,6 +68,9 @@ class AblationRecord(BaseModel):
     challenge_id: str | None = None
     theory: str | None = None
     session: str | None = None
+    # per-row provenance (present on multi-repo dataset cuts; None on single-repo
+    # legacy datasets, which is fine since there's nothing to disambiguate)
+    manifest: RecordManifest | None = None
 
     @property
     def assistant(self) -> str:
