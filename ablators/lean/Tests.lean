@@ -260,6 +260,52 @@ def letDocTests : StateT Tally IO Unit := do
   check "doc: helper statement gone" (! has dc.text "theorem helper")
   check "doc: solution restores doc comment" (has dc.solution "/-- helper doc -/")
 
+-- Attribute-tagged decls (@[simp], @[grind], and `instance` decls) must be preserved
+-- in minimal solution slices even when no kept decl syntactically names them (their
+-- only "use" is implicit -- via the simp set, the grind set, or typeclass resolution).
+-- Regression for Ablator/Ablate.lean's spanHasAttr (:178-181) + the unconditional
+-- attribute-keep loop (:745-751): revert that loop and the "preserved" checks below fail.
+def attrTests : StateT Tally IO Unit := do
+  -- 1. @[simp]: user_simp's proof cites nothing named simp_lem -- `simp` alone closes
+  -- the goal only because simp_lem is in the simp set. target_simp is explicitly used
+  -- (so it's the deletable/holed lemma); unrelated_simp has no user anywhere and must
+  -- not survive the minimal slice (proves the slice is minimal, not "keep everything").
+  let simpSrc := "@[simp] theorem simp_lem : 1 + 0 = 1 := by simp\n\n\
+    theorem target_simp : True := trivial\n\n\
+    theorem unrelated_simp : True := trivial\n\n\
+    theorem user_simp : 1 + 0 = 1 := by\n  have _ := target_simp\n  simp\n"
+  let msSimp := ablate (tokenize simpSrc) { deleteLemmas := true, deleteCount := some 1, shrinkSolutionMinimal := true } (Rng.mk 0) (fun _ => (0:Int))
+  check "attr simp: simp_lem preserved in solution slice" (has msSimp.solution "simp_lem")
+  check "attr simp: user_simp preserved in solution slice" (has msSimp.solution "user_simp")
+  check "attr simp: unrelated_simp dropped from solution slice" (! has msSimp.solution "unrelated_simp")
+
+  -- 2. `@[instance] theorem` (only `theorem`/`lemma`-keyword decls are `deletableKind`s
+  -- and go through the attribute-keep loop -- a plain `instance ... where` decl is a
+  -- structural, non-goal span that's kept unconditionally regardless of this fix, so it
+  -- would NOT regress if Ablate.lean:745-751 were reverted). user_inst's proof never
+  -- names MyInst -- `inferInstance` resolves it purely via typeclass search.
+  let instSrc := "class MyC (α : Type) where\n  val : α\n\n\
+    @[instance] theorem MyInst : MyC Nat := ⟨0⟩\n\n\
+    theorem target_inst : True := trivial\n\n\
+    theorem unrelated_inst : True := trivial\n\n\
+    theorem user_inst : MyC Nat ∧ True := by\n  have _ := target_inst\n  exact ⟨inferInstance, trivial⟩\n"
+  let msInst := ablate (tokenize instSrc) { deleteLemmas := true, deleteCount := some 1, shrinkSolutionMinimal := true } (Rng.mk 0) (fun _ => (0:Int))
+  check "attr instance: MyInst preserved in solution slice" (has msInst.solution "MyInst")
+  check "attr instance: user_inst preserved in solution slice" (has msInst.solution "user_inst")
+  check "attr instance: unrelated_inst dropped from solution slice" (! has msInst.solution "unrelated_inst")
+
+  -- 3. @[grind]: user_grind's proof never names grind_lem -- `grind` alone closes the
+  -- goal only because grind_lem is in the grind set.
+  let grindSrc := "@[grind] theorem grind_lem : 1 + 0 = 1 := by simp\n\n\
+    theorem target_grind : True := trivial\n\n\
+    theorem unrelated_grind : True := trivial\n\n\
+    theorem user_grind : 1 + 0 = 1 := by\n  have _ := target_grind\n  grind\n"
+  let msGrind := ablate (tokenize grindSrc) { deleteLemmas := true, deleteCount := some 1, shrinkSolutionMinimal := true } (Rng.mk 0) (fun _ => (0:Int))
+  check "attr grind: grind_lem preserved in solution slice" (has msGrind.solution "grind_lem")
+  check "attr grind: user_grind preserved in solution slice" (has msGrind.solution "user_grind")
+  check "attr grind: unrelated_grind dropped from solution slice" (! has msGrind.solution "unrelated_grind")
+
+
 def main : IO UInt32 := do
   let (_, tally) ← (do
     let toks := tokenize SAMPLE
@@ -346,6 +392,7 @@ def main : IO UInt32 := do
     corollaryAllTests
     letDocTests
     diffTests
+    attrTests
   ).run {}
   let total := tally.passed + tally.failed
   IO.println s!"ablate-test: {tally.passed}/{total} passed"
