@@ -9,6 +9,7 @@ dependencies = [
     "typer>=0.12",
     "pydantic-ai>=2.32",
     "anthropic",
+    "openai",  # enables `--model openai:<name>` via pydantic-ai (solve.make_agent)
     "mistralai",  # enables `--model mistral:labs-leanstral-1-5` (Leanstral) via pydantic-ai
     "tenacity",  # 429/Retry-After backoff transport for the Mistral client (solve.make_agent)
     "scikit-learn",  # difficulty classifier (apply_ablate.difficulty.model)
