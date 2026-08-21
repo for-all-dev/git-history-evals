@@ -9,6 +9,8 @@ Two Python projects live here:
 
 Target repos (git submodules under `data/`): fiat-crypto (Coq), CompCert (Coq), BRiCk (Coq), l4v (Isabelle).
 
+Load a published eval and run a solver against it: `baselines/quickstart.py` (`uv run python quickstart.py --list-repos` from `baselines/`).
+
 ## Prereqs
 
 - `docker` + `docker compose` (v2)
