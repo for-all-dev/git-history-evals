@@ -1,10 +1,10 @@
 # Communication Materials
 
-This directory holds communication materials, including workshop papers and competition documentation for NeurIPS 2026 VeriCodeGen.
+This directory holds communication materials, including the NeurIPS 2026 VeriCodeGen workshop paper.
 
 ## Overleaf Sync Workflow
 
-The workshop and competition templates are synced with an Overleaf project (`proofablate__vericode-workshop`) using the `olcli` command-line tool.
+The workshop paper is synced with an Overleaf project (`proofablate__vericode-workshop`) using the `olcli` command-line tool. (The NeurIPS competition-track template is irrelevant to this submission; any `*_competition.*` files that appear on the Overleaf side should be ignored, not pulled into the repo.)
 
 ### Before Editing
 
