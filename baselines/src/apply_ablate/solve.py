@@ -872,8 +872,7 @@ def solve_one(
         else ("tampered" if tamper else ("gave_up" if v.gave_up else "fail")),
     )
     diff = unified_or_empty(record.challenge_file_content, final)
-    # pydantic-ai 2.x exposes usage as a RunUsage property; 1.x had a method
-    usage = out.usage() if callable(out.usage) else out.usage
+    usage = out.usage
     return SolveResult(
         task_id=record.task_id,
         assistant=record.assistant,
