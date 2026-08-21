@@ -209,7 +209,7 @@ def make_agent(model: str):
     """A pydantic-ai Agent for a `<provider>:<name>` model id.
 
     Anthropic (the default, bare name or `anthropic:` prefix) gets an explicit
-    retry/backoff client, mirroring experiments/. Mistral (`mistral:labs-leanstral-1-5`,
+    retry/backoff client. Mistral (`mistral:labs-leanstral-1-5`,
     the Lean-4 prover Leanstral) and OpenAI (`openai:gpt-5.6-sol`, etc.) are also
     supported — each reads its provider's `*_API_KEY` from the env and gets a
     429-backoff HTTP client. Any other known pydantic-ai prefix falls through to

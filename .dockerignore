@@ -1,9 +1,0 @@
-.git/
-data/
-dashboard/
-scaffold/
-artifacts/
-**/__pycache__/
-**/*.pyc
-.env
-*.DS_Store

@@ -164,5 +164,5 @@ client-side — nothing is uploaded.
 
 Walking a proof and inspecting goal state between tactics (to ablate mid-tactic)
 requires *executing* Coq — a job for `coq-lsp`/petanque or SerAPI, run offline
-in the mining pipeline (cf. `../../experiments/docker`), not in WASM. Staying in
+in the ablation pipeline (cf. `../../pipeline/`), not in WASM. Staying in
 OCaml here keeps that pivot cheap.
