@@ -7,7 +7,7 @@ requires-python = ">=3.12"
 dependencies = [
     "pydantic>=2.10",
     "typer>=0.12",
-    "pydantic-ai>=1.76",
+    "pydantic-ai>=2.32",
     "anthropic",
     "mistralai",  # enables `--model mistral:labs-leanstral-1-5` (Leanstral) via pydantic-ai
     "tenacity",  # 429/Retry-After backoff transport for the Mistral client (solve.make_agent)
