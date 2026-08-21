@@ -202,6 +202,16 @@ nearly free. See below.
    (`pushed_at` 2026-08), so the slice is cheap to construct. **Either result is a good
    result:** small gap ⇒ the whole 43k corpus is trustworthy; large gap ⇒ a real finding,
    and the post-cutoff slice becomes the headline eval with the rest as a training pool.
+   **Prep done (#132 DATA-PREP half):** `pipeline/lemma_dates.py mine` walks the pinned
+   `data/lean/<repo>` checkouts (`git log -S`/`--reverse`, verified against an actual
+   declaration line, not just a name mention) to date every deleted lemma in
+   `artifacts/lean-ablate/*/challenges.jsonl`, writing `pipeline/lemma_dates.tsv`
+   (`challenge_id, repo, lemma, introduction_date, introduction_sha, depth_limited`),
+   joined on the same `challenge_id` convention as `membership.tsv`/the difficulty layer.
+   The pass-rate correlation itself (`lemma_dates.py temporal-holdout` /
+   `temporal_holdout_split`) is implemented and unit-tested against synthetic rows but not
+   yet run for real — same "documented hook, no fabricated numbers" status as item 4 below,
+   blocked on #129/#130 producing real `ablate-baseline` results.
 2. **Deletion-count sweep** (`--count` 1/2/3/5). The memorization-decay curve. Distinctive
    to this project; likely the paper's most interesting figure.
 3. **Verbatim recall probe.** Given the lemma name + surrounding context but not the body,
