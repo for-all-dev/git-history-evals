@@ -1,0 +1,58 @@
+name	url	swh_known	earliest_visit_date	latest_visit_date	num_visits	stack_v1_status	stack_v2_status	infinigram_index	infinigram_count	infinigram_approx	notes
+ArkLib	https://github.com/Verified-zkEVM/ArkLib	no			-1	not_in_swh	not_in_swh	v4_dolma-v1_7_llama	0	False	
+Clear	https://github.com/NethermindEth/Clear	no			-1	not_in_swh	not_in_swh	v4_dolma-v1_7_llama	0	False	
+CompPoly	https://github.com/Verified-zkEVM/CompPoly	no			-1	not_in_swh	not_in_swh	v4_dolma-v1_7_llama	0	False	
+CvxLean	https://github.com/verified-optimization/CvxLean	yes	2025-07-08	2025-07-08	1	too_recent	too_recent	v4_dolma-v1_7_llama	0	False	
+FLoPS	https://github.com/rutgers-apl/FLoPS	no			-1	not_in_swh	not_in_swh	v4_dolma-v1_7_llama	0	False	
+FVIntmax	https://github.com/NethermindEth/FVIntmax	no			-1	not_in_swh	not_in_swh	v4_dolma-v1_7_llama	0	False	
+Foundation	https://github.com/FormalizedFormalLogic/Foundation	no			-1	not_in_swh	not_in_swh	v4_dolma-v1_7_llama	0	False	
+LNSym	https://github.com/leanprover/LNSym	no			-1	not_in_swh	not_in_swh	v4_dolma-v1_7_llama	0	False	
+Lentil	https://github.com/verse-lab/Lentil	no			-1	not_in_swh	not_in_swh	v4_dolma-v1_7_llama	0	False	
+LeroyCompilerVerificationCourse	https://github.com/leanprover/LeroyCompilerVerificationCourse	no			-1	not_in_swh	not_in_swh	v4_dolma-v1_7_llama	0	False	
+SampCert	https://github.com/leanprover/SampCert	no			-1	not_in_swh	not_in_swh	v4_dolma-v1_7_llama	0	False	
+SizzLean	https://github.com/etheorem/etheorem	no			-1	not_in_swh	not_in_swh	v4_dolma-v1_7_llama	0	False	
+TTBFL	https://github.com/ionathanch/TTBFL	yes	2025-02-09	2026-08-09	11	too_recent	too_recent	v4_dolma-v1_7_llama	0	False	
+TensorLib	https://github.com/leanprover/TensorLib	yes	2024-12-22	2026-08-06	15	too_recent	too_recent	v4_dolma-v1_7_llama	0	False	
+TorchLean	https://github.com/lean-dojo/TorchLean	no			-1	not_in_swh	not_in_swh	v4_dolma-v1_7_llama	0	False	
+VCV-io	https://github.com/Verified-zkEVM/VCV-io	no			-1	not_in_swh	not_in_swh	v4_dolma-v1_7_llama	0	False	
+aeneas	https://github.com/AeneasVerif/aeneas	no			-1	not_in_swh	not_in_swh	v4_dolma-v1_7_llama	0	False	
+btc-verified	https://github.com/ProofOfKeags/btc-verified	no			-1	not_in_swh	not_in_swh	v4_dolma-v1_7_llama	0	False	
+capless-lean	https://github.com/Linyxus/capless-lean	no			-1	not_in_swh	not_in_swh	v4_dolma-v1_7_llama	0	False	
+cedar-spec	https://github.com/cedar-policy/cedar-spec.git	yes	2025-07-18	2026-08-15	20	too_recent	too_recent	v4_dolma-v1_7_llama	0	False	
+clean	https://github.com/Verified-zkEVM/clean	no			-1	not_in_swh	not_in_swh	v4_dolma-v1_7_llama	0	False	
+cslib	https://github.com/leanprover/cslib	no			-1	not_in_swh	not_in_swh	v4_dolma-v1_7_llama	0	False	
+curve25519-dalek-lean-verify	https://github.com/Beneficial-AI-Foundation/curve25519-dalek-lean-verify	no			-1	not_in_swh	not_in_swh	v4_dolma-v1_7_llama	0	False	
+dolev-yao	https://github.com/metareflection/dolev-yao	no			-1	not_in_swh	not_in_swh	v4_dolma-v1_7_llama	0	False	
+evm-asm	https://github.com/Verified-zkEVM/evm-asm	no			-1	not_in_swh	not_in_swh	v4_dolma-v1_7_llama	0	False	
+formal-snarks-project	https://github.com/BoltonBailey/formal-snarks-project	yes	2026-05-08	2026-05-08	1	too_recent	too_recent	v4_dolma-v1_7_llama	0	False	
+hax-proof-libs-lean	https://github.com/cryspen/hax	no			-1	not_in_swh	not_in_swh	v4_dolma-v1_7_llama	0	False	
+hex-dev	https://github.com/kim-em/hex-dev	no			-1	not_in_swh	not_in_swh	v4_dolma-v1_7_llama	0	False	
+iris-lean	https://github.com/leanprover-community/iris-lean	yes	2024-05-01	2026-06-18	24	too_recent	too_recent	v4_dolma-v1_7_llama	0	False	
+jolt-tla	https://github.com/CharlesHoskinson/jolt-tla	no			-1	not_in_swh	not_in_swh	v4_dolma-v1_7_llama	0	False	
+juvix-lean	https://github.com/anoma/juvix-lean	no			-1	not_in_swh	not_in_swh	v4_dolma-v1_7_llama	0	False	
+lampe	https://github.com/reilabs/lampe	no			-1	not_in_swh	not_in_swh	v4_dolma-v1_7_llama	0	False	
+lean-formal-reasoning-program	https://github.com/andaraiwin/lean-formal-reasoning-program	no			-1	not_in_swh	not_in_swh	v4_dolma-v1_7_llama	0	False	
+lean-mlir	https://github.com/opencompl/lean-mlir	yes	2023-12-29	2026-08-18	41	too_recent	too_recent	v4_dolma-v1_7_llama	2	False	
+lean-yjs	https://github.com/iasakura/lean-yjs	no			-1	not_in_swh	not_in_swh	v4_dolma-v1_7_llama	0	False	
+lean-zip	https://github.com/kim-em/lean-zip	yes	2026-04-14	2026-08-08	4	too_recent	too_recent	v4_dolma-v1_7_llama	0	False	
+lean4lean	https://github.com/digama0/lean4lean	yes	2026-06-05	2026-06-05	1	too_recent	too_recent	v4_dolma-v1_7_llama	0	False	
+loom	https://github.com/verse-lab/loom	no			-1	not_in_swh	not_in_swh	v4_dolma-v1_7_llama	0	False	
+nickelean	https://github.com/lexicone42/nickelean	no			-1	not_in_swh	not_in_swh	v4_dolma-v1_7_llama	0	False	
+proven-zk	https://github.com/reilabs/proven-zk	no			-1	not_in_swh	not_in_swh	v4_dolma-v1_7_llama	0	False	
+ryu-lean4	https://github.com/lexicone42/ryu-lean4	no			-1	not_in_swh	not_in_swh	v4_dolma-v1_7_llama	0	False	
+shortest-decimal	https://github.com/lexicone42/shortest-decimal	no			-1	not_in_swh	not_in_swh	v4_dolma-v1_7_llama	0	False	
+sparkle	https://github.com/Verilean/sparkle	no			-1	not_in_swh	not_in_swh	v4_dolma-v1_7_llama	0	False	
+splean	https://github.com/verse-lab/splean	no			-1	not_in_swh	not_in_swh	v4_dolma-v1_7_llama	0	False	
+starkware-formal-proofs	https://github.com/starkware-libs/formal-proofs	yes	2023-05-23	2026-08-12	11	too_recent	likely_in	v4_dolma-v1_7_llama	0	False	
+veil	https://github.com/verse-lab/veil	no			-1	not_in_swh	not_in_swh	v4_dolma-v1_7_llama	0	False	
+verified-compiler	https://github.com/marcusrossel/verified-compiler	no			-1	not_in_swh	not_in_swh	v4_dolma-v1_7_llama	0	False	
+verity	https://github.com/lfglabs-dev/verity	no			-1	not_in_swh	not_in_swh	v4_dolma-v1_7_llama	0	False	
+yul-semantics	https://github.com/powdr-labs/yul-semantics	no			-1	not_in_swh	not_in_swh	v4_dolma-v1_7_llama	0	False	
+apc-optimizer	https://github.com/powdr-labs/apc-optimizer	no			-1	not_in_swh	not_in_swh	v4_dolma-v1_7_llama	0	False	
+yul-compiler	https://github.com/powdr-labs/yul-compiler	no			-1	not_in_swh	not_in_swh	v4_dolma-v1_7_llama	0	False	
+leanda	https://github.com/konnov/leanda	no			-1	not_in_swh	not_in_swh	v4_dolma-v1_7_llama	0	False	
+verified-consensus	https://github.com/fradamt/verified-consensus	no			-1	not_in_swh	not_in_swh	v4_dolma-v1_7_llama	0	False	
+posix-parsing	https://github.com/keeganperry7/posix-parsing	no			-1	not_in_swh	not_in_swh	v4_dolma-v1_7_llama	0	False	
+posix-submatching	https://github.com/keeganperry7/posix-submatching	no			-1	not_in_swh	not_in_swh	v4_dolma-v1_7_llama	0	False	
+adler-proofs	https://github.com/septract/adler-proofs	no			-1	not_in_swh	not_in_swh	v4_dolma-v1_7_llama	0	False	
+symcrust	https://github.com/microsoft/SymCrypt	yes	2022-03-01	2026-07-24	100	likely_in	likely_in	v4_dolma-v1_7_llama	3	False	
