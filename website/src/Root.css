@@ -1,0 +1,22 @@
+.top-nav {
+  display: flex;
+  gap: 4px;
+  padding: 8px 24px;
+  background: var(--bg2);
+  border-bottom: 1px solid var(--bd);
+  font: 13px ui-sans-serif, system-ui, sans-serif;
+}
+.top-nav a {
+  color: var(--mut);
+  text-decoration: none;
+  padding: 5px 12px;
+  border-radius: 6px;
+}
+.top-nav a:hover {
+  color: var(--fg);
+}
+.top-nav a.on {
+  color: var(--bg);
+  background: var(--acc);
+  font-weight: 600;
+}

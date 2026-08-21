@@ -1,0 +1,140 @@
+.lb {
+  min-height: 100vh;
+  background: var(--bg);
+  color: var(--fg);
+  font: 14px/1.5 ui-sans-serif, system-ui, sans-serif;
+  padding: 24px;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.lb-header h1 {
+  margin: 0 0 6px;
+  font-size: 20px;
+  letter-spacing: 0.2px;
+}
+.lb-header p {
+  margin: 0 0 18px;
+  color: var(--mut);
+  font-size: 13px;
+  max-width: 90ch;
+}
+.lb-header code,
+.lb-note code,
+.lb-submit code {
+  background: var(--pan);
+  border: 1px solid var(--bd);
+  border-radius: 4px;
+  padding: 1px 5px;
+  font: 12px ui-monospace, Menlo, Consolas, monospace;
+}
+.lb-header b {
+  color: var(--fg);
+}
+
+.lb-muted {
+  color: var(--mut);
+}
+.lb-err {
+  color: var(--red);
+}
+
+.lb-banner {
+  background: color-mix(in srgb, var(--yel) 14%, var(--pan));
+  border: 1px solid var(--yel);
+  color: var(--fg);
+  border-radius: 8px;
+  padding: 10px 14px;
+  margin-bottom: 16px;
+  font-size: 13px;
+}
+.lb-banner strong {
+  color: var(--yel);
+}
+
+.lb-table-wrap {
+  overflow-x: auto;
+  border: 1px solid var(--bd);
+  border-radius: 8px;
+  background: var(--pan);
+}
+
+.lb-table {
+  border-collapse: collapse;
+  width: 100%;
+  font-size: 12.5px;
+  white-space: nowrap;
+}
+.lb-table th,
+.lb-table td {
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--bd);
+  text-align: left;
+}
+.lb-table thead th {
+  position: sticky;
+  top: 0;
+  background: var(--bg2);
+  color: var(--mut);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  z-index: 1;
+}
+.lb-outcome-h {
+  text-align: right;
+}
+.lb-model {
+  color: var(--acc2);
+  font-weight: 600;
+}
+.lb-num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.lb-ci {
+  display: block;
+  color: var(--mut);
+  font-size: 11px;
+}
+.lb-outcome {
+  color: var(--mut);
+}
+.lb-outcome-flag {
+  color: var(--red);
+}
+
+.lb-note {
+  margin: 12px 2px 0;
+  color: var(--mut);
+  font-size: 12px;
+  max-width: 100ch;
+}
+
+.lb-submit {
+  margin-top: 28px;
+  padding-top: 16px;
+  border-top: 1px solid var(--bd);
+}
+.lb-submit h2 {
+  font-size: 15px;
+  margin: 0 0 10px;
+}
+.lb-submit ol {
+  margin: 0 0 10px;
+  padding-left: 20px;
+}
+.lb-submit li {
+  margin-bottom: 8px;
+  font-size: 13px;
+  color: var(--fg);
+}
+.lb-code {
+  background: var(--pan);
+  border: 1px solid var(--bd);
+  border-radius: 6px;
+  padding: 8px 10px;
+  margin: 6px 0 0;
+  font: 12px ui-monospace, Menlo, Consolas, monospace;
+  overflow-x: auto;
+}
