@@ -7,7 +7,7 @@ the shortfall is made up 1-at-a-time from the repos with the FEWEST remaining pr
 Dedup is on the challenge TEXT, not `challenge_id`: an earlier ablator shipped byte-identical
 challenges under different ids, which silently leaked problems across a train/test split.
 
-Usage: sample_disjoint.py <out-dir> <n> [--exclude <other-sample.jsonl> ...]
+Usage: sample_disjoint.py <out-dir> <n> [--exclude <other-sample.jsonl> ...] [--seed <seed>]
 """
 
 from __future__ import annotations
@@ -32,11 +32,18 @@ def main() -> None:
     out_dir = sys.argv[1]
     n_target = int(sys.argv[2])
     excluded: set[str] = set()
+    seed = 42  # Default seed
+
+    # Parse optional arguments
     if "--exclude" in sys.argv:
         for p in sys.argv[sys.argv.index("--exclude") + 1 :]:
             if p.startswith("--"):
                 break
             excluded |= {h(json.loads(line)) for line in open(p) if line.strip()}
+
+    if "--seed" in sys.argv:
+        seed_idx = sys.argv.index("--seed")
+        seed = int(sys.argv[seed_idx + 1])
 
     reg = dict(
         line.rstrip("\n").split("\t")
@@ -80,11 +87,11 @@ def main() -> None:
         if not k:
             continue
         rows = pool[repo][:]
-        random.Random(hash(out_dir) & 0xFFFF).shuffle(rows)
+        random.Random(seed).shuffle(rows)
         pick = rows[:k]
         with open(f"{out_dir}/{repo}.jsonl", "w") as f:
             f.writelines(pick)
-        manifest.append({"repo": repo, "n": len(pick), "src": reg[repo]})
+        manifest.append({"repo": repo, "n": len(pick), "src": reg[repo], "seed": seed})
         n += len(pick)
     json.dump(manifest, open(f"{out_dir}/manifest.json", "w"), indent=1)
     with open(f"{out_dir}/sample.jsonl", "w") as out:
