@@ -5,7 +5,7 @@
 \item {\bf Claims}
     \item[] Question: Do the main claims made in the abstract and introduction accurately reflect the paper's contributions and scope?
     \item[] Answer: \answerYes{}
-    \item[] Justification: The abstract and Section~\ref{sec:intro} state exactly five claims, each with a forward reference to the section that discharges it (Sections~\ref{sec:method}--\ref{sec:tamper}), and Section~\ref{sec:limitations} states the scope conditions on each. Claims whose supporting runs have not yet completed are marked in the text rather than asserted.
+    \item[] Justification: The abstract and Section~\ref{sec:intro} state exactly five claims, each with a forward reference to the section that discharges it, and Section~\ref{sec:limitations} states the scope conditions on each. Where a stated hypothesis was not borne out we say so in the same place we stated it: the premise that whole-body holing is harder is reported as a null in Section~\ref{sec:easyhard}, and the prediction that tamper rate rises with turn budget is reported as unconfirmed in Section~\ref{sec:tamper}. Claims whose supporting runs have not yet completed are marked in the text rather than asserted.
     \item[] Guidelines:
     \begin{itemize}
         \item The answer \answerNA{} means that the abstract and introduction do not include the claims made in the paper.
@@ -84,7 +84,7 @@
 \item {\bf Experimental setting/details}
     \item[] Question: Does the paper specify all the training and test details (e.g., data splits, hyperparameters, how they were chosen, type of optimizer) necessary to understand the results?
     \item[] Answer: \answerYes{}
-    \item[] Justification: Section~\ref{sec:setup} specifies the solver loop, the tool set, the turn-budget parameter and the sample-construction rule (macro-balanced per repository, fixed seed), and each experiment subsection states its own design. \todo{fill the exact model list, budgets and seeds of the main grid once \#130 lands}
+    \item[] Justification: Section~\ref{sec:setup} specifies the solver loop, the tool set, the sample-construction rule (up to two matched \texttt{challenge\_id}s per repository at seed 42, giving 113 pairs), the three model identifiers, the 50-turn budget applied uniformly, and the exclusion rules that take the 113 pairs to 103 scorable. Section~\ref{sec:outcomes} and Table~\ref{tab:outcomes} give the scoring rule, and Appendix~D gives the solver prompt, tool schemas and compile invocation. The one experimental variable we have not swept is the turn budget itself, which Section~\ref{sec:limitations} (L2) states as a limitation rather than leaving implicit.
     \item[] Guidelines:
     \begin{itemize}
         \item The answer \answerNA{} means that the paper does not include experiments.
@@ -95,7 +95,7 @@
 \item {\bf Experiment statistical significance}
     \item[] Question: Does the paper report error bars suitably and correctly defined or other appropriate information about the statistical significance of the experiments?
     \item[] Answer: \answerYes{}
-    \item[] Justification: Every reported rate is accompanied by bootstrap confidence intervals over problems, the paired holing-strategy comparison uses McNemar's test on a matched \texttt{challenge\_id} set (Section~\ref{sec:easyhard}), and the calibration analysis reports the Murphy decomposition rather than a point score (Section~\ref{sec:difficulty}). \todo{confirm the intervals are in the tables once the runs land}
+    \item[] Justification: Every rate in Table~\ref{tab:grid} carries a bootstrap 95\% interval, resampling repositories for the macro-average and problems for the micro-average, and the resampled unit is stated in Section~\ref{sec:setup}. The paired holing-strategy comparison uses an exact (binomial) McNemar test on the discordant pairs of a matched \texttt{challenge\_id} set, with the discordant counts reported alongside every $p$-value (Section~\ref{sec:easyhard}). Section~\ref{sec:limitations} (L8) states what these intervals do \emph{not} capture: a single seed and a single run per cell, so solver run-to-run variance is not represented. The temporal-holdout cells in Table~\ref{tab:temporal} are reported without intervals because the pre-cutoff side has 10--19 problems, and the text says so rather than presenting an underpowered comparison as a result.
     \item[] Guidelines:
     \begin{itemize}
         \item The answer \answerNA{} means that the paper does not include experiments.
@@ -111,8 +111,8 @@
 
 \item {\bf Experiments compute resources}
     \item[] Question: For each experiment, does the paper provide sufficient information on the computer resources (type of compute workers, memory, time of execution) needed to reproduce the experiments?
-    \item[] Answer: \answerTODO{}
-    \item[] Justification: \todo{report per-run wall-clock time, request counts and total inference spend, plus the CPU-only compilation cost of mining and two-sided validation across the corpus, once \#130/\#131 complete. All compilation runs on a single workstation; no accelerators are used.}
+    \item[] Answer: \answerYes{}
+    \item[] Justification: Table~\ref{tab:cost} reports, per model, the average number of solver requests, the input and output token counts, and the aggregate solver wall-clock time for the six runs of the main grid: 407.6M input tokens, 8.9M output tokens and 117.5 hours in total over 678 solve attempts. Inference runs against hosted APIs; all proof compilation --- mining, two-sided validation, and the per-submission scoring compile inside the solver loop --- runs CPU-only on a single workstation, and no accelerators are used anywhere in the pipeline. Preliminary and failed runs preceding the reported grid are not included in those totals.
     \item[] Guidelines:
     \begin{itemize}
         \item The answer \answerNA{} means that the paper does not include experiments.

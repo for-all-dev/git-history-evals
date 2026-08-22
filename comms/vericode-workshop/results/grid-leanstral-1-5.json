@@ -1,0 +1,744 @@
+[
+  {
+    "model": "mistral:labs-leanstral-1-5",
+    "mode": "leaves",
+    "max_turns": 50,
+    "total": 113,
+    "outcomes": {
+      "pass": 18,
+      "dry_run": 0,
+      "trivial": 0,
+      "malformed": 10,
+      "context_exceeded": 0,
+      "tampered": 15,
+      "gave_up": 0,
+      "turn_limit": 9,
+      "error": 60,
+      "fail": 1
+    },
+    "scorable": 103,
+    "micro_pass": 18,
+    "micro_rate": 0.17475728155339806,
+    "micro_ci_lo": 0.10679611650485436,
+    "micro_ci_hi": 0.2524271844660194,
+    "macro_n_repos": 53,
+    "macro_rate": 0.1792452830188679,
+    "macro_ci_lo": 0.1320754716981132,
+    "macro_ci_hi": 0.22641509433962265,
+    "per_repo": {
+      "ArkLib": {
+        "total": 2,
+        "scorable": 2,
+        "pass": 1,
+        "rate": 0.5
+      },
+      "Clear": {
+        "total": 2,
+        "scorable": 2,
+        "pass": 1,
+        "rate": 0.5
+      },
+      "CompPoly": {
+        "total": 2,
+        "scorable": 2,
+        "pass": 1,
+        "rate": 0.5
+      },
+      "CvxLean": {
+        "total": 2,
+        "scorable": 2,
+        "pass": 1,
+        "rate": 0.5
+      },
+      "FLoPS": {
+        "total": 2,
+        "scorable": 2,
+        "pass": 0,
+        "rate": 0.0
+      },
+      "FVIntmax": {
+        "total": 2,
+        "scorable": 2,
+        "pass": 0,
+        "rate": 0.0
+      },
+      "Foundation": {
+        "total": 2,
+        "scorable": 2,
+        "pass": 0,
+        "rate": 0.0
+      },
+      "LNSym": {
+        "total": 2,
+        "scorable": 1,
+        "pass": 1,
+        "rate": 1.0
+      },
+      "Lentil": {
+        "total": 2,
+        "scorable": 2,
+        "pass": 1,
+        "rate": 0.5
+      },
+      "LeroyCompilerVerificationCourse": {
+        "total": 2,
+        "scorable": 2,
+        "pass": 0,
+        "rate": 0.0
+      },
+      "SampCert": {
+        "total": 2,
+        "scorable": 2,
+        "pass": 0,
+        "rate": 0.0
+      },
+      "SizzLean": {
+        "total": 2,
+        "scorable": 2,
+        "pass": 2,
+        "rate": 1.0
+      },
+      "TTBFL": {
+        "total": 2,
+        "scorable": 2,
+        "pass": 0,
+        "rate": 0.0
+      },
+      "TensorLib": {
+        "total": 2,
+        "scorable": 2,
+        "pass": 0,
+        "rate": 0.0
+      },
+      "TorchLean": {
+        "total": 2,
+        "scorable": 2,
+        "pass": 1,
+        "rate": 0.5
+      },
+      "VCV-io": {
+        "total": 2,
+        "scorable": 2,
+        "pass": 0,
+        "rate": 0.0
+      },
+      "adler-proofs": {
+        "total": 2,
+        "scorable": 2,
+        "pass": 0,
+        "rate": 0.0
+      },
+      "aeneas": {
+        "total": 2,
+        "scorable": 2,
+        "pass": 0,
+        "rate": 0.0
+      },
+      "apc-optimizer": {
+        "total": 2,
+        "scorable": 2,
+        "pass": 0,
+        "rate": 0.0
+      },
+      "btc-verified": {
+        "total": 2,
+        "scorable": 2,
+        "pass": 0,
+        "rate": 0.0
+      },
+      "capless-lean": {
+        "total": 2,
+        "scorable": 2,
+        "pass": 0,
+        "rate": 0.0
+      },
+      "cedar-spec": {
+        "total": 2,
+        "scorable": 2,
+        "pass": 0,
+        "rate": 0.0
+      },
+      "clean": {
+        "total": 2,
+        "scorable": 2,
+        "pass": 1,
+        "rate": 0.5
+      },
+      "cslib": {
+        "total": 2,
+        "scorable": 2,
+        "pass": 0,
+        "rate": 0.0
+      },
+      "curve25519-dalek-lean-verify": {
+        "total": 2,
+        "scorable": 2,
+        "pass": 2,
+        "rate": 1.0
+      },
+      "dolev-yao": {
+        "total": 1,
+        "scorable": 1,
+        "pass": 0,
+        "rate": 0.0
+      },
+      "evm-asm": {
+        "total": 2,
+        "scorable": 2,
+        "pass": 0,
+        "rate": 0.0
+      },
+      "formal-snarks-project": {
+        "total": 2,
+        "scorable": 2,
+        "pass": 1,
+        "rate": 0.5
+      },
+      "hax-proof-libs-lean": {
+        "total": 2,
+        "scorable": 2,
+        "pass": 0,
+        "rate": 0.0
+      },
+      "hex-dev": {
+        "total": 2,
+        "scorable": 2,
+        "pass": 1,
+        "rate": 0.5
+      },
+      "iris-lean": {
+        "total": 2,
+        "scorable": 2,
+        "pass": 0,
+        "rate": 0.0
+      },
+      "jolt-tla": {
+        "total": 2,
+        "scorable": 2,
+        "pass": 2,
+        "rate": 1.0
+      },
+      "juvix-lean": {
+        "total": 2,
+        "scorable": 2,
+        "pass": 0,
+        "rate": 0.0
+      },
+      "lampe": {
+        "total": 2,
+        "scorable": 0,
+        "pass": 0,
+        "rate": 0.0
+      },
+      "lean-formal-reasoning-program": {
+        "total": 2,
+        "scorable": 2,
+        "pass": 0,
+        "rate": 0.0
+      },
+      "lean-mlir": {
+        "total": 2,
+        "scorable": 0,
+        "pass": 0,
+        "rate": 0.0
+      },
+      "lean-yjs": {
+        "total": 2,
+        "scorable": 2,
+        "pass": 0,
+        "rate": 0.0
+      },
+      "lean-zip": {
+        "total": 2,
+        "scorable": 2,
+        "pass": 0,
+        "rate": 0.0
+      },
+      "lean4lean": {
+        "total": 2,
+        "scorable": 2,
+        "pass": 1,
+        "rate": 0.5
+      },
+      "leanda": {
+        "total": 2,
+        "scorable": 2,
+        "pass": 0,
+        "rate": 0.0
+      },
+      "loom": {
+        "total": 2,
+        "scorable": 2,
+        "pass": 0,
+        "rate": 0.0
+      },
+      "nickelean": {
+        "total": 2,
+        "scorable": 2,
+        "pass": 0,
+        "rate": 0.0
+      },
+      "posix-parsing": {
+        "total": 2,
+        "scorable": 2,
+        "pass": 0,
+        "rate": 0.0
+      },
+      "posix-submatching": {
+        "total": 2,
+        "scorable": 2,
+        "pass": 0,
+        "rate": 0.0
+      },
+      "proven-zk": {
+        "total": 2,
+        "scorable": 2,
+        "pass": 0,
+        "rate": 0.0
+      },
+      "ryu-lean4": {
+        "total": 2,
+        "scorable": 2,
+        "pass": 0,
+        "rate": 0.0
+      },
+      "shortest-decimal": {
+        "total": 2,
+        "scorable": 2,
+        "pass": 0,
+        "rate": 0.0
+      },
+      "sparkle": {
+        "total": 2,
+        "scorable": 1,
+        "pass": 0,
+        "rate": 0.0
+      },
+      "splean": {
+        "total": 2,
+        "scorable": 2,
+        "pass": 0,
+        "rate": 0.0
+      },
+      "starkware-formal-proofs": {
+        "total": 2,
+        "scorable": 0,
+        "pass": 0,
+        "rate": 0.0
+      },
+      "symcrust": {
+        "total": 2,
+        "scorable": 2,
+        "pass": 0,
+        "rate": 0.0
+      },
+      "veil": {
+        "total": 2,
+        "scorable": 2,
+        "pass": 1,
+        "rate": 0.5
+      },
+      "verified-compiler": {
+        "total": 2,
+        "scorable": 2,
+        "pass": 0,
+        "rate": 0.0
+      },
+      "verified-consensus": {
+        "total": 2,
+        "scorable": 2,
+        "pass": 0,
+        "rate": 0.0
+      },
+      "verity": {
+        "total": 2,
+        "scorable": 0,
+        "pass": 0,
+        "rate": 0.0
+      },
+      "yul-compiler": {
+        "total": 2,
+        "scorable": 2,
+        "pass": 0,
+        "rate": 0.0
+      },
+      "yul-semantics": {
+        "total": 2,
+        "scorable": 2,
+        "pass": 0,
+        "rate": 0.0
+      }
+    }
+  },
+  {
+    "model": "mistral:labs-leanstral-1-5",
+    "mode": "whole",
+    "max_turns": 50,
+    "total": 113,
+    "outcomes": {
+      "pass": 25,
+      "dry_run": 0,
+      "trivial": 0,
+      "malformed": 10,
+      "context_exceeded": 3,
+      "tampered": 19,
+      "gave_up": 1,
+      "turn_limit": 11,
+      "error": 44,
+      "fail": 0
+    },
+    "scorable": 100,
+    "micro_pass": 25,
+    "micro_rate": 0.25,
+    "micro_ci_lo": 0.17,
+    "micro_ci_hi": 0.34,
+    "macro_n_repos": 52,
+    "macro_rate": 0.2403846153846154,
+    "macro_ci_lo": 0.19230769230769232,
+    "macro_ci_hi": 0.28846153846153844,
+    "per_repo": {
+      "ArkLib": {
+        "total": 2,
+        "scorable": 2,
+        "pass": 1,
+        "rate": 0.5
+      },
+      "Clear": {
+        "total": 2,
+        "scorable": 2,
+        "pass": 1,
+        "rate": 0.5
+      },
+      "CompPoly": {
+        "total": 2,
+        "scorable": 2,
+        "pass": 1,
+        "rate": 0.5
+      },
+      "CvxLean": {
+        "total": 2,
+        "scorable": 2,
+        "pass": 1,
+        "rate": 0.5
+      },
+      "FLoPS": {
+        "total": 2,
+        "scorable": 2,
+        "pass": 0,
+        "rate": 0.0
+      },
+      "FVIntmax": {
+        "total": 2,
+        "scorable": 2,
+        "pass": 0,
+        "rate": 0.0
+      },
+      "Foundation": {
+        "total": 2,
+        "scorable": 2,
+        "pass": 0,
+        "rate": 0.0
+      },
+      "LNSym": {
+        "total": 2,
+        "scorable": 1,
+        "pass": 0,
+        "rate": 0.0
+      },
+      "Lentil": {
+        "total": 2,
+        "scorable": 2,
+        "pass": 2,
+        "rate": 1.0
+      },
+      "LeroyCompilerVerificationCourse": {
+        "total": 2,
+        "scorable": 0,
+        "pass": 0,
+        "rate": 0.0
+      },
+      "SampCert": {
+        "total": 2,
+        "scorable": 2,
+        "pass": 1,
+        "rate": 0.5
+      },
+      "SizzLean": {
+        "total": 2,
+        "scorable": 2,
+        "pass": 2,
+        "rate": 1.0
+      },
+      "TTBFL": {
+        "total": 2,
+        "scorable": 2,
+        "pass": 0,
+        "rate": 0.0
+      },
+      "TensorLib": {
+        "total": 2,
+        "scorable": 2,
+        "pass": 0,
+        "rate": 0.0
+      },
+      "TorchLean": {
+        "total": 2,
+        "scorable": 2,
+        "pass": 2,
+        "rate": 1.0
+      },
+      "VCV-io": {
+        "total": 2,
+        "scorable": 2,
+        "pass": 0,
+        "rate": 0.0
+      },
+      "adler-proofs": {
+        "total": 2,
+        "scorable": 2,
+        "pass": 0,
+        "rate": 0.0
+      },
+      "aeneas": {
+        "total": 2,
+        "scorable": 2,
+        "pass": 1,
+        "rate": 0.5
+      },
+      "apc-optimizer": {
+        "total": 2,
+        "scorable": 2,
+        "pass": 0,
+        "rate": 0.0
+      },
+      "btc-verified": {
+        "total": 2,
+        "scorable": 2,
+        "pass": 0,
+        "rate": 0.0
+      },
+      "capless-lean": {
+        "total": 2,
+        "scorable": 2,
+        "pass": 0,
+        "rate": 0.0
+      },
+      "cedar-spec": {
+        "total": 2,
+        "scorable": 2,
+        "pass": 0,
+        "rate": 0.0
+      },
+      "clean": {
+        "total": 2,
+        "scorable": 2,
+        "pass": 1,
+        "rate": 0.5
+      },
+      "cslib": {
+        "total": 2,
+        "scorable": 2,
+        "pass": 0,
+        "rate": 0.0
+      },
+      "curve25519-dalek-lean-verify": {
+        "total": 2,
+        "scorable": 2,
+        "pass": 1,
+        "rate": 0.5
+      },
+      "dolev-yao": {
+        "total": 1,
+        "scorable": 1,
+        "pass": 0,
+        "rate": 0.0
+      },
+      "evm-asm": {
+        "total": 2,
+        "scorable": 2,
+        "pass": 0,
+        "rate": 0.0
+      },
+      "formal-snarks-project": {
+        "total": 2,
+        "scorable": 2,
+        "pass": 1,
+        "rate": 0.5
+      },
+      "hax-proof-libs-lean": {
+        "total": 2,
+        "scorable": 2,
+        "pass": 1,
+        "rate": 0.5
+      },
+      "hex-dev": {
+        "total": 2,
+        "scorable": 2,
+        "pass": 0,
+        "rate": 0.0
+      },
+      "iris-lean": {
+        "total": 2,
+        "scorable": 2,
+        "pass": 0,
+        "rate": 0.0
+      },
+      "jolt-tla": {
+        "total": 2,
+        "scorable": 2,
+        "pass": 2,
+        "rate": 1.0
+      },
+      "juvix-lean": {
+        "total": 2,
+        "scorable": 2,
+        "pass": 1,
+        "rate": 0.5
+      },
+      "lampe": {
+        "total": 2,
+        "scorable": 0,
+        "pass": 0,
+        "rate": 0.0
+      },
+      "lean-formal-reasoning-program": {
+        "total": 2,
+        "scorable": 2,
+        "pass": 0,
+        "rate": 0.0
+      },
+      "lean-mlir": {
+        "total": 2,
+        "scorable": 0,
+        "pass": 0,
+        "rate": 0.0
+      },
+      "lean-yjs": {
+        "total": 2,
+        "scorable": 2,
+        "pass": 0,
+        "rate": 0.0
+      },
+      "lean-zip": {
+        "total": 2,
+        "scorable": 2,
+        "pass": 0,
+        "rate": 0.0
+      },
+      "lean4lean": {
+        "total": 2,
+        "scorable": 2,
+        "pass": 1,
+        "rate": 0.5
+      },
+      "leanda": {
+        "total": 2,
+        "scorable": 2,
+        "pass": 0,
+        "rate": 0.0
+      },
+      "loom": {
+        "total": 2,
+        "scorable": 2,
+        "pass": 0,
+        "rate": 0.0
+      },
+      "nickelean": {
+        "total": 2,
+        "scorable": 2,
+        "pass": 0,
+        "rate": 0.0
+      },
+      "posix-parsing": {
+        "total": 2,
+        "scorable": 2,
+        "pass": 0,
+        "rate": 0.0
+      },
+      "posix-submatching": {
+        "total": 2,
+        "scorable": 2,
+        "pass": 0,
+        "rate": 0.0
+      },
+      "proven-zk": {
+        "total": 2,
+        "scorable": 2,
+        "pass": 2,
+        "rate": 1.0
+      },
+      "ryu-lean4": {
+        "total": 2,
+        "scorable": 2,
+        "pass": 0,
+        "rate": 0.0
+      },
+      "shortest-decimal": {
+        "total": 2,
+        "scorable": 2,
+        "pass": 0,
+        "rate": 0.0
+      },
+      "sparkle": {
+        "total": 2,
+        "scorable": 1,
+        "pass": 0,
+        "rate": 0.0
+      },
+      "splean": {
+        "total": 2,
+        "scorable": 2,
+        "pass": 0,
+        "rate": 0.0
+      },
+      "starkware-formal-proofs": {
+        "total": 2,
+        "scorable": 0,
+        "pass": 0,
+        "rate": 0.0
+      },
+      "symcrust": {
+        "total": 2,
+        "scorable": 1,
+        "pass": 0,
+        "rate": 0.0
+      },
+      "veil": {
+        "total": 2,
+        "scorable": 2,
+        "pass": 1,
+        "rate": 0.5
+      },
+      "verified-compiler": {
+        "total": 2,
+        "scorable": 2,
+        "pass": 1,
+        "rate": 0.5
+      },
+      "verified-consensus": {
+        "total": 2,
+        "scorable": 2,
+        "pass": 0,
+        "rate": 0.0
+      },
+      "verity": {
+        "total": 2,
+        "scorable": 0,
+        "pass": 0,
+        "rate": 0.0
+      },
+      "yul-compiler": {
+        "total": 2,
+        "scorable": 2,
+        "pass": 0,
+        "rate": 0.0
+      },
+      "yul-semantics": {
+        "total": 2,
+        "scorable": 2,
+        "pass": 1,
+        "rate": 0.5
+      }
+    }
+  }
+]
