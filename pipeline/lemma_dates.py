@@ -556,6 +556,13 @@ def _extract_pass(result_row: dict) -> bool | None:
     either a boolean `pass` field or a PASS/... `outcome`/`status` string (PASS is the only
     passing value; trivial/malformed/turn-limit/harness-err all count as not-pass, matching
     how `ablate-baseline` reports its own summary)."""
+    if "succeeded" in result_row and isinstance(result_row["succeeded"], bool):
+        # the actual apply_ablate.record.SolveResult schema: `succeeded` bool, with
+        # malformed/trivial rows flagged via `error` and excluded from PASS denominators
+        err = str(result_row.get("error") or "")
+        if "malformed" in err or "trivial" in err:
+            return None
+        return result_row["succeeded"]
     if "pass" in result_row and isinstance(result_row["pass"], bool):
         return result_row["pass"]
     outcome = result_row.get("outcome") or result_row.get("status")

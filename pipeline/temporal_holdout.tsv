@@ -1,0 +1,13 @@
+model	mode	cutoff	pre_n	pre_macro	post_n	post_macro
+claude-sonnet-5	easy	2024-06-01	10	0.167	93	0.316
+claude-sonnet-5	easy	2025-01-01	19	0.227	84	0.318
+claude-sonnet-5	hard	2024-06-01	10	0.250	93	0.296
+claude-sonnet-5	hard	2025-01-01	19	0.182	84	0.318
+gpt-5.6-sol	easy	2024-06-01	10	0.500	93	0.490
+gpt-5.6-sol	easy	2025-01-01	19	0.455	84	0.500
+gpt-5.6-sol	hard	2024-06-01	10	0.583	93	0.459
+gpt-5.6-sol	hard	2025-01-01	19	0.500	84	0.466
+leanstral-1-5	easy	2024-06-01	10	0.167	93	0.184
+leanstral-1-5	easy	2025-01-01	19	0.182	84	0.182
+leanstral-1-5	hard	2024-06-01	10	0.417	93	0.214
+leanstral-1-5	hard	2025-01-01	19	0.227	84	0.239
