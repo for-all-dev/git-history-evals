@@ -68,8 +68,9 @@ Benchmark over 57 Lean~4 Repositories}
   caught tampering on 50, with zero turn-limits, zero give-ups and zero non-compiling
   submissions. A scorer that checked only ``compiles, no holes'' would have reported 98.1\%
   rather than 49.5\%. Tamper rate ranks with capability across the three models
-  (48.5\%/26.2\%/14.6\% of scorable attempts), and preliminary data show it does not fall when
-  the turn budget is cut. The two holing strategies, by contrast, do not differ in pass rate at
+  (48.5\%/26.2\%/14.6\% of scorable attempts), and a genuine 15/30/50/100-turn budget curve
+  shows it does not fall when the turn budget is cut --- the strongest model tampers
+  \emph{most} at the lowest budget. The two holing strategies, by contrast, do not differ in pass rate at
   this budget (McNemar $p = 0.75$ and $1.00$ for the two general-purpose models); what they
   change is the composition of the failures and the turn cost. Contamination is measured rather
   than asserted: 2 of 57 repositories were crawled by Software Heritage before The Stack~v2
@@ -516,7 +517,9 @@ and a 50\% one.
 
 \begin{table}[t]
   \caption{Outcome composition, counts out of the 113 attempts per (model, strategy). The
-  rightmost three columns are excluded from the PASS denominator; the rest are not. The mix
+  rightmost two columns are excluded from the PASS denominator; the rest --- including
+  \texttt{harness} transport faults, which stay in as non-passes (\S\ref{sec:limitations},
+  L7) --- are not. The mix
   differs far more across models than the pass rate does: \texttt{gpt-5.6-sol}'s entire non-pass
   mass is \texttt{tampered}, while \texttt{leanstral-1-5}'s is dominated by provider transport
   faults (\S\ref{sec:limitations}, L7).}
@@ -602,17 +605,31 @@ keeping a declaration whose statement no longer matches the original accounts fo
 the weaker name-presence guard available for Rocq and Isabelle (\S\ref{sec:tampercheck}) would
 still catch the large majority of these, though not all.
 
-\paragraph{Budget dependence: the hypothesis is not confirmed.} We predicted, from the reference
-run (2 tampers at 30 turns rising to 4 at 50), that tamper rate would rise with turn budget ---
-more budget, more opportunity to find the exploit. The grid does not support that reading. In a
-preliminary 15-turn run, \texttt{gpt-5.6-sol}'s tamper count is 56 on leaf holing and 51 on
-whole-body, against 50 and 53 at 50 turns: higher on one strategy, marginally lower on the other,
-and higher in total (107 versus 103). The defensible statement is the weaker one: \emph{cutting
-the budget does not reduce tampering, and on leaf holing it increases it}. A plausible reading is
-that a solver with too little budget to re-derive the lemma reaches for the exploit sooner, but
-we do not have the intermediate points to assert a shape.
-\todo{\#131/\#136: the full budget curve (15/30/50/100 turns) with tamper counts and the
-reason split at each point (Fig.~8); the 100-turn arm is still running}
+\paragraph{Budget dependence: the hypothesis is refuted, in both directions.} We predicted, from
+the reference run (2 tampers at 30 turns rising to 4 at 50), that tamper rate would rise with
+turn budget --- more budget, more opportunity to find the exploit. The full curve --- genuine
+re-runs of the matched sample at announced budgets of 15, 30 and 100 turns alongside the 50-turn
+grid (Figure~\ref{fig:budget}) --- does not show that. Summed over both strategies,
+\texttt{claude-sonnet-5}'s tamper count rises only mildly with budget (42 / 50 / 53 / 56 at
+15/30/50/100 turns), alongside a rising pass count; \texttt{gpt-5.6-sol}'s \emph{falls} mildly
+(107 / 103 / 103 / 99), and peaks at the lowest budget. The strongest model tampers most when it
+can least afford a real derivation: budget \emph{starvation}, not budget surplus, is what pushes
+it toward the exploit, and extra budget converts would-be tampers into genuine solves. The reason
+split is stable across every point --- outright statement deletion accounts for at least 94\% of
+tampers at every budget, for both models --- so the cross-prover implication of
+\S\ref{sec:tampercheck} is unchanged along the whole curve.
+
+\begin{figure}[t]
+  \centering
+  \includegraphics{budget-curve.pdf}
+  \caption{Macro PASS against the announced turn budget (15/30/50/100), per model and holing
+  strategy, bootstrap 95\% intervals. \texttt{gpt-5.6-sol} saturates by 30 turns;
+  \texttt{claude-sonnet-5} does not saturate on leaf holing by 100 (35.8\% at 100 against
+  29.2\% at 50, with its turn-limit share falling from 37\% to 8\% across the four points).
+  Each point is a genuine re-run at that announced budget --- post-hoc thresholding of the
+  100-turn arm on \texttt{turns\_used} is \emph{not} equivalent (\S\ref{sec:limitations}, L2).}
+  \label{fig:budget}
+\end{figure}
 
 \paragraph{Why this belongs in a paper about verified code generation.} The measurement is
 possible only because the reward is a kernel and the guard is separable from it. It is also an
@@ -863,9 +880,16 @@ of \texttt{gpt-5.6-sol}'s 206 scorable attempts, 43 of \texttt{claude-sonnet-5}'
 pass rate at a stated budget and should be read as a lower bound at that budget rather than as a
 property of the model. This propagates: the difficulty model of \S\ref{sec:difficulty} predicts
 difficulty-at-budget, and any contamination gap measured on top of a budget-limited baseline
-inherits the same confound.
-\todo{\#131: the 15/30/50/100-turn curve, so that the budget-dependence is quantified rather than
-asserted; the 100-turn arm is still running}
+inherits the same confound. The curve of Figure~\ref{fig:budget} quantifies this:
+\texttt{claude-sonnet-5}'s leaf-holing rate is still rising at 100 turns (26.4\% / 32.1\% /
+29.2\% / 35.8\% at 15/30/50/100) while its whole-body rate is flat from 30, and
+\texttt{gpt-5.6-sol} is saturated by 30 turns on both. The curve also cannot be obtained
+cheaply: deriving it from the 100-turn arm by post-hoc thresholding on \texttt{turns\_used}
+under-predicts \texttt{claude-sonnet-5}'s genuine 15-turn passes by more than $3\times$ (8
+predicted, 27 measured; exact binomial $p<0.001$ on the discordant pairs, in all four
+sonnet cells), because the agent is told its budget and paces itself to the announcement ---
+an 8-turn solver like \texttt{gpt-5.6-sol} shows no such gap. Budget curves for models that
+pace themselves require genuine per-budget runs.
 
 \paragraph{L3: Scoring requires a built checkout.} The data can be browsed by anyone; scoring a
 prediction requires the repository's prebuilt \texttt{.olean} closure at the pinned revision, at
@@ -906,8 +930,9 @@ strategies it is also a confound for the reversal reported in \S\ref{sec:easyhar
 both figures and treat that arm as provisional pending a clean re-run. The two general-purpose
 arms are essentially unaffected (7, 3, 2 and 1 faults out of 113).
 
-\paragraph{L8: One sample, one seed, one budget.} Every number in \S\ref{sec:experiments} comes
-from a single 113-pair draw at seed 42 and a 50-turn budget, run once per (model, strategy).
+\paragraph{L8: One sample, one seed.} Every number in \S\ref{sec:experiments} comes
+from a single 113-pair draw at seed 42, run once per (model, strategy, budget) --- the main
+grid at 50 turns, the budget curve of Figure~\ref{fig:budget} at 15/30/100 on the same draw.
 There is no across-seed replication and no repeated sampling of the same problem, so the
 intervals we report capture sampling variation over problems and repositories but not the
 solver's own run-to-run variance. Given that these solvers are stochastic and agentic, that

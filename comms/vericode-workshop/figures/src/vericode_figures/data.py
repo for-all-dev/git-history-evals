@@ -93,8 +93,17 @@ def load_budget_curve(pipeline_dir: Path) -> list[dict[str, Any]] | None:
             for key in ("budget",):
                 if key in parsed:
                     parsed[key] = float(parsed[key])
-            for key in ("pass", "tamper", "turn_limit"):
-                if key in parsed:
+            for key in (
+                "pass",
+                "tamper",
+                "turn_limit",
+                "macro_rate",
+                "macro_ci_lo",
+                "macro_ci_hi",
+                "micro_rate",
+                "scorable",
+            ):
+                if key in parsed and parsed[key] != "":
                     parsed[key] = float(parsed[key])
             rows.append(parsed)
     return rows

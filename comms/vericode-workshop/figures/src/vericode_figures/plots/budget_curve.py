@@ -45,14 +45,25 @@ def render(pipeline_dir: Path, out_dir: Path) -> list[Path]:
         return []
 
     set_rcparams()
-    by_model_mode: dict[tuple[str, str], list[tuple[float, float]]] = {}
+    # y is the macro (repo-averaged) PASS rate — `pass` in the TSV is a raw COUNT, and
+    # plotting it as a rate silently draws every line above the axis (the empty-plot bug
+    # caught on first render). Prefer macro_rate + its bootstrap CI; fall back to
+    # pass/scorable only if the rate columns are ever absent.
+    by_model_mode: dict[tuple[str, str], list[tuple[float, float, float, float]]] = {}
     for row in rows:
         canonical = _canonical_model(row.get("model", ""))
         if canonical is None:
             continue
         mode = row.get("mode", "")
+        if "macro_rate" in row:
+            rate = row["macro_rate"]
+            lo = row.get("macro_ci_lo", rate)
+            hi = row.get("macro_ci_hi", rate)
+        else:
+            rate = row["pass"] / row["scorable"]
+            lo = hi = rate
         by_model_mode.setdefault((canonical, mode), []).append(
-            (row["budget"], row["pass"])
+            (row["budget"], rate, lo, hi)
         )
 
     fig, ax = new_figure()
@@ -62,14 +73,19 @@ def render(pipeline_dir: Path, out_dir: Path) -> list[Path]:
             points = sorted(by_model_mode[(model, mode)], key=lambda p: p[0])
             budgets = [p[0] for p in points]
             passes = [p[1] * 100 for p in points]
-            ax.plot(
+            err_lo = [(p[1] - p[2]) * 100 for p in points]
+            err_hi = [(p[3] - p[1]) * 100 for p in points]
+            ax.errorbar(
                 budgets,
                 passes,
+                yerr=[err_lo, err_hi],
                 color=MODEL_COLORS[model],
                 linestyle=_LINESTYLES.get(mode, "-"),
                 marker="o",
                 markersize=3,
                 linewidth=1.2,
+                elinewidth=0.7,
+                capsize=1.5,
                 label=f"{MODEL_LABELS[model]} ({MODE_LABELS.get(mode, mode)})",
             )
 
