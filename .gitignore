@@ -64,5 +64,14 @@ artifacts/**/writer_transcript.json
 *.blg
 *.log
 *.out
-*.pdf
 *.synctex.gz
+
+# nix
+result
+
+# typescript
+node_modules/
+.next/
+
+# wave-3 experiment scratch trees (distilled results go to docs/ + pipeline/ via PRs)
+/scratch-wave3/

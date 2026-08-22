@@ -51,12 +51,18 @@ The `.olcli.json` file in `vericode-workshop/` pins the Overleaf project ID and 
 
 ### Excluding repo-side scaffolding from Overleaf
 
-`vericode-workshop/data/` and `vericode-workshop/figures/` (the figure-regeneration uv
-project — see `figures/README.md`) are repo-side reproducibility material, not paper
-sources, and must **never** be pushed to Overleaf. `olcli push` is manifest-based
-(tracked remote state lives in `.olcli.json`) but still uploads any file that's new
-locally, so a bare `olcli push` from `vericode-workshop/` would otherwise try to send
-both trees — including the `data/` symlinks, which dangle outside a full checkout with
-`scratch-wave3/` present. `vericode-workshop/.olignore` (gitignore syntax, per
-`.claude/skills/overleaf`) excludes `data/` and `figures/` for this reason; keep it
-committed and keep both entries in it.
+`vericode-workshop/data/` and the figure-regeneration uv project under
+`vericode-workshop/figures/` (sources, lockfile — see `figures/README.md`) are repo-side
+reproducibility material, not paper sources, and must **never** be pushed to Overleaf.
+`olcli push` is manifest-based (tracked remote state lives in `.olcli.json`) but still
+uploads any file that's new locally, so a bare `olcli push` from `vericode-workshop/`
+would otherwise try to send both trees — including the `data/` symlinks, which dangle
+outside a full checkout with `scratch-wave3/` present. `vericode-workshop/.olignore`
+(gitignore syntax, per `.claude/skills/overleaf`) excludes them for this reason; keep it
+committed.
+
+The one exception is the rendered `figures/out/*.pdf`: the `.tex` includes them
+(`\graphicspath{{figures/out/}}`), so the Overleaf project needs its own copy. `olcli
+push` skips PDFs even when they aren't ignored, so after regenerating a figure the paper
+includes, sync it explicitly with
+`olcli upload figures/out/<name>.pdf --to figures/out/<name>.pdf`.

@@ -1,5 +1,7 @@
-# Figures regenerate deterministically from committed inputs — they don't get committed.
-out/
+# Rendered figure PDFs in out/ ARE committed — the nix workshop-paper build and the
+# Overleaf project consume them, and they are byte-deterministic (see README.md), so
+# a diff means the inputs changed. Only the .pgf twins stay untracked.
+out/*.pgf
 
 .venv/
 __pycache__/

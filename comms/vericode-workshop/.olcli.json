@@ -1,11 +1,12 @@
 {
   "projectId": "6a858d4444ea70884bfcc753",
   "projectName": "proofablate__vericode-workshop",
-  "lastPull": "2026-08-19T14:33:16.840Z",
+  "lastPull": "2026-08-22T16:24:40.319Z",
   "remoteManifest": [
     "checklist.tex",
     "neurips_2026_vericode_workshop.tex",
     "neurips_2026_vericode.sty",
     "neurips_2026.sty"
-  ]
+  ],
+  "lastPush": "2026-08-22T16:28:08.161Z"
 }
