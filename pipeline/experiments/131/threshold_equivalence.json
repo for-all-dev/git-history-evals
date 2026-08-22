@@ -1,0 +1,218 @@
+[
+ {
+  "model": "claude-sonnet-5",
+  "mode": "easy",
+  "budget": 15,
+  "n_shared": 113,
+  "thresholded_pass": 8,
+  "genuine_pass": 27,
+  "thresholded_only": [],
+  "genuine_only": [
+   "1fbd99eb5aaf285f",
+   "4ca75d6e5031c6d9",
+   "60061f4b45d47a0e",
+   "68a3168be1d7a904",
+   "7331a8bd16838470",
+   "73cf11986048d1e2",
+   "7e72fb53bb7b2c85",
+   "801815299db16764",
+   "813d77ef0033bd15",
+   "83f97f349caa71e9",
+   "8dd8cec9f03d72a7",
+   "91ec2fac1890db47",
+   "93697f0d24bb8a8a",
+   "9ba6e1c09e92b1d1",
+   "9e7200cdc6d6cbe2",
+   "b62bdabff93ea603",
+   "b63ffa5aac5b5e34",
+   "c8f7852f85b1c244",
+   "e605b051b91ee2cc"
+  ],
+  "mcnemar_p": 0.0
+ },
+ {
+  "model": "claude-sonnet-5",
+  "mode": "easy",
+  "budget": 30,
+  "n_shared": 113,
+  "thresholded_pass": 8,
+  "genuine_pass": 33,
+  "thresholded_only": [
+   "2092154f552b6444"
+  ],
+  "genuine_only": [
+   "1fbd99eb5aaf285f",
+   "2c92b4267395fb49",
+   "3eaf7490820eb45f",
+   "4ca75d6e5031c6d9",
+   "54b29208d59e384a",
+   "5847e2d920b6041e",
+   "60061f4b45d47a0e",
+   "6435e1d0534addbb",
+   "65c6eaf0933ac3bc",
+   "68a3168be1d7a904",
+   "7331a8bd16838470",
+   "7e72fb53bb7b2c85",
+   "813d77ef0033bd15",
+   "83f97f349caa71e9",
+   "8dd8cec9f03d72a7",
+   "91ec2fac1890db47",
+   "93697f0d24bb8a8a",
+   "99dd9f11041170de",
+   "9ba6e1c09e92b1d1",
+   "9ec8a7a07defdcb6",
+   "b464691a882d0e3c",
+   "b62bdabff93ea603",
+   "b63ffa5aac5b5e34",
+   "c004d27acd1ee8ac",
+   "c8f7852f85b1c244",
+   "e605b051b91ee2cc"
+  ],
+  "mcnemar_p": 0.0
+ },
+ {
+  "model": "claude-sonnet-5",
+  "mode": "hard",
+  "budget": 15,
+  "n_shared": 113,
+  "thresholded_pass": 9,
+  "genuine_pass": 25,
+  "thresholded_only": [
+   "26c4eaeee8c6ce58"
+  ],
+  "genuine_only": [
+   "17de49f70e7d5d1e",
+   "3eaf7490820eb45f",
+   "4ca75d6e5031c6d9",
+   "54b29208d59e384a",
+   "5a4b0ee657d13463",
+   "60061f4b45d47a0e",
+   "7331a8bd16838470",
+   "83f97f349caa71e9",
+   "91ec2fac1890db47",
+   "93697f0d24bb8a8a",
+   "99dd9f11041170de",
+   "9ba6e1c09e92b1d1",
+   "9e7200cdc6d6cbe2",
+   "b6c0958faa9b4e50",
+   "bb165801ff15e632",
+   "c8f7852f85b1c244",
+   "e605b051b91ee2cc"
+  ],
+  "mcnemar_p": 0.0001
+ },
+ {
+  "model": "claude-sonnet-5",
+  "mode": "hard",
+  "budget": 30,
+  "n_shared": 113,
+  "thresholded_pass": 11,
+  "genuine_pass": 28,
+  "thresholded_only": [
+   "813d77ef0033bd15"
+  ],
+  "genuine_only": [
+   "17de49f70e7d5d1e",
+   "2c92b4267395fb49",
+   "4ca75d6e5031c6d9",
+   "540a0ff7d3ae7a19",
+   "54b29208d59e384a",
+   "5847e2d920b6041e",
+   "6435e1d0534addbb",
+   "65c6eaf0933ac3bc",
+   "83f97f349caa71e9",
+   "8dd8cec9f03d72a7",
+   "91ec2fac1890db47",
+   "92aa2b1733897d5a",
+   "93697f0d24bb8a8a",
+   "99dd9f11041170de",
+   "9ba6e1c09e92b1d1",
+   "c8f7852f85b1c244",
+   "d2c087aa9bbebfa7",
+   "e605b051b91ee2cc"
+  ],
+  "mcnemar_p": 0.0001
+ },
+ {
+  "model": "openai:gpt-5.6-sol",
+  "mode": "easy",
+  "budget": 15,
+  "n_shared": 113,
+  "thresholded_pass": 53,
+  "genuine_pass": 46,
+  "thresholded_only": [
+   "19fe8265c1e6f2c2",
+   "54b29208d59e384a",
+   "5847e2d920b6041e",
+   "7d115958af5c1d1e",
+   "801815299db16764",
+   "93697f0d24bb8a8a",
+   "a70c2c776b07e4e9",
+   "c004d27acd1ee8ac",
+   "d2c087aa9bbebfa7"
+  ],
+  "genuine_only": [
+   "9ec5e6d3c706144c",
+   "bb165801ff15e632"
+  ],
+  "mcnemar_p": 0.0654
+ },
+ {
+  "model": "openai:gpt-5.6-sol",
+  "mode": "easy",
+  "budget": 30,
+  "n_shared": 113,
+  "thresholded_pass": 55,
+  "genuine_pass": 54,
+  "thresholded_only": [
+   "19fe8265c1e6f2c2",
+   "c004d27acd1ee8ac"
+  ],
+  "genuine_only": [
+   "9ec8a7a07defdcb6"
+  ],
+  "mcnemar_p": 1.0
+ },
+ {
+  "model": "openai:gpt-5.6-sol",
+  "mode": "hard",
+  "budget": 15,
+  "n_shared": 113,
+  "thresholded_pass": 46,
+  "genuine_pass": 47,
+  "thresholded_only": [
+   "54b29208d59e384a",
+   "593caf423a6fed14",
+   "d2c087aa9bbebfa7"
+  ],
+  "genuine_only": [
+   "5e51e92feada77de",
+   "8dd8cec9f03d72a7",
+   "bb165801ff15e632",
+   "bc557726c0c45489"
+  ],
+  "mcnemar_p": 1.0
+ },
+ {
+  "model": "openai:gpt-5.6-sol",
+  "mode": "hard",
+  "budget": 30,
+  "n_shared": 113,
+  "thresholded_pass": 49,
+  "genuine_pass": 48,
+  "thresholded_only": [
+   "0733ea13aaaae37a",
+   "593caf423a6fed14",
+   "65c6eaf0933ac3bc",
+   "c004d27acd1ee8ac",
+   "d2c087aa9bbebfa7"
+  ],
+  "genuine_only": [
+   "2092154f552b6444",
+   "801815299db16764",
+   "8dd8cec9f03d72a7",
+   "94b181719a4a8688"
+  ],
+  "mcnemar_p": 1.0
+ }
+]
