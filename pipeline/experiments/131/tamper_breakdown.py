@@ -2,7 +2,7 @@
 """#136: classify tampered outcomes by reason (deleted vs weakened) for a set of
 res_*.jsonl result files. Reads the `error` field (the tamper-reason string set by
 solve.py's `_tamper_reason`) and, for the Lean case where that single message covers
-both "deleted" and "weakened" (solve.py:591-598 does not disambiguate), does a
+both "deleted" and "weakened" (solve.py:596-621 does not disambiguate), does a
 post-hoc split by checking whether each holed theorem's NAME still appears anywhere in
 agent_solution:
   - name absent entirely           -> "deleted"
