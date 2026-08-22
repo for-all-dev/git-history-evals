@@ -116,12 +116,18 @@ def test_intersection_excludes_unpaired_ids(fixture_root: Path) -> None:
     assert set(pairs["repo_b"]) == {"b1", "b2"}
 
 
-def test_main_emits_paired_dirs_with_equal_challenge_id_sets(fixture_root: Path) -> None:
+def test_main_emits_paired_dirs_with_equal_challenge_id_sets(
+    fixture_root: Path,
+) -> None:
     out_dir = fixture_root / "out"
     sample_paired.main([str(out_dir), "5", "--seed", "42"])
 
-    easy_sample = [json.loads(line) for line in (out_dir / "easy" / "sample.jsonl").open()]
-    hard_sample = [json.loads(line) for line in (out_dir / "hard" / "sample.jsonl").open()]
+    easy_sample = [
+        json.loads(line) for line in (out_dir / "easy" / "sample.jsonl").open()
+    ]
+    hard_sample = [
+        json.loads(line) for line in (out_dir / "hard" / "sample.jsonl").open()
+    ]
 
     easy_ids = {r["challenge_id"] for r in easy_sample}
     hard_ids = {r["challenge_id"] for r in hard_sample}
@@ -161,11 +167,18 @@ def test_main_different_seed_can_differ(fixture_root: Path) -> None:
     out2 = fixture_root / "out2"
     sample_paired.main([str(out1), "2", "--seed", "1"])
     sample_paired.main([str(out2), "2", "--seed", "2"])
-    ids1 = {json.loads(line)["challenge_id"] for line in (out1 / "easy" / "sample.jsonl").open()}
-    ids2 = {json.loads(line)["challenge_id"] for line in (out2 / "easy" / "sample.jsonl").open()}
+    ids1 = {
+        json.loads(line)["challenge_id"]
+        for line in (out1 / "easy" / "sample.jsonl").open()
+    }
+    ids2 = {
+        json.loads(line)["challenge_id"]
+        for line in (out2 / "easy" / "sample.jsonl").open()
+    }
     # both still pair correctly regardless of which ids the seed happened to pick
     hard_ids2 = {
-        json.loads(line)["challenge_id"] for line in (out2 / "hard" / "sample.jsonl").open()
+        json.loads(line)["challenge_id"]
+        for line in (out2 / "hard" / "sample.jsonl").open()
     }
     assert ids2 == hard_ids2
     # not asserting ids1 != ids2 (small pool -- a coincidental match is possible); the
@@ -194,7 +207,14 @@ def test_subprocess_reproducibility_across_processes(fixture_root: Path) -> None
     env = {"PIPELINE_SAMPLE_ROOT": str(fixture_root), "PATH": "/usr/bin:/bin"}
     for out in (out1, out2):
         result = subprocess.run(
-            [sys.executable, str(PIPELINE_DIR / "sample_paired.py"), str(out), "4", "--seed", "9"],
+            [
+                sys.executable,
+                str(PIPELINE_DIR / "sample_paired.py"),
+                str(out),
+                "4",
+                "--seed",
+                "9",
+            ],
             capture_output=True,
             text=True,
             env=env,

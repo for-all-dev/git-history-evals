@@ -27,7 +27,9 @@ import shutil
 import sys
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parent.parent
+ROOT = Path(
+    os.environ.get("PIPELINE_SAMPLE_ROOT") or Path(__file__).resolve().parent.parent
+)
 
 MODE_ARTIFACT_DIR = {
     "leaves": "artifacts/lean-ablate",
