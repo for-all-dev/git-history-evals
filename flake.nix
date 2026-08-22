@@ -28,9 +28,11 @@
     };
     pyproject-build-systems = {
       url = "github:pyproject-nix/build-system-pkgs";
-      inputs.pyproject-nix.follows = "pyproject-nix";
-      inputs.uv2nix.follows = "uv2nix";
-      inputs.nixpkgs.follows = "nixpkgs";
+      inputs = {
+        pyproject-nix.follows = "pyproject-nix";
+        uv2nix.follows = "uv2nix";
+        nixpkgs.follows = "nixpkgs";
+      };
     };
   };
 
@@ -62,6 +64,33 @@
         {
           baselines-env = baselinesEnv;
           default = baselinesEnv;
+
+          # `nix build .#workshop-paper` -> result/neurips_2026_vericode_workshop.pdf
+          # The system TeX on the dev box lacks the Times metrics (ptmr8t) and environ.sty
+          # that neurips_2026_vericode.sty needs; scheme-medium + environ is the minimal
+          # set that compiles clean. Three passes, same as CI would run; figures are not
+          # \includegraphics'd yet — when they are, copy comms/vericode-workshop/figures/out
+          # into the build (they regenerate via `uv run figures` in that dir, see its README).
+          workshop-paper =
+            let
+              tex = pkgs.texliveMedium.withPackages (ps: [ ps.environ ]);
+            in
+            pkgs.stdenvNoCC.mkDerivation {
+              pname = "vericode-workshop-paper";
+              version = "draft";
+              src = ./comms/vericode-workshop;
+              nativeBuildInputs = [ tex ];
+              buildPhase = ''
+                export HOME=$TMPDIR SOURCE_DATE_EPOCH=0
+                for pass in 1 2 3; do
+                  pdflatex -interaction=nonstopmode -halt-on-error neurips_2026_vericode_workshop.tex
+                done
+              '';
+              installPhase = ''
+                mkdir -p $out
+                cp neurips_2026_vericode_workshop.pdf $out/
+              '';
+            };
         });
 
       # `nix run .#ablate-baseline -- <challenges.jsonl> <src> --dry-run`
