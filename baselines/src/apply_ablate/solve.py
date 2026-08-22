@@ -260,12 +260,31 @@ def make_agent(model: str):
     # must emit the ENTIRE corrected file as a tool argument, and a multi-KB proof file
     # exceeds 4096 output tokens, truncating the tool call (it shows up "blank" / fails
     # validation and the agent never actually submits).
+    from pydantic_ai.settings import ModelSettings
+
+    model_settings = ModelSettings(max_tokens=32000)
+    if model.startswith("anthropic:") or ":" not in model:
+        # Anthropic prompt caching. Without it every ReAct turn re-sends the whole
+        # growing conversation at full input price — quadratic in turns (the 50-turn
+        # sonnet grid burned 281M input tokens). `anthropic_cache` sets the top-level
+        # auto breakpoint that the server moves forward as the conversation grows
+        # (reads ~0.1x, writes ~1.25x); the instructions/tool-definitions breakpoints
+        # cover the static prefix. 5m TTL: turns are compile-bound but almost always
+        # under 5 minutes apart, and each hit refreshes the clock.
+        from pydantic_ai.models.anthropic import AnthropicModelSettings
+
+        model_settings = AnthropicModelSettings(
+            max_tokens=32000,
+            anthropic_cache=True,
+            anthropic_cache_instructions=True,
+            anthropic_cache_tool_definitions=True,
+        )
     agent = Agent(
         model_obj,
         deps_type=SolveDeps,
         output_type=Verdict,
         retries=3,
-        model_settings={"max_tokens": 32000},
+        model_settings=model_settings,
     )
 
     @agent.system_prompt
