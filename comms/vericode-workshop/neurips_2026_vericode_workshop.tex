@@ -21,6 +21,10 @@
 \usepackage{nicefrac}       % compact symbols for 1/2, etc.
 \usepackage{microtype}      % microtypography
 \usepackage{xcolor}         % colors
+\usepackage{graphicx}       % figures
+% Figures are rendered deterministically by the committed uv project in figures/
+% (`uv run figures`) and the resulting PDFs are committed — see figures/README.md.
+\graphicspath{{figures/out/}}
 
 % ---------------------------------------------------------------------------
 % Placeholder macro for results that experiments #129--#136 will produce.
@@ -462,7 +466,8 @@ strongly model-dependent, which that single run could not have revealed.
 \label{sec:grid}
 
 Table~\ref{tab:grid} gives the pass rates and Table~\ref{tab:mix} the full outcome composition
-underneath them. Two things are visible, and the second is the more important one.
+underneath them; Figure~\ref{fig:mix} shows the same composition as shares of the 113 attempts
+per (model, strategy). Two things are visible, and the second is the more important one.
 
 \paragraph{The benchmark discriminates.} The three models separate cleanly and the intervals do
 not overlap: 49.1\% / 29.2\% / 17.9\% macro PASS under leaf holing, and 47.2\% / 28.3\% / 24.0\%
@@ -532,6 +537,17 @@ and a 50\% one.
   \end{tabular}
 \end{table}
 
+\begin{figure}[t]
+  \centering
+  \includegraphics{outcome-composition.pdf}
+  \caption{Outcome composition per (model, strategy), as shares of the 113 attempts
+  (counts in Table~\ref{tab:mix}). \texttt{malformed} is hatched: it is excluded from the PASS
+  denominator, unlike \texttt{tampered}, which is a solver behaviour and stays in. The mix ---
+  not the pass rate --- is where the models differ most: \texttt{gpt-5.6-sol}'s non-pass mass is
+  entirely \texttt{tampered} (\S\ref{sec:tamper}).}
+  \label{fig:mix}
+\end{figure}
+
 \begin{table}[t]
   \caption{Cost of the grid, both strategies combined. Average turns is taken over attempts that
   reached a solver outcome, so \texttt{malformed} and transport-fault rows --- which never
@@ -559,7 +575,18 @@ A verified reward has no false positives on the \emph{proof}: a memorized proof 
 a correct proof. Its attack surface is the \emph{statement}, and on this grid that surface is
 attacked constantly.
 
-\paragraph{Tamper rate ranks with capability.} Measured as a share of scorable attempts, the
+\begin{figure}[t]
+  \centering
+  \includegraphics{tamper-by-model.pdf}
+  \caption{Share of scorable attempts caught by the statement-preservation guard, per model and
+  holing strategy, at the 50-turn budget. The ordering matches the pass-rate ordering in
+  Table~\ref{tab:grid}: the more capable the solver, the larger the fraction of its attempts
+  that are caught games rather than honest failures.}
+  \label{fig:tamper}
+\end{figure}
+
+\paragraph{Tamper rate ranks with capability.} Measured as a share of scorable attempts
+(Figure~\ref{fig:tamper}), the
 guard fires on 48.5\% / 51.5\% of \texttt{gpt-5.6-sol}'s leaf / whole-body attempts, 26.2\% /
 25.2\% of \texttt{claude-sonnet-5}'s, and 14.6\% / 19.0\% of \texttt{leanstral-1-5}'s. The
 ordering matches the pass-rate ordering exactly: on these three models, the more capable the

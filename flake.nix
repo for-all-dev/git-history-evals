@@ -68,9 +68,10 @@
           # `nix build .#workshop-paper` -> result/neurips_2026_vericode_workshop.pdf
           # The system TeX on the dev box lacks the Times metrics (ptmr8t) and environ.sty
           # that neurips_2026_vericode.sty needs; scheme-medium + environ is the minimal
-          # set that compiles clean. Three passes, same as CI would run; figures are not
-          # \includegraphics'd yet — when they are, copy comms/vericode-workshop/figures/out
-          # into the build (they regenerate via `uv run figures` in that dir, see its README).
+          # set that compiles clean. Three passes, same as CI would run. Figures come from
+          # the committed comms/vericode-workshop/figures/out/*.pdf — they must stay
+          # git-tracked, because a flake's src only sees tracked files (they regenerate
+          # via `uv run figures` in figures/, see its README).
           workshop-paper =
             let
               tex = pkgs.texliveMedium.withPackages (ps: [ ps.environ ]);

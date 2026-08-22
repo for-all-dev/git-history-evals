@@ -18,8 +18,12 @@ produce **byte-identical** PDFs (see "Verifying determinism" below).
 ## What gets produced
 
 Vector PDFs (plus a `.pgf` twin where matplotlib's pgf backend cooperates)
-land in `out/`, which is gitignored — figures regenerate from inputs, they
-don't get committed:
+land in `out/`. The **PDFs are committed** — the nix `workshop-paper` build
+compiles from the git tree and `\includegraphics`'s them, so untracked
+figures would silently drop out of the built paper. Because two runs over
+the same inputs are byte-identical, a dirty `out/*.pdf` after `uv run
+figures` means an *input* changed, never noise. The `.pgf` twins stay
+untracked:
 
 | file | figure | reads |
 |---|---|---|
@@ -75,9 +79,16 @@ filesystem iteration order for anything that ends up in the image.
 
 ## Overleaf
 
-This directory (and `../data/`) must **never** be pushed to the paper's
+The uv project and `../data/` must **never** be pushed to the paper's
 Overleaf project — see `../.olignore` and `../../README.md` for why and how
-that's enforced. Only the `.tex`/`.sty` sources sync with Overleaf.
+that's enforced. The rendered `out/*.pdf` are the exception: the `.tex`
+includes them, so the Overleaf project needs its own copy. `olcli push`
+skips PDFs, so after regenerating a figure that the paper includes, sync it
+explicitly:
+
+```bash
+olcli upload out/<name>.pdf --to figures/out/<name>.pdf
+```
 
 ## Adding a figure
 
