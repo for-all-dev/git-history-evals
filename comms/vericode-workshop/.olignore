@@ -1,0 +1,10 @@
+# olcli push/sync ignore list (gitignore syntax; see .claude/skills/overleaf).
+#
+# `olcli push` is manifest-based (tracks remote state in .olcli.json) but treats any
+# file new locally as something to upload. data/ and figures/ are repo-side reproducibility
+# scaffolding for the paper's figures (aggregate JSON symlinks, a uv project, rendered
+# PDFs/PGFs) — none of it belongs in the Overleaf project, which only tracks the .tex/.sty
+# sources. Without these entries, a bare `olcli push` from this directory would try to
+# upload both trees (including the dangling scratch-wave3 symlinks) on the next sync.
+data/
+figures/

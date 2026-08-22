@@ -1,0 +1,6 @@
+# Figures regenerate deterministically from committed inputs — they don't get committed.
+out/
+
+.venv/
+__pycache__/
+*.pyc

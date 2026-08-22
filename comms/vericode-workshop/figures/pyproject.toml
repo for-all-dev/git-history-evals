@@ -1,0 +1,22 @@
+[project]
+name = "vericode-figures"
+version = "0.1.0"
+description = "Deterministic figure regeneration for the VeriCodeGen workshop paper (comms/vericode-workshop)"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "matplotlib>=3.9,<4",
+    "numpy>=2.0,<3",
+]
+
+[project.scripts]
+figures = "vericode_figures.cli:main"
+
+[build-system]
+requires = ["uv_build>=0.9.22,<0.10.0"]
+build-backend = "uv_build"
+
+[dependency-groups]
+dev = [
+    "ruff>=0.6",
+]
