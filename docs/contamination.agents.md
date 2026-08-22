@@ -118,6 +118,141 @@ Network access required; every API call is wrapped so a transient failure record
 rather than crashing the run (SWH unauthenticated rate limit is 120 req/hr — the script
 throttles with `--sleep`, default 0.6s).
 
+## Direct measurement: verbatim recall probe on deleted lemmas (issue #134)
+
+The membership check above says whether these *repos* could plausibly be in a training
+corpus. This says whether the models actually **know the proofs** — the knowledge-level
+half of the distinction this document is built on.
+
+Recall the split. **Instance-level** memorization (the model saw *this exact challenge
+document*) is defeated by construction: the sliced file with these specific lemmas deleted
+and these specific downstream uses holed never existed. **Knowledge-level** memorization
+(the model knows *this lemma*) is not defeated by construction and cannot be argued away —
+it has to be measured. The verbatim recall probe is the only instrument in the stack that
+can produce *positive* evidence of it, and it is the standard black-box test
+(Golchin & Surdeanu, *Time Travel in LLMs* — guided prompting / verbatim completion).
+
+**Method.** For each of the 113 deleted lemmas in the paired sample (`scratch-wave3`, the
+#129/#130 grid — see `scratch-wave3/GRID.md`), the model is given the repo identity, the
+pinned revision, the file path and the full declaration header (docstring, attributes,
+binders, statement) with the proof body replaced by `<PROOF>`, and asked to reproduce the
+body **exactly as it appears in that file**. No tools, no repo access, single shot — so
+anything it produces comes from its weights. `easy` and `hard` delete the *same* lemma
+(verified: all 113 pairs have byte-identical lemma text), so each lemma is probed once per
+model and the score joined to both splits' outcomes on `challenge_id`. Scoring is exact
+match after whitespace normalization, normalized Levenshtein similarity, and token-level
+F1; bands are `high` >= 0.9, `mid` >= 0.6, `low` otherwise. 339 calls total.
+
+**One stratification is load-bearing.** A one-line `by simp [foo]` is reproduced by any
+model that knows Lean, with zero memorization, so a corpus-wide exact-match rate is really
+a measure of how many stock one-liners the sample contains. Every table is therefore also
+reported over the **non-trivial** subset (proof bodies of more than one line, 96/113),
+where reproducing the token sequence by guessing is implausible.
+
+### Recall scores (run 2026-08-22, 339/339 responses, zero errors)
+
+| model | n | exact | mean lev | mean tokF1 | high band | n non-triv | exact (nt) | mean lev (nt) | high band (nt) |
+|---|---|---|---|---|---|---|---|---|---|
+| claude-sonnet-5 | 113 | 0/113 | 0.286 | 0.327 | 0.9% | 96 | **0/96** | 0.284 | 0.0% |
+| openai:gpt-5.6-sol | 113 | 2/113 | 0.269 | 0.330 | 1.8% | 96 | **0/96** | 0.238 | 0.0% |
+| mistral:labs-leanstral-1-5 | 113 | 0/113 | 0.189 | 0.218 | 0.0% | 96 | **0/96** | 0.200 | 0.0% |
+
+**Verbatim recall is at the floor.** Not one model reproduced a single multi-line proof
+body from this corpus. The only two exact matches in 339 probes — both by gpt-5.6-sol,
+`round_zero` (`by simp [roundToNearestEven]`, ryu-lean4) and `to_MvPolynomial_Option_X`
+(`by simp [to_MvPolynomial_Option]`, formal-snarks-project) — are one-line `simp` calls
+whose argument is the definition named in the statement. That is competent Lean, not
+recall. The single high-band non-exact hit (sonnet, `IsHermitian₁₁_of_IsHermitian_toBlock`
+in CvxLean, lev 0.986) is likewise a one-liner. Mean similarity sits at 0.19–0.29, which is
+what surface overlap of *any* two proofs of the same statement looks like.
+
+This is the result the SWH membership check predicts: 55 of 57 repos were never crawled
+before either Stack snapshot, so there is little for the models to have memorized.
+Two independent instruments, one direct on the corpus and one direct on the models, agree.
+
+### Correlation with solve outcome — the payoff
+
+Point-biserial correlation between recall similarity (lev) and the PASS outcome *of the
+same model on the same challenge* (n = 103 scorable per cell; 10 pairs per mode excluded as
+`malformed`, `tampered` counted as fail). CI is 5,000-sample bootstrap; p is a 10,000-draw
+permutation test. The last column controls for log proof length, since short proofs are both
+easier to guess and easier to solve.
+
+| model | split | n scorable | pass | r(lev, PASS) | 95% CI | perm p | partial r (size-controlled) |
+|---|---|---|---|---|---|---|---|
+| claude-sonnet-5 | easy | 103 | 30/103 | +0.184 | [-0.009, +0.375] | 0.061 | +0.171 |
+| claude-sonnet-5 | hard | 103 | 30/103 | +0.257 | [+0.056, +0.451] | 0.007 | +0.235 |
+| openai:gpt-5.6-sol | easy | 103 | 51/103 | +0.033 | [-0.156, +0.241] | 0.738 | +0.097 |
+| openai:gpt-5.6-sol | hard | 103 | 49/103 | +0.015 | [-0.172, +0.219] | 0.880 | +0.111 |
+| mistral:labs-leanstral-1-5 | easy | 103 | 18/103 | +0.034 | [-0.220, +0.290] | 0.728 | +0.041 |
+| mistral:labs-leanstral-1-5 | hard | 103 | 25/103 | +0.020 | [-0.221, +0.247] | 0.840 | +0.028 |
+
+Pass rate by recall band (Wilson 95%) tells the same story from the other side — the `low`
+band, which is where 97 of 103 problems sit for every model, has essentially the model's
+overall pass rate:
+
+| model | split | low band | mid | high |
+|---|---|---|---|---|
+| claude-sonnet-5 | easy | 28.9% (n=97) | 20.0% (n=5) | 100% (n=1) |
+| claude-sonnet-5 | hard | 28.9% (n=97) | 20.0% (n=5) | 100% (n=1) |
+| openai:gpt-5.6-sol | easy | 49.5% (n=97) | 75.0% (n=4) | 0% (n=2) |
+| openai:gpt-5.6-sol | hard | 47.4% (n=97) | 75.0% (n=4) | 0% (n=2) |
+| mistral:labs-leanstral-1-5 | easy | 17.5% (n=103) | — | — |
+| mistral:labs-leanstral-1-5 | hard | 24.3% (n=103) | — | — |
+
+**Reading.** For gpt-5.6-sol and Leanstral, recall and solve success are uncorrelated
+(|r| <= 0.03, p >= 0.73): the ~49% and ~18–24% pass rates are not retrieval. For sonnet
+there is a small positive association, significant on `hard` (r = +0.26, p = 0.007;
++0.24 after controlling for proof size) and marginal on `easy` (r = +0.18, p = 0.06). Six
+cells were tested, so the one surviving cell is p ≈ 0.04 Bonferroni-corrected — real but
+weak, and r = 0.26 is ~7% of variance. Note also the direction it points: the *hard*
+(whole-body) split is the one where recall matters more, exactly as the open question at the
+end of this document hypothesised — with no proof skeleton left to constrain the
+reconstruction, whatever the model knows about the lemma has more work to do.
+
+Crucially, an r of +0.26 against a **floor-level** recall distribution is not a
+contamination finding. Nothing was recalled verbatim; the association is between *slightly
+less bad* reconstructions and solving, which is what you expect if both are downstream of
+"this model has a good idea how this proof goes" — i.e. ability, not memorization. To call
+it contamination you would need recall mass at the top of the range, and there is none.
+
+### Limits
+
+- Absence of verbatim recall does not prove absence of knowledge-level memorization: a model
+  can know a lemma's *content* without reproducing its *surface form*, and RLHF'd chat models
+  are trained away from long verbatim emission. This bounds the effect; it does not zero it.
+- The probe prompts for a best reconstruction when the model does not recall the file, which
+  mixes ability into the similarity score. That is deliberate — it is why the trivial-body
+  stratum and the size-controlled partial correlation are reported — but it means mean lev
+  should be read as an upper bound on recall, never a lower one.
+- n = 113 lemmas, 3 models, one sample. The correlation cells are powered to detect
+  r ≈ 0.28 at 80%, so a genuinely small memorization effect would be missed.
+- Outcomes inherit the 50-turn budget of the #129/#130 grid, and gpt-5.6-sol's non-passes
+  are almost entirely `tampered` (`scratch-wave3/GRID.md`); its PASS column is therefore a
+  strict measure and its `fail` column heterogeneous.
+
+### Reproduce
+
+```bash
+set -a; . .env; set +a
+uv run --project baselines --no-sync python3 pipeline/recall_probe.py probe \
+    --sample scratch-wave3/paired/easy/sample.jsonl \
+    --out pipeline/recall_probe_responses.jsonl        # 339 calls, resumable
+
+python3 pipeline/recall_probe.py score \
+    --responses pipeline/recall_probe_responses.jsonl \
+    --sample scratch-wave3/paired/easy/sample.jsonl \
+    --results claude-sonnet-5=scratch-wave3/paired \
+    --results openai:gpt-5.6-sol=scratch-wave3/paired-openai \
+    --results mistral:labs-leanstral-1-5=scratch-wave3/paired-leanstral \
+    --out pipeline/recall_probe.tsv --report -
+```
+
+Per-challenge scores are committed at `pipeline/recall_probe.tsv` (one row per model x
+lemma, with both splits' outcomes) and the raw model responses at
+`pipeline/recall_probe_responses.jsonl`. `score` is stdlib-only and offline; unit tests are
+in `baselines/tests/test_recall_probe.py`.
+
 ## Robustness footnote: repo popularity (stars/age) — weak instrument, do not lead with it
 
 Superseded by the direct SWH/Stack measurement above; kept as a secondary robustness check
@@ -191,7 +326,7 @@ nearly free. See below.
 | **Corpus membership check** | The Stack / Software Heritage (documented snapshot dates + inclusion lists) | **Done — see "Direct measurement" above.** `pipeline/membership_check.py` / `pipeline/membership.tsv` |
 | **Membership inference from logprobs** | Min-K% Prob (Shi et al.), Min-K%++, reference-model perplexity | Open-weight models only; most frontier APIs withhold logprobs |
 | **Exchangeability / ordering test** | Oren et al., *Proving Test Set Contamination in Black Box Language Models* | Needs logprobs |
-| **Verbatim-completion / guided prompting** | Golchin & Surdeanu, *Time Travel in LLMs* | **Yes, cheap** |
+| **Verbatim-completion / guided prompting** | Golchin & Surdeanu, *Time Travel in LLMs* | **Done (#134)** — `pipeline/recall_probe.py` / `pipeline/recall_probe.tsv` |
 | **Perturbation robustness** | GSM-Symbolic (Apple) | **Yes — this is what the ablator already is** |
 
 ## Recommended instrument stack, ranked
@@ -214,7 +349,11 @@ nearly free. See below.
    blocked on #129/#130 producing real `ablate-baseline` results.
 2. **Deletion-count sweep** (`--count` 1/2/3/5). The memorization-decay curve. Distinctive
    to this project; likely the paper's most interesting figure.
-3. **Verbatim recall probe.** Given the lemma name + surrounding context but not the body,
+3. ~~**Verbatim recall probe.**~~ **Done (#134)** — see "verbatim recall probe" above:
+   verbatim recall is at the floor (0/96 non-trivial bodies reproduced by any of the three
+   grid models) and recall is uncorrelated with solve success except for a small
+   sonnet-on-`hard` association (r = +0.26). Original description: given the lemma name +
+   surrounding context but not the body,
    can the model state it? Decorrelates memorization from ability.
 4. ~~**The Stack / infini-gram membership check** per repo.~~ **Done** — see "Direct
    measurement" above (`pipeline/membership_check.py`, `pipeline/membership.tsv`). Replaced
