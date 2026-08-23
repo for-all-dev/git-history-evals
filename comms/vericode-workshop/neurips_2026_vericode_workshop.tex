@@ -804,8 +804,40 @@ contribution rather than merely a defense.
 The lemma dating above makes this the sharper of the two remaining instruments: with the temporal
 axis this compressed, depth is the dimension along which instance-level and knowledge-level
 memorization actually come apart in this corpus.
-\todo{\#133: decay curve over $\ge 4$ depths with CIs (Fig.~4), verification that the problem
-distribution is constant across depths, interpretation in instance- vs knowledge-level terms}
+
+\paragraph{Result.} We ran the sweep on \texttt{claude-sonnet-5} at the 50-turn budget: 100
+problems per depth over 30 repositories, drawn from the paired sample's files with the
+corollary pinned by the mining seed, so every depth ablates \emph{the same 100 (file,
+corollary) pairs} --- the distribution is constant across depths by construction, and verified:
+a tuple enters the set only if it yields exactly $N$ deletions \emph{and} compile-validates on
+both sides at every depth. Figure~\ref{fig:sweep} shows the decay: 27.1\% macro PASS at one
+deletion, 15.6\% at two, 15.1\% at three, 11.5\% at five (micro: 24\% / 8\% / 6\% / 5\%).
+
+The shape carries the interpretation, and it is not the retrieval story. Against an
+independence reference --- treating a depth-$N$ problem as $N$ independent single-deletion
+problems, $p_1^N$ with $p_1 = 0.24$ --- the one-to-two drop is roughly what independence predicts
+(8\% observed, 5.8\% predicted), while depths three and five sit far \emph{above} it (5\%
+observed against 0.08\% predicted at depth five). Deleting five interlocking lemmas from one
+closure is much easier than five independent problems: the lemmas share context, statements,
+and often a proof idiom, and re-deriving one supplies material for the next. For this model the
+sweep therefore shows a conjunction-difficulty curve, not a memorization cliff --- consistent
+with the temporal holdout, which finds no pre-cutoff advantage for this model either
+(Table~\ref{tab:temporal}); the two instruments agree. The model whose temporal cells
+\emph{do} all point toward retrieval (\texttt{leanstral-1-5}, above) is the natural target for
+a follow-up sweep. Tampering, incidentally, falls with depth (35 / 27 / 20 / 20 of 100):
+deleting the statement of five theorems at once is apparently a less tempting exploit than
+deleting one.
+
+\begin{figure}[t]
+  \centering
+  \includegraphics{deletion-curve.pdf}
+  \caption{Macro PASS against deletion depth $N \in \{1,2,3,5\}$ on a fixed 100-problem set
+  (same files, same seed-pinned corollaries at every depth; each problem compile-validated at
+  every depth), \texttt{claude-sonnet-5}, 50-turn budget, bootstrap 95\% intervals. The dotted
+  reference is the independence null $p_1^N$: the one-to-two drop roughly matches it; the tail sits far
+  above it. The curve is a conjunction-difficulty measurement, not a memorization cliff.}
+  \label{fig:sweep}
+\end{figure}
 
 \subsubsection{Verbatim recall probe (\#134)}
 \label{sec:recall}
