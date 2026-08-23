@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Mirror AFP entries into the forall-git-evals DO Space (issue #113).
+"""Mirror AFP entries into the forall-evals DO Space (issue #113).
 
 The ablation playground (`website/`) is a *pure static* Vercel deploy, so it
 can't fetch AFP theories directly from isa-afp.org (no permissive CORS there).
@@ -51,8 +51,8 @@ import urllib.request
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 
-BUCKET = "forall-git-evals"
-PREFIX = "afp"
+BUCKET = "forall-evals"
+PREFIX = "ablations/isabelle/_data/afp"
 BASE_URL = f"https://{BUCKET}.nyc3.digitaloceanspaces.com/{PREFIX}"
 FULL_RELEASE_URL = "https://isa-afp.org/release/afp-current.tar.gz"
 ENTRY_RELEASE_URL = "https://www.isa-afp.org/release/afp-{entry}-current.tar.gz"

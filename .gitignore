@@ -41,7 +41,7 @@ artifacts/**/writer_transcript.json
 .isabelle-heaps/
 
 # ablation pipeline: source checkouts, heaps, and bulk mined data are never committed
-# (repos are pinned in pipeline/repos.tsv; datasets live in the forall-ablations Space)
+# (repos are pinned in pipeline/repos.tsv; datasets live in the forall-evals Space)
 /data/lean/
 /data/**/.lake/
 

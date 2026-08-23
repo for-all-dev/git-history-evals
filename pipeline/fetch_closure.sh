@@ -19,6 +19,9 @@ cd "$(dirname "$0")/.."
 NAME="${1:?usage: fetch_closure.sh <repo-name> [<dest-dir>]}"
 DEST="${2:-data/lean/$NAME}"
 CLOSURES_TSV=pipeline/closures.tsv
+# Bucket prefix holding the closures. `object_key` in closures.tsv is relative to
+# this, so historical rows keep working across the bucket consolidation.
+SPACE="${CLOSURE_SPACE:-s3://forall-evals/ablations}"
 
 [ -f "$CLOSURES_TSV" ] || { echo "!! $CLOSURES_TSV not found" >&2; exit 1; }
 ROW=$(awk -F'\t' -v n="$NAME" 'NR>1 && $1==n{print; exit}' "$CLOSURES_TSV")
@@ -41,8 +44,8 @@ use_https = True
 CFGEOF
 
 TARBALL="$WORK/$(basename "$object_key")"
-echo "== fetch s3://forall-ablations/$object_key -> $TARBALL"
-s3cmd -c "$CFG" --no-progress get "s3://forall-ablations/$object_key" "$TARBALL"
+echo "== fetch $SPACE/$object_key -> $TARBALL"
+s3cmd -c "$CFG" --no-progress get "$SPACE/$object_key" "$TARBALL"
 
 echo "== verify sha256"
 GOT=$(sha256sum "$TARBALL" | cut -d' ' -f1)
