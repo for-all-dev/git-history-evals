@@ -225,70 +225,70 @@ claude-sonnet-5	whole	yul-compiler	593caf423a6fed14	fail		50	45	5944713	3156	214
 claude-sonnet-5	whole	yul-compiler	c004d27acd1ee8ac	fail		50	14	402893	7991	115.3
 claude-sonnet-5	whole	yul-semantics	7cb277821546874c	pass		50	6	76536	3178	34.2
 claude-sonnet-5	whole	yul-semantics	9e7200cdc6d6cbe2	fail		50	50	3316275	18946	320.9
-mistral:labs-leanstral-1-5	leaf	ArkLib	3eaf7490820eb45f	error		50	0	0	0	421.3
+mistral:labs-leanstral-1-5	leaf	ArkLib	3eaf7490820eb45f	turn_limit		50	50	0	0	957.3
 mistral:labs-leanstral-1-5	leaf	ArkLib	c8f7852f85b1c244	pass		50	15	467410	6633	98.5
 mistral:labs-leanstral-1-5	leaf	Clear	6435e1d0534addbb	pass		50	3	46093	8137	116.7
-mistral:labs-leanstral-1-5	leaf	Clear	801815299db16764	error		50	0	0	0	767.6
+mistral:labs-leanstral-1-5	leaf	Clear	801815299db16764	context_exceeded		50	0	0	0	2891.4
 mistral:labs-leanstral-1-5	leaf	CompPoly	0942fe2ed2dead21	tampered	declaration_removed	50	49	4811824	61212	848.0
 mistral:labs-leanstral-1-5	leaf	CompPoly	b6c0958faa9b4e50	pass		50	25	762891	28500	345.9
 mistral:labs-leanstral-1-5	leaf	CvxLean	7e72fb53bb7b2c85	pass		50	19	606873	6324	112.7
-mistral:labs-leanstral-1-5	leaf	CvxLean	ab451f34742004c1	error		50	0	0	0	380.1
-mistral:labs-leanstral-1-5	leaf	FLoPS	8119349c53d69fdf	error		50	0	0	0	221.9
-mistral:labs-leanstral-1-5	leaf	FLoPS	e1636d84d45168d3	error		50	0	0	0	434.2
-mistral:labs-leanstral-1-5	leaf	FVIntmax	90336b1db31181a3	error		50	0	0	0	2399.0
-mistral:labs-leanstral-1-5	leaf	FVIntmax	a6980f1a1d6f7fd4	error		50	0	0	0	1282.3
+mistral:labs-leanstral-1-5	leaf	CvxLean	ab451f34742004c1	pass		50	50	0	0	471.7
+mistral:labs-leanstral-1-5	leaf	FLoPS	8119349c53d69fdf	turn_limit		50	50	0	0	868.6
+mistral:labs-leanstral-1-5	leaf	FLoPS	e1636d84d45168d3	context_exceeded		50	0	0	0	2550.4
+mistral:labs-leanstral-1-5	leaf	FVIntmax	90336b1db31181a3	tampered	declaration_removed	50	12	303942	27605	378.9
+mistral:labs-leanstral-1-5	leaf	FVIntmax	a6980f1a1d6f7fd4	error		50	0	0	0	833.9
 mistral:labs-leanstral-1-5	leaf	Foundation	03368880f2abd6e9	tampered	declaration_removed	50	18	598092	19359	1683.9
-mistral:labs-leanstral-1-5	leaf	Foundation	ed7f94e1f237638c	error		50	0	0	0	5170.1
+mistral:labs-leanstral-1-5	leaf	Foundation	ed7f94e1f237638c	error		50	0	0	0	17.1
 mistral:labs-leanstral-1-5	leaf	LNSym	4a823a81a8028fc9	pass		50	4	31579	5392	65.8
 mistral:labs-leanstral-1-5	leaf	LNSym	6011b971e91f0d3a	malformed		50	0	0	0	0.7
 mistral:labs-leanstral-1-5	leaf	Lentil	17de49f70e7d5d1e	pass		50	13	396406	13388	165.9
 mistral:labs-leanstral-1-5	leaf	Lentil	540a0ff7d3ae7a19	tampered	statement_weakened	50	33	1102805	54617	637.3
-mistral:labs-leanstral-1-5	leaf	LeroyCompilerVerificationCourse	7d115958af5c1d1e	error		50	0	0	0	624.5
-mistral:labs-leanstral-1-5	leaf	LeroyCompilerVerificationCourse	d8f33a913429b46e	error		50	0	0	0	7607.5
-mistral:labs-leanstral-1-5	leaf	SampCert	26c4eaeee8c6ce58	error		50	0	0	0	65.5
+mistral:labs-leanstral-1-5	leaf	LeroyCompilerVerificationCourse	7d115958af5c1d1e	context_exceeded		50	0	0	0	2835.3
+mistral:labs-leanstral-1-5	leaf	LeroyCompilerVerificationCourse	d8f33a913429b46e	context_exceeded		50	0	0	0	2814.1
+mistral:labs-leanstral-1-5	leaf	SampCert	26c4eaeee8c6ce58	pass		50	32	1500961	39946	545.2
 mistral:labs-leanstral-1-5	leaf	SampCert	68918926206d7fc4	turn_limit		50	50	0	0	2785.4
 mistral:labs-leanstral-1-5	leaf	SizzLean	5cd1ea3baef5200a	pass		50	21	671297	43326	450.8
 mistral:labs-leanstral-1-5	leaf	SizzLean	83f97f349caa71e9	pass		50	16	414343	16306	190.9
-mistral:labs-leanstral-1-5	leaf	TTBFL	28a3d1dccdb83b0a	error		50	0	0	0	940.6
-mistral:labs-leanstral-1-5	leaf	TTBFL	6f689fa4d6606e04	error		50	0	0	0	947.6
-mistral:labs-leanstral-1-5	leaf	TensorLib	11e0ea962fc2c31d	error		50	0	0	0	103.9
-mistral:labs-leanstral-1-5	leaf	TensorLib	502c8803cf78d1a4	error		50	0	0	0	1736.4
+mistral:labs-leanstral-1-5	leaf	TTBFL	28a3d1dccdb83b0a	turn_limit		50	50	0	0	1963.0
+mistral:labs-leanstral-1-5	leaf	TTBFL	6f689fa4d6606e04	error		50	0	0	0	132.5
+mistral:labs-leanstral-1-5	leaf	TensorLib	11e0ea962fc2c31d	tampered	declaration_removed	50	39	1792066	78786	950.2
+mistral:labs-leanstral-1-5	leaf	TensorLib	502c8803cf78d1a4	turn_limit		50	50	0	0	1845.6
 mistral:labs-leanstral-1-5	leaf	TorchLean	8dd8cec9f03d72a7	turn_limit		50	50	0	0	7289.7
 mistral:labs-leanstral-1-5	leaf	TorchLean	bb506cf047659a6e	pass		50	18	373738	19944	1231.2
 mistral:labs-leanstral-1-5	leaf	VCV-io	9f31dffd2bc2975a	tampered	declaration_removed	50	13	713979	25941	839.2
-mistral:labs-leanstral-1-5	leaf	VCV-io	c14999a9673608e5	error		50	0	0	0	1947.8
-mistral:labs-leanstral-1-5	leaf	adler-proofs	b464691a882d0e3c	error		50	0	0	0	5682.0
+mistral:labs-leanstral-1-5	leaf	VCV-io	c14999a9673608e5	error		50	0	0	0	18.3
+mistral:labs-leanstral-1-5	leaf	adler-proofs	b464691a882d0e3c	pass		50	40	2088852	58659	1020.1
 mistral:labs-leanstral-1-5	leaf	adler-proofs	bb165801ff15e632	turn_limit		50	50	0	0	4492.4
-mistral:labs-leanstral-1-5	leaf	aeneas	65c6eaf0933ac3bc	error		50	0	0	0	4478.5
-mistral:labs-leanstral-1-5	leaf	aeneas	c59817dd14d2eb89	error		50	0	0	0	1468.0
-mistral:labs-leanstral-1-5	leaf	apc-optimizer	19fe8265c1e6f2c2	error		50	0	0	0	975.4
-mistral:labs-leanstral-1-5	leaf	apc-optimizer	bc557726c0c45489	error		50	0	0	0	7021.9
-mistral:labs-leanstral-1-5	leaf	btc-verified	813d77ef0033bd15	error		50	0	0	0	625.5
-mistral:labs-leanstral-1-5	leaf	btc-verified	929a50d0b6a01c2e	error		50	0	0	0	4831.9
+mistral:labs-leanstral-1-5	leaf	aeneas	65c6eaf0933ac3bc	pass		50	40	2735982	154893	1969.4
+mistral:labs-leanstral-1-5	leaf	aeneas	c59817dd14d2eb89	error		50	0	0	0	38.6
+mistral:labs-leanstral-1-5	leaf	apc-optimizer	19fe8265c1e6f2c2	error		50	0	0	0	5078.9
+mistral:labs-leanstral-1-5	leaf	apc-optimizer	bc557726c0c45489	error		50	0	0	0	2279.6
+mistral:labs-leanstral-1-5	leaf	btc-verified	813d77ef0033bd15	pass		50	38	2886677	119620	1478.5
+mistral:labs-leanstral-1-5	leaf	btc-verified	929a50d0b6a01c2e	tampered	declaration_removed	50	15	424773	21000	240.0
 mistral:labs-leanstral-1-5	leaf	capless-lean	1f7dcc7181ec615c	turn_limit		50	50	0	0	2864.6
 mistral:labs-leanstral-1-5	leaf	capless-lean	abe14cc5c66753fb	turn_limit		50	50	0	0	2256.0
 mistral:labs-leanstral-1-5	leaf	cedar-spec	4ca75d6e5031c6d9	turn_limit		50	50	0	0	4075.1
 mistral:labs-leanstral-1-5	leaf	cedar-spec	bd1dec8fef9ca817	turn_limit		50	50	0	0	1128.7
-mistral:labs-leanstral-1-5	leaf	clean	2c92b4267395fb49	error		50	0	0	0	141.3
+mistral:labs-leanstral-1-5	leaf	clean	2c92b4267395fb49	pass		50	7	225940	33684	392.7
 mistral:labs-leanstral-1-5	leaf	clean	7331a8bd16838470	pass		50	37	2092112	35010	1745.3
 mistral:labs-leanstral-1-5	leaf	cslib	03f9877b6b7c5816	tampered	declaration_removed	50	17	880040	61248	2923.9
 mistral:labs-leanstral-1-5	leaf	cslib	a4ce553d6553ca3a	tampered	declaration_removed	50	9	225962	10082	734.6
 mistral:labs-leanstral-1-5	leaf	curve25519-dalek-lean-verify	2092154f552b6444	pass		50	13	291798	12561	842.2
 mistral:labs-leanstral-1-5	leaf	curve25519-dalek-lean-verify	b62bdabff93ea603	pass		50	32	2189691	35161	2118.7
 mistral:labs-leanstral-1-5	leaf	dolev-yao	92d5feb5271286db	tampered	declaration_removed	50	9	69777	6903	453.3
-mistral:labs-leanstral-1-5	leaf	evm-asm	7b7626fc3b093a25	error		50	0	0	0	239.8
-mistral:labs-leanstral-1-5	leaf	evm-asm	cbadd5a663aa3f7a	error		50	0	0	0	2201.2
+mistral:labs-leanstral-1-5	leaf	evm-asm	7b7626fc3b093a25	tampered	declaration_removed	50	9	300134	14412	180.1
+mistral:labs-leanstral-1-5	leaf	evm-asm	cbadd5a663aa3f7a	context_exceeded		50	0	0	0	2127.9
 mistral:labs-leanstral-1-5	leaf	formal-snarks-project	54b29208d59e384a	pass		50	18	758163	13491	1753.1
 mistral:labs-leanstral-1-5	leaf	formal-snarks-project	a52a412058f32352	tampered	declaration_removed	50	13	248456	19173	935.4
-mistral:labs-leanstral-1-5	leaf	hax-proof-libs-lean	5a4b0ee657d13463	error		50	0	0	0	1790.8
-mistral:labs-leanstral-1-5	leaf	hax-proof-libs-lean	645b573e4662a040	error		50	0	0	0	6994.1
+mistral:labs-leanstral-1-5	leaf	hax-proof-libs-lean	5a4b0ee657d13463	pass		50	25	1918097	98124	1153.1
+mistral:labs-leanstral-1-5	leaf	hax-proof-libs-lean	645b573e4662a040	error		50	0	0	0	20.6
 mistral:labs-leanstral-1-5	leaf	hex-dev	0733ea13aaaae37a	pass		50	16	519457	15806	1146.6
-mistral:labs-leanstral-1-5	leaf	hex-dev	7f5a6a8a46a36844	error		50	0	0	0	407.1
-mistral:labs-leanstral-1-5	leaf	iris-lean	4475f0da376e5ef9	error		50	0	0	0	2706.7
-mistral:labs-leanstral-1-5	leaf	iris-lean	73cf11986048d1e2	error		50	0	0	0	2393.4
+mistral:labs-leanstral-1-5	leaf	hex-dev	7f5a6a8a46a36844	error		50	0	0	0	14.5
+mistral:labs-leanstral-1-5	leaf	iris-lean	4475f0da376e5ef9	error		50	0	0	0	22.9
+mistral:labs-leanstral-1-5	leaf	iris-lean	73cf11986048d1e2	error		50	0	0	0	4.8
 mistral:labs-leanstral-1-5	leaf	jolt-tla	99dd9f11041170de	pass		50	44	2060068	31264	3296.5
 mistral:labs-leanstral-1-5	leaf	jolt-tla	b63ffa5aac5b5e34	pass		50	10	69133	8369	646.2
-mistral:labs-leanstral-1-5	leaf	juvix-lean	9ec8a7a07defdcb6	error		50	0	0	0	3329.9
+mistral:labs-leanstral-1-5	leaf	juvix-lean	9ec8a7a07defdcb6	pass		50	31	1015571	31877	364.6
 mistral:labs-leanstral-1-5	leaf	juvix-lean	a6be38abcec14ea7	tampered	declaration_removed	50	17	760468	37518	5561.3
 mistral:labs-leanstral-1-5	leaf	lampe	5623bb19f7f441fc	malformed		50	0	0	0	1.3
 mistral:labs-leanstral-1-5	leaf	lampe	c382f5d8ee03e9f8	malformed		50	0	0	0	0.1
@@ -296,92 +296,92 @@ mistral:labs-leanstral-1-5	leaf	lean-formal-reasoning-program	9cb5056f3dd2ef88	t
 mistral:labs-leanstral-1-5	leaf	lean-formal-reasoning-program	af161070ba37dd94	tampered	declaration_removed	50	28	880842	37485	2371.2
 mistral:labs-leanstral-1-5	leaf	lean-mlir	34e263561f91d923	malformed		50	0	0	0	5.1
 mistral:labs-leanstral-1-5	leaf	lean-mlir	a20e18f35e8b43e4	malformed		50	0	0	0	0.4
-mistral:labs-leanstral-1-5	leaf	lean-yjs	94b181719a4a8688	error		50	0	0	0	6618.6
-mistral:labs-leanstral-1-5	leaf	lean-yjs	d2c087aa9bbebfa7	error		50	0	0	0	2812.9
-mistral:labs-leanstral-1-5	leaf	lean-zip	5847e2d920b6041e	error		50	0	0	0	5659.8
-mistral:labs-leanstral-1-5	leaf	lean-zip	5e51e92feada77de	error		50	0	0	0	1786.4
+mistral:labs-leanstral-1-5	leaf	lean-yjs	94b181719a4a8688	turn_limit		50	50	0	0	324.5
+mistral:labs-leanstral-1-5	leaf	lean-yjs	d2c087aa9bbebfa7	pass		50	12	514513	34618	383.4
+mistral:labs-leanstral-1-5	leaf	lean-zip	5847e2d920b6041e	error		50	0	0	0	376.2
+mistral:labs-leanstral-1-5	leaf	lean-zip	5e51e92feada77de	error		50	0	0	0	127.5
 mistral:labs-leanstral-1-5	leaf	lean4lean	9d29ef4dc342e3f9	turn_limit		50	50	0	0	5893.2
 mistral:labs-leanstral-1-5	leaf	lean4lean	e605b051b91ee2cc	pass		50	23	249771	13260	1041.2
-mistral:labs-leanstral-1-5	leaf	leanda	0a5f78f39912afa0	error		50	0	0	0	4926.2
-mistral:labs-leanstral-1-5	leaf	leanda	be744f333456203c	error		50	0	0	0	54.7
-mistral:labs-leanstral-1-5	leaf	loom	9586b73159c4f2e8	error		50	0	0	0	3848.2
-mistral:labs-leanstral-1-5	leaf	loom	acee1f355e4ebad9	error		50	0	0	0	725.2
-mistral:labs-leanstral-1-5	leaf	nickelean	562f4fffaa14159e	error		50	0	0	0	1289.9
-mistral:labs-leanstral-1-5	leaf	nickelean	91ec2fac1890db47	error		50	0	0	0	308.8
-mistral:labs-leanstral-1-5	leaf	posix-parsing	68a3168be1d7a904	error		50	0	0	0	139.2
-mistral:labs-leanstral-1-5	leaf	posix-parsing	779a3ae2765e6e45	error		50	0	0	0	3690.7
-mistral:labs-leanstral-1-5	leaf	posix-submatching	1fbd99eb5aaf285f	error		50	0	0	0	401.8
-mistral:labs-leanstral-1-5	leaf	posix-submatching	92aa2b1733897d5a	error		50	0	0	0	2899.6
-mistral:labs-leanstral-1-5	leaf	proven-zk	9ba6e1c09e92b1d1	error		50	0	0	0	462.2
-mistral:labs-leanstral-1-5	leaf	proven-zk	dbdd64157b7d7426	error		50	0	0	0	237.7
+mistral:labs-leanstral-1-5	leaf	leanda	0a5f78f39912afa0	tampered	declaration_removed	50	14	523145	21748	239.9
+mistral:labs-leanstral-1-5	leaf	leanda	be744f333456203c	tampered	declaration_removed	50	20	772344	44872	529.9
+mistral:labs-leanstral-1-5	leaf	loom	9586b73159c4f2e8	turn_limit		50	50	0	0	1052.3
+mistral:labs-leanstral-1-5	leaf	loom	acee1f355e4ebad9	tampered	declaration_removed	50	17	678493	44513	505.8
+mistral:labs-leanstral-1-5	leaf	nickelean	562f4fffaa14159e	tampered	declaration_removed	50	17	292327	8524	120.1
+mistral:labs-leanstral-1-5	leaf	nickelean	91ec2fac1890db47	gave_up		50	32	2254651	91765	1071.8
+mistral:labs-leanstral-1-5	leaf	posix-parsing	68a3168be1d7a904	error		50	0	0	0	681.2
+mistral:labs-leanstral-1-5	leaf	posix-parsing	779a3ae2765e6e45	tampered	declaration_removed	50	26	1095063	54794	558.8
+mistral:labs-leanstral-1-5	leaf	posix-submatching	1fbd99eb5aaf285f	error		50	0	0	0	334.0
+mistral:labs-leanstral-1-5	leaf	posix-submatching	92aa2b1733897d5a	error		50	0	0	0	657.8
+mistral:labs-leanstral-1-5	leaf	proven-zk	9ba6e1c09e92b1d1	pass		50	25	960839	7386	106.7
+mistral:labs-leanstral-1-5	leaf	proven-zk	dbdd64157b7d7426	error		50	0	0	0	1792.7
 mistral:labs-leanstral-1-5	leaf	ryu-lean4	5bac3500a6bab4b4	tampered	declaration_removed	50	6	25505	971	87.9
-mistral:labs-leanstral-1-5	leaf	ryu-lean4	89a4ee7e159a40d6	error		50	0	0	0	1463.1
+mistral:labs-leanstral-1-5	leaf	ryu-lean4	89a4ee7e159a40d6	tampered	declaration_removed	50	22	759430	48551	576.4
 mistral:labs-leanstral-1-5	leaf	shortest-decimal	10171d84a7f98c0f	tampered	declaration_removed	50	5	66105	3865	315.7
-mistral:labs-leanstral-1-5	leaf	shortest-decimal	b703264a818fcd5e	error		50	0	0	0	153.8
+mistral:labs-leanstral-1-5	leaf	shortest-decimal	b703264a818fcd5e	error		50	0	0	0	42.1
 mistral:labs-leanstral-1-5	leaf	sparkle	6a458f2f159b083b	malformed		50	0	0	0	0.3
-mistral:labs-leanstral-1-5	leaf	sparkle	ad13d6c76d669235	error		50	0	0	0	462.0
-mistral:labs-leanstral-1-5	leaf	splean	3555823b339bec1c	error		50	0	0	0	206.3
+mistral:labs-leanstral-1-5	leaf	sparkle	ad13d6c76d669235	error		50	0	0	0	258.1
+mistral:labs-leanstral-1-5	leaf	splean	3555823b339bec1c	tampered	declaration_removed	50	22	1391030	60829	836.6
 mistral:labs-leanstral-1-5	leaf	splean	a537b7a3bcd8844d	tampered	declaration_removed	50	27	676315	13687	1350.4
 mistral:labs-leanstral-1-5	leaf	starkware-formal-proofs	4cd9b2f5ffcdb76d	malformed		50	0	0	0	3.0
 mistral:labs-leanstral-1-5	leaf	starkware-formal-proofs	eaa30d2eacaa36db	malformed		50	0	0	0	0.1
-mistral:labs-leanstral-1-5	leaf	symcrust	795efddf6068c29d	error		50	0	0	0	20.5
+mistral:labs-leanstral-1-5	leaf	symcrust	795efddf6068c29d	context_exceeded		50	0	0	0	4222.7
 mistral:labs-leanstral-1-5	leaf	symcrust	a70c2c776b07e4e9	fail		50	39	3872132	108862	11620.9
 mistral:labs-leanstral-1-5	leaf	veil	60061f4b45d47a0e	pass		50	6	49049	4376	360.4
-mistral:labs-leanstral-1-5	leaf	veil	93697f0d24bb8a8a	error		50	0	0	0	9.7
+mistral:labs-leanstral-1-5	leaf	veil	93697f0d24bb8a8a	pass		50	15	485676	59074	674.8
 mistral:labs-leanstral-1-5	leaf	verified-compiler	76bf93194ad33297	turn_limit		50	50	0	0	3723.5
-mistral:labs-leanstral-1-5	leaf	verified-compiler	9ec5e6d3c706144c	error		50	0	0	0	11471.4
-mistral:labs-leanstral-1-5	leaf	verified-consensus	05f6b42658ac096e	error		50	0	0	0	780.6
+mistral:labs-leanstral-1-5	leaf	verified-compiler	9ec5e6d3c706144c	error		50	0	0	0	566.1
+mistral:labs-leanstral-1-5	leaf	verified-consensus	05f6b42658ac096e	error		50	0	0	0	221.8
 mistral:labs-leanstral-1-5	leaf	verified-consensus	b1550740dc7acf5c	tampered	declaration_removed	50	11	191567	11658	565.7
 mistral:labs-leanstral-1-5	leaf	verity	341609f580358a89	malformed		50	0	0	0	0.2
 mistral:labs-leanstral-1-5	leaf	verity	4ae1f1695e5d7efa	malformed		50	0	0	0	4.0
-mistral:labs-leanstral-1-5	leaf	yul-compiler	593caf423a6fed14	error		50	0	0	0	130.5
-mistral:labs-leanstral-1-5	leaf	yul-compiler	c004d27acd1ee8ac	error		50	0	0	0	403.1
-mistral:labs-leanstral-1-5	leaf	yul-semantics	7cb277821546874c	error		50	0	0	0	354.4
-mistral:labs-leanstral-1-5	leaf	yul-semantics	9e7200cdc6d6cbe2	error		50	0	0	0	101.9
-mistral:labs-leanstral-1-5	whole	ArkLib	3eaf7490820eb45f	error		50	0	0	0	643.4
+mistral:labs-leanstral-1-5	leaf	yul-compiler	593caf423a6fed14	error		50	0	0	0	7305.0
+mistral:labs-leanstral-1-5	leaf	yul-compiler	c004d27acd1ee8ac	turn_limit		50	50	0	0	2183.1
+mistral:labs-leanstral-1-5	leaf	yul-semantics	7cb277821546874c	pass		50	7	97977	9935	98.5
+mistral:labs-leanstral-1-5	leaf	yul-semantics	9e7200cdc6d6cbe2	error		50	0	0	0	231.3
+mistral:labs-leanstral-1-5	whole	ArkLib	3eaf7490820eb45f	turn_limit		50	50	0	0	1676.2
 mistral:labs-leanstral-1-5	whole	ArkLib	c8f7852f85b1c244	pass		50	21	1105990	11377	340.4
 mistral:labs-leanstral-1-5	whole	Clear	6435e1d0534addbb	pass		50	20	655727	29976	752.4
-mistral:labs-leanstral-1-5	whole	Clear	801815299db16764	error		50	0	0	0	798.0
-mistral:labs-leanstral-1-5	whole	CompPoly	0942fe2ed2dead21	error		50	0	0	0	28.3
+mistral:labs-leanstral-1-5	whole	Clear	801815299db16764	error		50	0	0	0	48.5
+mistral:labs-leanstral-1-5	whole	CompPoly	0942fe2ed2dead21	turn_limit		50	50	0	0	714.3
 mistral:labs-leanstral-1-5	whole	CompPoly	b6c0958faa9b4e50	pass		50	39	1689092	45477	1460.2
-mistral:labs-leanstral-1-5	whole	CvxLean	7e72fb53bb7b2c85	error		50	0	0	0	71.4
+mistral:labs-leanstral-1-5	whole	CvxLean	7e72fb53bb7b2c85	pass		50	8	125972	3579	45.4
 mistral:labs-leanstral-1-5	whole	CvxLean	ab451f34742004c1	pass		50	26	1675321	10957	343.2
-mistral:labs-leanstral-1-5	whole	FLoPS	8119349c53d69fdf	error		50	0	0	0	255.4
+mistral:labs-leanstral-1-5	whole	FLoPS	8119349c53d69fdf	error		50	0	0	0	97.1
 mistral:labs-leanstral-1-5	whole	FLoPS	e1636d84d45168d3	tampered	declaration_removed	50	35	2582696	78225	2180.3
 mistral:labs-leanstral-1-5	whole	FVIntmax	90336b1db31181a3	tampered	declaration_removed	50	25	1462235	90662	1794.5
-mistral:labs-leanstral-1-5	whole	FVIntmax	a6980f1a1d6f7fd4	error		50	0	0	0	5442.3
+mistral:labs-leanstral-1-5	whole	FVIntmax	a6980f1a1d6f7fd4	error		50	0	0	0	340.8
 mistral:labs-leanstral-1-5	whole	Foundation	03368880f2abd6e9	turn_limit		50	50	0	0	1274.3
-mistral:labs-leanstral-1-5	whole	Foundation	ed7f94e1f237638c	error		50	0	0	0	3932.9
-mistral:labs-leanstral-1-5	whole	LNSym	4a823a81a8028fc9	error		50	0	0	0	94.2
+mistral:labs-leanstral-1-5	whole	Foundation	ed7f94e1f237638c	error		50	0	0	0	628.4
+mistral:labs-leanstral-1-5	whole	LNSym	4a823a81a8028fc9	pass		50	25	704149	34038	385.8
 mistral:labs-leanstral-1-5	whole	LNSym	6011b971e91f0d3a	malformed		50	0	0	0	0.8
 mistral:labs-leanstral-1-5	whole	Lentil	17de49f70e7d5d1e	pass		50	14	227938	11324	251.7
 mistral:labs-leanstral-1-5	whole	Lentil	540a0ff7d3ae7a19	pass		50	15	391790	33613	757.5
-mistral:labs-leanstral-1-5	whole	LeroyCompilerVerificationCourse	7d115958af5c1d1e	context_exceeded		50	0	0	0	6418.1
-mistral:labs-leanstral-1-5	whole	LeroyCompilerVerificationCourse	d8f33a913429b46e	context_exceeded		50	0	0	0	5152.0
+mistral:labs-leanstral-1-5	whole	LeroyCompilerVerificationCourse	7d115958af5c1d1e	context_exceeded		50	0	0	0	2810.1
+mistral:labs-leanstral-1-5	whole	LeroyCompilerVerificationCourse	d8f33a913429b46e	error		50	0	0	0	21.6
 mistral:labs-leanstral-1-5	whole	SampCert	26c4eaeee8c6ce58	pass		50	50	4992333	139074	3574.6
-mistral:labs-leanstral-1-5	whole	SampCert	68918926206d7fc4	error		50	0	0	0	8.7
+mistral:labs-leanstral-1-5	whole	SampCert	68918926206d7fc4	error		50	0	0	0	174.4
 mistral:labs-leanstral-1-5	whole	SizzLean	5cd1ea3baef5200a	pass		50	13	361670	36213	810.9
 mistral:labs-leanstral-1-5	whole	SizzLean	83f97f349caa71e9	pass		50	24	1031194	21685	480.3
 mistral:labs-leanstral-1-5	whole	TTBFL	28a3d1dccdb83b0a	turn_limit		50	50	0	0	2769.5
 mistral:labs-leanstral-1-5	whole	TTBFL	6f689fa4d6606e04	tampered	declaration_removed	50	35	1259014	36415	848.8
-mistral:labs-leanstral-1-5	whole	TensorLib	11e0ea962fc2c31d	error		50	0	0	0	308.1
-mistral:labs-leanstral-1-5	whole	TensorLib	502c8803cf78d1a4	error		50	0	0	0	1369.9
+mistral:labs-leanstral-1-5	whole	TensorLib	11e0ea962fc2c31d	error		50	0	0	0	364.5
+mistral:labs-leanstral-1-5	whole	TensorLib	502c8803cf78d1a4	turn_limit		50	50	0	0	763.9
 mistral:labs-leanstral-1-5	whole	TorchLean	8dd8cec9f03d72a7	pass		50	44	3035702	39291	1083.1
 mistral:labs-leanstral-1-5	whole	TorchLean	bb506cf047659a6e	pass		50	18	565548	32038	674.7
 mistral:labs-leanstral-1-5	whole	VCV-io	9f31dffd2bc2975a	tampered	declaration_removed	50	25	1111253	25467	739.1
 mistral:labs-leanstral-1-5	whole	VCV-io	c14999a9673608e5	turn_limit		50	50	0	0	1476.1
 mistral:labs-leanstral-1-5	whole	adler-proofs	b464691a882d0e3c	turn_limit		50	50	0	0	1790.0
-mistral:labs-leanstral-1-5	whole	adler-proofs	bb165801ff15e632	error		50	0	0	0	2224.0
+mistral:labs-leanstral-1-5	whole	adler-proofs	bb165801ff15e632	error		50	0	0	0	67.1
 mistral:labs-leanstral-1-5	whole	aeneas	65c6eaf0933ac3bc	pass		50	50	2528581	87692	1757.7
 mistral:labs-leanstral-1-5	whole	aeneas	c59817dd14d2eb89	turn_limit		50	50	0	0	303.1
-mistral:labs-leanstral-1-5	whole	apc-optimizer	19fe8265c1e6f2c2	error		50	0	0	0	18.2
-mistral:labs-leanstral-1-5	whole	apc-optimizer	bc557726c0c45489	error		50	0	0	0	1.9
-mistral:labs-leanstral-1-5	whole	btc-verified	813d77ef0033bd15	error		50	0	0	0	878.3
-mistral:labs-leanstral-1-5	whole	btc-verified	929a50d0b6a01c2e	error		50	0	0	0	1072.5
-mistral:labs-leanstral-1-5	whole	capless-lean	1f7dcc7181ec615c	error		50	0	0	0	109.9
-mistral:labs-leanstral-1-5	whole	capless-lean	abe14cc5c66753fb	error		50	0	0	0	62.5
-mistral:labs-leanstral-1-5	whole	cedar-spec	4ca75d6e5031c6d9	error		50	0	0	0	113.5
-mistral:labs-leanstral-1-5	whole	cedar-spec	bd1dec8fef9ca817	error		50	0	0	0	26.6
+mistral:labs-leanstral-1-5	whole	apc-optimizer	19fe8265c1e6f2c2	error		50	0	0	0	29.2
+mistral:labs-leanstral-1-5	whole	apc-optimizer	bc557726c0c45489	error		50	0	0	0	67.6
+mistral:labs-leanstral-1-5	whole	btc-verified	813d77ef0033bd15	pass		50	39	2646797	113677	1411.1
+mistral:labs-leanstral-1-5	whole	btc-verified	929a50d0b6a01c2e	error		50	0	0	0	482.9
+mistral:labs-leanstral-1-5	whole	capless-lean	1f7dcc7181ec615c	error		50	0	0	0	453.4
+mistral:labs-leanstral-1-5	whole	capless-lean	abe14cc5c66753fb	error		50	0	0	0	45.5
+mistral:labs-leanstral-1-5	whole	cedar-spec	4ca75d6e5031c6d9	turn_limit		50	50	0	0	507.1
+mistral:labs-leanstral-1-5	whole	cedar-spec	bd1dec8fef9ca817	turn_limit		50	50	0	0	270.7
 mistral:labs-leanstral-1-5	whole	clean	2c92b4267395fb49	turn_limit		50	50	0	0	1587.7
 mistral:labs-leanstral-1-5	whole	clean	7331a8bd16838470	pass		50	27	1022452	25946	451.0
 mistral:labs-leanstral-1-5	whole	cslib	03f9877b6b7c5816	tampered	declaration_removed	50	19	937774	66720	1325.0
@@ -394,11 +394,11 @@ mistral:labs-leanstral-1-5	whole	evm-asm	cbadd5a663aa3f7a	gave_up		50	50	6193986
 mistral:labs-leanstral-1-5	whole	formal-snarks-project	54b29208d59e384a	pass		50	18	1277596	43495	865.9
 mistral:labs-leanstral-1-5	whole	formal-snarks-project	a52a412058f32352	tampered	declaration_removed	50	37	2311401	47219	953.2
 mistral:labs-leanstral-1-5	whole	hax-proof-libs-lean	5a4b0ee657d13463	pass		50	31	2384673	110179	2485.5
-mistral:labs-leanstral-1-5	whole	hax-proof-libs-lean	645b573e4662a040	error		50	0	0	0	15.1
-mistral:labs-leanstral-1-5	whole	hex-dev	0733ea13aaaae37a	error		50	0	0	0	333.1
+mistral:labs-leanstral-1-5	whole	hax-proof-libs-lean	645b573e4662a040	error		50	0	0	0	21.2
+mistral:labs-leanstral-1-5	whole	hex-dev	0733ea13aaaae37a	error		50	0	0	0	34.0
 mistral:labs-leanstral-1-5	whole	hex-dev	7f5a6a8a46a36844	turn_limit		50	50	0	0	887.4
-mistral:labs-leanstral-1-5	whole	iris-lean	4475f0da376e5ef9	error		50	0	0	0	2545.2
-mistral:labs-leanstral-1-5	whole	iris-lean	73cf11986048d1e2	error		50	0	0	0	345.8
+mistral:labs-leanstral-1-5	whole	iris-lean	4475f0da376e5ef9	gave_up		50	21	1959849	71998	3254.5
+mistral:labs-leanstral-1-5	whole	iris-lean	73cf11986048d1e2	error		50	0	0	0	1520.6
 mistral:labs-leanstral-1-5	whole	jolt-tla	99dd9f11041170de	pass		50	25	926379	37650	633.2
 mistral:labs-leanstral-1-5	whole	jolt-tla	b63ffa5aac5b5e34	pass		50	14	86580	7352	156.8
 mistral:labs-leanstral-1-5	whole	juvix-lean	9ec8a7a07defdcb6	pass		50	37	2598368	133977	2838.9
@@ -410,45 +410,45 @@ mistral:labs-leanstral-1-5	whole	lean-formal-reasoning-program	af161070ba37dd94	
 mistral:labs-leanstral-1-5	whole	lean-mlir	34e263561f91d923	malformed		50	0	0	0	5.6
 mistral:labs-leanstral-1-5	whole	lean-mlir	a20e18f35e8b43e4	malformed		50	0	0	0	0.5
 mistral:labs-leanstral-1-5	whole	lean-yjs	94b181719a4a8688	turn_limit		50	50	0	0	1184.7
-mistral:labs-leanstral-1-5	whole	lean-yjs	d2c087aa9bbebfa7	error		50	0	0	0	3669.6
-mistral:labs-leanstral-1-5	whole	lean-zip	5847e2d920b6041e	error		50	0	0	0	10.5
-mistral:labs-leanstral-1-5	whole	lean-zip	5e51e92feada77de	error		50	0	0	0	29.8
-mistral:labs-leanstral-1-5	whole	lean4lean	9d29ef4dc342e3f9	error		50	0	0	0	609.9
+mistral:labs-leanstral-1-5	whole	lean-yjs	d2c087aa9bbebfa7	context_exceeded		50	0	0	0	3101.0
+mistral:labs-leanstral-1-5	whole	lean-zip	5847e2d920b6041e	pass		50	28	1394317	86969	1034.0
+mistral:labs-leanstral-1-5	whole	lean-zip	5e51e92feada77de	turn_limit		50	50	0	0	537.1
+mistral:labs-leanstral-1-5	whole	lean4lean	9d29ef4dc342e3f9	error		50	0	0	0	605.7
 mistral:labs-leanstral-1-5	whole	lean4lean	e605b051b91ee2cc	pass		50	50	1127155	31984	524.9
 mistral:labs-leanstral-1-5	whole	leanda	0a5f78f39912afa0	tampered	declaration_removed	50	32	3203134	66278	1134.9
-mistral:labs-leanstral-1-5	whole	leanda	be744f333456203c	error		50	0	0	0	531.4
-mistral:labs-leanstral-1-5	whole	loom	9586b73159c4f2e8	error		50	0	0	0	742.6
+mistral:labs-leanstral-1-5	whole	leanda	be744f333456203c	tampered	declaration_removed	50	12	688665	42289	488.9
+mistral:labs-leanstral-1-5	whole	loom	9586b73159c4f2e8	error		50	0	0	0	132.6
 mistral:labs-leanstral-1-5	whole	loom	acee1f355e4ebad9	tampered	declaration_removed	50	20	454092	7700	150.1
-mistral:labs-leanstral-1-5	whole	nickelean	562f4fffaa14159e	error		50	0	0	0	45.9
-mistral:labs-leanstral-1-5	whole	nickelean	91ec2fac1890db47	error		50	0	0	0	1001.7
-mistral:labs-leanstral-1-5	whole	posix-parsing	68a3168be1d7a904	error		50	0	0	0	873.1
-mistral:labs-leanstral-1-5	whole	posix-parsing	779a3ae2765e6e45	error		50	0	0	0	583.6
+mistral:labs-leanstral-1-5	whole	nickelean	562f4fffaa14159e	tampered	declaration_removed	50	12	239046	6195	73.5
+mistral:labs-leanstral-1-5	whole	nickelean	91ec2fac1890db47	turn_limit		50	50	0	0	1785.1
+mistral:labs-leanstral-1-5	whole	posix-parsing	68a3168be1d7a904	error		50	0	0	0	323.7
+mistral:labs-leanstral-1-5	whole	posix-parsing	779a3ae2765e6e45	error		50	0	0	0	1143.6
 mistral:labs-leanstral-1-5	whole	posix-submatching	1fbd99eb5aaf285f	turn_limit		50	50	0	0	1096.1
 mistral:labs-leanstral-1-5	whole	posix-submatching	92aa2b1733897d5a	turn_limit		50	50	0	0	3252.5
 mistral:labs-leanstral-1-5	whole	proven-zk	9ba6e1c09e92b1d1	pass		50	32	1155104	10305	189.5
 mistral:labs-leanstral-1-5	whole	proven-zk	dbdd64157b7d7426	pass		50	27	2016491	98627	1473.8
 mistral:labs-leanstral-1-5	whole	ryu-lean4	5bac3500a6bab4b4	tampered	declaration_removed	50	5	19360	742	14.7
-mistral:labs-leanstral-1-5	whole	ryu-lean4	89a4ee7e159a40d6	error		50	0	0	0	524.5
+mistral:labs-leanstral-1-5	whole	ryu-lean4	89a4ee7e159a40d6	error		50	0	0	0	222.2
 mistral:labs-leanstral-1-5	whole	shortest-decimal	10171d84a7f98c0f	tampered	declaration_removed	50	5	72326	7372	107.7
-mistral:labs-leanstral-1-5	whole	shortest-decimal	b703264a818fcd5e	error		50	0	0	0	8.6
+mistral:labs-leanstral-1-5	whole	shortest-decimal	b703264a818fcd5e	context_exceeded		50	0	0	0	2041.8
 mistral:labs-leanstral-1-5	whole	sparkle	6a458f2f159b083b	malformed		50	0	0	0	0.3
 mistral:labs-leanstral-1-5	whole	sparkle	ad13d6c76d669235	tampered	declaration_removed	50	8	112731	15420	254.7
 mistral:labs-leanstral-1-5	whole	splean	3555823b339bec1c	tampered	declaration_removed	50	33	2940232	150878	2588.3
-mistral:labs-leanstral-1-5	whole	splean	a537b7a3bcd8844d	error		50	0	0	0	822.6
+mistral:labs-leanstral-1-5	whole	splean	a537b7a3bcd8844d	tampered	declaration_removed	50	18	739454	27408	393.2
 mistral:labs-leanstral-1-5	whole	starkware-formal-proofs	4cd9b2f5ffcdb76d	malformed		50	0	0	0	2.3
 mistral:labs-leanstral-1-5	whole	starkware-formal-proofs	eaa30d2eacaa36db	malformed		50	0	0	0	0.1
-mistral:labs-leanstral-1-5	whole	symcrust	795efddf6068c29d	error		50	0	0	0	2507.4
-mistral:labs-leanstral-1-5	whole	symcrust	a70c2c776b07e4e9	context_exceeded		50	0	0	0	5584.1
+mistral:labs-leanstral-1-5	whole	symcrust	795efddf6068c29d	error		50	0	0	0	19.2
+mistral:labs-leanstral-1-5	whole	symcrust	a70c2c776b07e4e9	error		50	0	0	0	139.1
 mistral:labs-leanstral-1-5	whole	veil	60061f4b45d47a0e	pass		50	6	80373	4718	73.1
-mistral:labs-leanstral-1-5	whole	veil	93697f0d24bb8a8a	error		50	0	0	0	339.1
+mistral:labs-leanstral-1-5	whole	veil	93697f0d24bb8a8a	error		50	0	0	0	410.8
 mistral:labs-leanstral-1-5	whole	verified-compiler	76bf93194ad33297	pass		50	46	3484609	128249	1894.7
-mistral:labs-leanstral-1-5	whole	verified-compiler	9ec5e6d3c706144c	error		50	0	0	0	865.6
-mistral:labs-leanstral-1-5	whole	verified-consensus	05f6b42658ac096e	error		50	0	0	0	16.7
+mistral:labs-leanstral-1-5	whole	verified-compiler	9ec5e6d3c706144c	error		50	0	0	0	1623.1
+mistral:labs-leanstral-1-5	whole	verified-consensus	05f6b42658ac096e	error		50	0	0	0	120.5
 mistral:labs-leanstral-1-5	whole	verified-consensus	b1550740dc7acf5c	tampered	declaration_removed	50	20	449346	24890	414.4
 mistral:labs-leanstral-1-5	whole	verity	341609f580358a89	malformed		50	0	0	0	0.2
 mistral:labs-leanstral-1-5	whole	verity	4ae1f1695e5d7efa	malformed		50	0	0	0	3.4
-mistral:labs-leanstral-1-5	whole	yul-compiler	593caf423a6fed14	error		50	0	0	0	144.7
-mistral:labs-leanstral-1-5	whole	yul-compiler	c004d27acd1ee8ac	error		50	0	0	0	1431.8
+mistral:labs-leanstral-1-5	whole	yul-compiler	593caf423a6fed14	error		50	0	0	0	1201.9
+mistral:labs-leanstral-1-5	whole	yul-compiler	c004d27acd1ee8ac	error		50	0	0	0	209.0
 mistral:labs-leanstral-1-5	whole	yul-semantics	7cb277821546874c	pass		50	5	66667	5818	92.2
 mistral:labs-leanstral-1-5	whole	yul-semantics	9e7200cdc6d6cbe2	error		50	0	0	0	516.9
 openai:gpt-5.6-sol	leaf	ArkLib	3eaf7490820eb45f	pass		50	8	227034	3006	53.3
