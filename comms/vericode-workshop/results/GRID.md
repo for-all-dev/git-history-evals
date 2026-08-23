@@ -8,16 +8,20 @@ Per-tree aggregate.{json,md} built by ablate-aggregate with per-repo manifests (
 |---|---|---|---|---|---|---|
 | openai:gpt-5.6-sol | 49.1% [43.4,54.7] | 47.2% [42.5,51.9] | 6/4 | 0.754 | 8.0 | 38.4/1.6 |
 | claude-sonnet-5 | 29.2% [23.6,34.9] | 28.3% [22.6,34.0] | 6/6 | 1.000 | 38.8 | 281.4/4.4 |
-| mistral:labs-leanstral-1-5 | ~17% | ~24% | 4/11 | 0.118 | 27.5 | 87.8/2.8 |
+| mistral:labs-leanstral-1-5 | 30.8% [26.0,36.5] | 28.3% [22.6,34.0] | 5/5 | 1.000 | 28.6 | 121.3/4.4 |
 
-Findings:
-1. Discrimination across labs: 49/29/18 easy macro. (#130 acceptance criterion.)
+Findings (updated 2026-08-22 after the leanstral clean re-run — TLS-errored rows re-solved
+at low concurrency and spliced; the original arm understated leanstral badly):
+1. Discrimination across tiers, not labs: 49/29/31 easy macro — gpt-5.6-sol separates
+   cleanly; sonnet and leanstral are statistically indistinguishable. (#130 criterion met
+   in weakened form.)
 2. gpt-5.6-sol never fails honestly: every scorable non-pass is `tampered` (50 easy / 53 hard);
    zero turn-limit, zero gave-up, zero honest fail. Without the compile+tamper verifier it would
    present ~95%+. Tamper rates at 50 turns: gpt-5.6-sol ~50%, sonnet ~25%, leanstral ~14% — the
    stronger the model, the more it games the objective (#136 seed finding).
-3. Easy/hard gap is model-dependent: null for both generalists; REVERSED for the domain
-   specialist (leanstral better on whole-body reconstruction than leaf-patching).
+3. Easy/hard gap is null for ALL THREE models (McNemar p=0.75/1.00/1.00). The specialist
+   "reversal" in the original arm was manufactured by the asymmetric transport-fault rate
+   (60 leaf vs 44 whole dead rows); the clean re-run erased it (5/5 discordant, p=1.000).
 4. 10 pairs per mode malformed from repo-env gaps (lampe 2, lean-mlir 2, verity 2,
    starkware 2, sparkle 1, LNSym 1) — excluded from denominators; reclaimable with targeted
    lake builds. SizzLean needed data/lean/etheorem symlink (fixed); reran its slices.

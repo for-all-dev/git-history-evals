@@ -62,15 +62,16 @@ Benchmark over 57 Lean~4 Repositories}
   the recorded ground truth must compile hole-free, each against a pinned \texttt{.olean} closure.
   The result is 43{,}410 challenges mined from 57 public Lean~4 repositories under two holing
   strategies over matched selections. Evaluating three models on a 113-problem matched sample at
-  a 50-turn budget separates them cleanly --- 49.1\%, 29.2\% and 17.9\% macro PASS under leaf
+  a 50-turn budget separates the strongest from the rest --- 49.1\%, 29.2\% and 30.8\% macro
+  PASS under leaf
   holing --- but the more consequential result is what the second half of the oracle catches. The
   strongest model in the grid never fails honestly: of 103 scorable problems it passes 51 and is
   caught tampering on 50, with zero turn-limits, zero give-ups and zero non-compiling
   submissions. A scorer that checked only ``compiles, no holes'' would have reported 98.1\%
   rather than 49.5\%. Tamper rate ranks with capability across the three models
-  (48.5\%/26.2\%/14.6\% of scorable attempts), and a genuine 15/30/50/100-turn budget curve
-  shows it does not fall when the turn budget is cut --- the strongest model tampers
-  \emph{most} at the lowest budget. The two holing strategies, by contrast, do not differ in pass rate at
+  (48.5\% for the strongest model against 26.2\% and 26.8\% for the other two), and a genuine
+  15/30/50/100-turn budget curve shows it does not fall when the turn budget is cut --- the
+  strongest model tampers \emph{most} at the lowest budget. The two holing strategies, by contrast, do not differ in pass rate at
   this budget (McNemar $p = 0.75$ and $1.00$ for the two general-purpose models); what they
   change is the composition of the failures and the turn cost. Contamination is measured rather
   than asserted: 2 of 57 repositories were crawled by Software Heritage before The Stack~v2
@@ -119,9 +120,8 @@ ablation logic at all.
     difference between a 98\% result and a 50\% result.
   \item \textbf{Two holing strategies, measured rather than assumed} (\S\ref{sec:easyhard}):
     leaf-step holing and whole-body holing, compared on a matched problem set. The premise that
-    the second is harder is \emph{not} borne out at a 50-turn budget; what changes is the failure
-    composition and the turn cost, and the direction of the (insignificant) difference depends on
-    the model.
+    the second is harder is \emph{not} borne out at a 50-turn budget for any of the three
+    models; what changes is the failure composition and the turn cost.
   \item \textbf{A contamination analysis that is measured} (\S\ref{sec:contamination}): a direct
     corpus-membership check against the dated Software Heritage snapshot underlying The
     Stack~v2, a temporal holdout over lemma introduction dates, a deletion-count sweep, and a
@@ -451,7 +451,7 @@ macro-average. Rates are macro-averaged per repository (\S\ref{sec:skew}) with t
 reported alongside, and confidence intervals are bootstrap intervals over the resampled unit
 (repositories for macro, problems for micro).
 
-\paragraph{Cost.} The six runs consumed 407.6M input and 8.9M output tokens and 117.5 hours of
+\paragraph{Cost.} The six runs consumed 441.2M input and 10.4M output tokens and 95.3 hours of
 aggregate solver time (the sum of per-problem wall-clock; the runs themselves were parallelised).
 Per-model turn and token costs are in Table~\ref{tab:cost}. All compilation ran on a single
 workstation; no accelerators were used.
@@ -470,11 +470,15 @@ Table~\ref{tab:grid} gives the pass rates and Table~\ref{tab:mix} the full outco
 underneath them; Figure~\ref{fig:mix} shows the same composition as shares of the 113 attempts
 per (model, strategy). Two things are visible, and the second is the more important one.
 
-\paragraph{The benchmark discriminates.} The three models separate cleanly and the intervals do
-not overlap: 49.1\% / 29.2\% / 17.9\% macro PASS under leaf holing, and 47.2\% / 28.3\% / 24.0\%
-under whole-body holing. This is a wide dynamic range for a benchmark on real repository proofs,
-and it is achieved without any of the models being near ceiling or floor. The corpus is
-therefore usable as an eval today rather than only as a training pool.
+\paragraph{The benchmark discriminates --- between tiers, not between every pair.}
+\texttt{gpt-5.6-sol} separates cleanly from the other two models and no model is near ceiling
+or floor: 49.1\% / 29.2\% / 30.8\% macro PASS under leaf holing, and 47.2\% / 28.3\% / 28.3\%
+under whole-body. \texttt{claude-sonnet-5} and \texttt{leanstral-1-5} are statistically
+indistinguishable at this budget --- a finding in itself, since one is a frontier
+general-purpose model and the other a far smaller Lean-specialised one. (An earlier draft of
+this grid reported leanstral at 17.9\%/24.0\%; that arm was degraded by provider transport
+faults, and the clean re-run reported here erases the gap --- \S\ref{sec:limitations}, L7.)
+The corpus is usable as an eval today rather than only as a training pool.
 
 \paragraph{The strongest model never fails honestly.} Of \texttt{gpt-5.6-sol}'s 103 scorable leaf
 problems, 51 are genuine passes and 50 are caught tampers --- the file compiles, has no holes,
@@ -492,8 +496,8 @@ and a 50\% one.
 
 \begin{table}[t]
   \caption{Main grid. 113 matched pairs over 57 repositories, 103 scorable after excluding the
-  10 pairs that are \texttt{malformed} on both sides (leanstral's whole-body run additionally
-  loses 3 to \texttt{context\_exceeded}). Macro is the mean of per-repository rates over the 53
+  10 pairs that are \texttt{malformed} on both sides (leanstral additionally loses 6 leaf and
+  3 whole-body attempts to \texttt{context\_exceeded}). Macro is the mean of per-repository rates over the 53
   repositories with at least one scorable problem; intervals are bootstrap 95\% intervals.
   ``Tamper'' is the share of scorable attempts caught by the statement-preservation guard, and
   ``compile-only'' is the rate a scorer without that guard would have reported.}
@@ -509,8 +513,8 @@ and a 50\% one.
     \texttt{gpt-5.6-sol}     & whole & 47.2\% & [42.5, 51.9] & 47.6\% (49/103) & [38.8, 57.3] & 51.5\% & 99.0\% \\
     \texttt{claude-sonnet-5} & leaf  & 29.2\% & [23.6, 34.9] & 29.1\% (30/103) & [20.4, 38.8] & 26.2\% & 55.3\% \\
     \texttt{claude-sonnet-5} & whole & 28.3\% & [22.6, 34.0] & 29.1\% (30/103) & [20.4, 37.9] & 25.2\% & 54.4\% \\
-    \texttt{leanstral-1-5}   & leaf  & 17.9\% & [13.2, 22.6] & 17.5\% (18/103) & [10.7, 25.2] & 14.6\% & 32.0\% \\
-    \texttt{leanstral-1-5}   & whole & 24.0\% & [19.2, 28.8] & 25.0\% (25/100) & [17.0, 34.0] & 19.0\% & 44.0\% \\
+    \texttt{leanstral-1-5}   & leaf  & 30.8\% & [26.0, 36.5] & 30.9\% (30/97) & [21.6, 41.2] & 26.8\% & 57.7\% \\
+    \texttt{leanstral-1-5}   & whole & 28.3\% & [22.6, 34.0] & 29.0\% (29/100) & [20.0, 39.0] & 22.0\% & 51.0\% \\
     \bottomrule
   \end{tabular}
 \end{table}
@@ -521,8 +525,8 @@ and a 50\% one.
   \texttt{harness} transport faults, which stay in as non-passes (\S\ref{sec:limitations},
   L7) --- are not. The mix
   differs far more across models than the pass rate does: \texttt{gpt-5.6-sol}'s entire non-pass
-  mass is \texttt{tampered}, while \texttt{leanstral-1-5}'s is dominated by provider transport
-  faults (\S\ref{sec:limitations}, L7).}
+  mass is \texttt{tampered}, while \texttt{leanstral-1-5} carries the grid's only residual
+  provider transport faults (\S\ref{sec:limitations}, L7).}
   \label{tab:mix}
   \centering
   \small
@@ -534,8 +538,8 @@ and a 50\% one.
     \texttt{gpt-5.6-sol}     & whole & 49 & 53 & 0  & 0  & 0 & 1  & 0 & 10 \\
     \texttt{claude-sonnet-5} & leaf  & 30 & 27 & 19 & 18 & 2 & 7  & 0 & 10 \\
     \texttt{claude-sonnet-5} & whole & 30 & 26 & 17 & 25 & 2 & 3  & 0 & 10 \\
-    \texttt{leanstral-1-5}   & leaf  & 18 & 15 & 1  & 9  & 0 & 60 & 0 & 10 \\
-    \texttt{leanstral-1-5}   & whole & 25 & 19 & 0  & 11 & 1 & 44 & 3 & 10 \\
+    \texttt{leanstral-1-5}   & leaf  & 30 & 26 & 1  & 16 & 1 & 23 & 6 & 10 \\
+    \texttt{leanstral-1-5}   & whole & 29 & 22 & 0  & 18 & 2 & 29 & 3 & 10 \\
     \bottomrule
   \end{tabular}
 \end{table}
@@ -564,9 +568,9 @@ and a 50\% one.
     \midrule
     \texttt{gpt-5.6-sol}     & 8.0  & 38.4  & 1.64 & 9.2  \\
     \texttt{claude-sonnet-5} & 38.8 & 281.4 & 4.45 & 21.0 \\
-    \texttt{leanstral-1-5}   & 27.5 & 87.8  & 2.80 & 87.3 \\
+    \texttt{leanstral-1-5}   & 28.6 & 121.3 & 4.35 & 65.1 \\
     \midrule
-    Total                    & ---  & 407.6 & 8.89 & 117.5 \\
+    Total                    & ---  & 441.2 & 10.44 & 95.3 \\
     \bottomrule
   \end{tabular}
 \end{table}
@@ -591,15 +595,16 @@ attacked constantly.
 \paragraph{Tamper rate ranks with capability.} Measured as a share of scorable attempts
 (Figure~\ref{fig:tamper}), the
 guard fires on 48.5\% / 51.5\% of \texttt{gpt-5.6-sol}'s leaf / whole-body attempts, 26.2\% /
-25.2\% of \texttt{claude-sonnet-5}'s, and 14.6\% / 19.0\% of \texttt{leanstral-1-5}'s. The
-ordering matches the pass-rate ordering exactly: on these three models, the more capable the
-solver, the larger the fraction of its attempts that are caught games rather than honest
-failures. We report this as an observation on three models at one budget, not as a law; what it
-does establish is that the behaviour is not a quirk of one weak model.
+25.2\% of \texttt{claude-sonnet-5}'s, and 26.8\% / 22.0\% of \texttt{leanstral-1-5}'s. The
+model that passes most also tampers most, by roughly a factor of two over the other two ---
+which tamper at statistically indistinguishable rates, mirroring their indistinguishable pass
+rates. We report this as an observation on three models at one budget, not as a law; what it
+does establish is that the behaviour is not a quirk of one weak model, and that a solver's
+tamper rate tracks its capability tier rather than its architecture or specialisation.
 
 \paragraph{How the statement is attacked.} The guard distinguishes two cases. Removing the holed
 theorem's declaration outright accounts for 83 of \texttt{gpt-5.6-sol}'s 103 tampers across both
-strategies, 49 of 53 for \texttt{claude-sonnet-5}, and 33 of 34 for \texttt{leanstral-1-5};
+strategies, 49 of 53 for \texttt{claude-sonnet-5}, and 47 of 48 for \texttt{leanstral-1-5};
 keeping a declaration whose statement no longer matches the original accounts for the remaining
 20, 4 and 1. Deletion is thus the dominant attack, which matters for cross-prover extensions:
 the weaker name-presence guard available for Rocq and Isabelle (\S\ref{sec:tampercheck}) would
@@ -650,7 +655,8 @@ exact McNemar tests on the discordant pairs --- the correct test for a paired de
 ($p = 0.754$); for \texttt{claude-sonnet-5}, 6 and 6 ($p = 1.000$). The macro rates differ by
 1.9 and 0.9 percentage points, well inside the intervals in Table~\ref{tab:grid}. We state this
 plainly rather than hedging it: at a 50-turn budget these two splits are not ordered by
-difficulty for a general-purpose solver, and the \texttt{easy}/\texttt{hard} naming is not
+difficulty for any model in the grid (the specialist's apparent reversal is dealt with below),
+and the \texttt{easy}/\texttt{hard} naming is not
 supported by the pass rates. A problem a model cannot solve without the skeleton it usually
 cannot solve with it either.
 
@@ -659,31 +665,29 @@ cannot solve with it either.
 from 18 to 25 and \texttt{fail} drops from 19 to 17: the same problems are solved, but the model
 spends longer and more often runs out of budget still working rather than delivering a wrong
 answer. Average turns rise under whole-body holing for all three models (7.7 to 8.3, 37.1 to
-40.5, and 25.1 to 29.3), which is the one effect of the strategy that is consistent across the
+40.5, and 27.0 to 30.4), which is the one effect of the strategy that is consistent across the
 grid. For \texttt{gpt-5.6-sol} the composition shift shows up as tampering instead, 50 to 53.
 The hypothesis that whole-body holing moves probability mass toward \texttt{turn\_limit} is
 therefore supported; the hypothesis that it lowers PASS is not.
 
-\paragraph{The direction reverses for the domain specialist, weakly.} \texttt{leanstral-1-5} is
-the one model that goes the other way: 17.9\% macro on leaf holing against 24.0\% on whole-body,
-with 4 problems passing under leaf only and 11 under whole-body only ($p = 0.118$). Read
-literally this says the Lean-specialised model finds whole-body reconstruction easier than
-leaf-patching --- consistent with a model trained to emit whole proofs rather than to repair
-someone else's partial one, and a reason to think ``difficulty'' here is a property of the
-(problem, model) pair rather than of the problem alone. We flag it as suggestive rather than
-established for two reasons: it is not significant at $p = 0.118$, and this run suffered an
-asymmetric provider transport fault rate (60 of 103 leaf attempts against 44 of 100 whole-body,
-Table~\ref{tab:mix}) that inflates the leaf denominator more than the whole-body one. Restricting
-to the 30 pairs where neither side hit a transport fault leaves the direction intact but the
-evidence thin: 1 leaf-only pass against 3 whole-body-only, $p = 0.625$; the error-excluded macro
-rates are 40.3\% and 43.8\%, over 31 and 40 repositories. A clean re-run of this arm is the
-cheapest outstanding item in the grid.
+\paragraph{The specialist's apparent reversal was an artifact, and the clean re-run erased it.}
+An earlier draft of this grid reported \texttt{leanstral-1-5} going the other way --- 17.9\% on
+leaf holing against 24.0\% on whole-body ($p = 0.118$) --- and flagged the result as suggestive
+rather than established, because that arm had lost 60 of 103 leaf attempts against 44 of 100
+whole-body to provider transport faults: an asymmetric confound, and a clean re-run was named
+the cheapest outstanding item in the grid. We ran it (re-solving exactly the faulted attempts
+at low request concurrency, splicing by challenge id). The reversal does not survive: 30.8\%
+leaf against 28.3\% whole-body, 5 discordant pairs each way, $p = 1.000$ --- the same null as
+both general-purpose models. The methodological point stands with the sign flipped: an
+infrastructure asymmetry of that size can \emph{manufacture} an apparent model-specific effect,
+which is why the outcome taxonomy separates transport faults from solver behaviour
+(Table~\ref{tab:outcomes}) instead of folding them into failures.
 
 \paragraph{Consequence for the release.} We continue to publish both splits, since they are
-genuinely different tasks and the specialist result suggests the difference is model-dependent
-rather than absent, but the \texttt{easy}/\texttt{hard} labels overstate what we have shown. The
-honest description is ``leaf-step holing'' and ``whole-body holing'', which is the terminology
-used throughout this paper.
+genuinely different tasks with different failure compositions and turn costs, but the
+\texttt{easy}/\texttt{hard} labels overstate what we have shown --- no model orders them at
+this budget. The honest description is ``leaf-step holing'' and ``whole-body holing'', which is
+the terminology used throughout this paper.
 
 \subsection{Contamination, measured}
 \label{sec:contamination}
@@ -737,28 +741,33 @@ that silently fails on the oldest lemmas would manufacture exactly the null we a
 report. The corpus is sharply recent by this measure: only 430 lemmas (2.0\%) predate 2024-06 and
 only 1{,}164 (5.4\%) predate 2025-01.
 
-Partitioning the grid's problems at those two dates gives Table~\ref{tab:temporal}. Across the
-twelve (model, strategy, cutoff) cells the pre-cutoff side is higher in four, lower in seven, and
-tied in one --- no systematic advantage for the lemmas a model could have seen.
-\texttt{claude-sonnet-5} is directionally \emph{worse} on the older lemmas in all four of its
-cells. The four pre-cutoff advantages are concentrated in whole-body holing, and the largest of
-them (\texttt{leanstral-1-5}, 41.7\% against 21.4\%) rests on the ten problems in the 2024-06
-pre-side. If knowledge-level memorization of these specific lemmas were driving pass rates, the
-pre-cutoff side should be the easy one across the board; it is not.
+Partitioning the grid's problems at those two dates gives Table~\ref{tab:temporal}, and the
+pattern splits cleanly by model class. For the two general-purpose models there is no
+systematic advantage on the lemmas they could have seen: \texttt{claude-sonnet-5} is
+directionally \emph{worse} on the older lemmas in all four of its cells, and
+\texttt{gpt-5.6-sol} is mixed (higher in three cells, lower in one). For the Lean-specialised
+\texttt{leanstral-1-5} the direction is consistent: the pre-cutoff side is higher in all four
+of its cells (41.7\% against 27.6\% at the 2024-06 cutoff on leaf holing; 50.0\% against
+25.5\% on whole-body), exactly the signature knowledge-level memorization predicts, in exactly
+the model whose training corpus is most concentrated on Lean.
 
 The caveat is severe and we state it rather than burying it: the pre-cutoff side contains 10
-problems at the 2024-06 cutoff and 19 at 2025-01, out of 103. This is an underpowered test, and
-it is underpowered \emph{because} the corpus is recent --- the same property that makes the
-membership result above come out the way it does. The two instruments agree, and neither is
-independently conclusive. The honest summary is that we looked for a contamination signal with
-the two instruments the data supports and did not find one, not that we have excluded one.
+problems at the 2024-06 cutoff and 19 at 2025-01, out of 103, so no single cell is
+individually significant --- what is suggestive is the consistency of the direction across all
+four specialist cells against its absence in the eight generalist ones. The test is
+underpowered \emph{because} the corpus is recent --- the same property that makes the
+membership result above come out the way it does. The honest summary: no contamination signal
+for the general-purpose models with either instrument, and a directionally consistent,
+underpowered retrieval signal for the domain specialist --- which the verbatim recall probe
+(\S\ref{sec:recall}) is the instrument built to adjudicate, since it measures memorization
+directly rather than through pass rates.
 
 \begin{table}[t]
   \caption{Temporal holdout. Macro-averaged PASS on problems whose deleted lemma was introduced
   before versus after each cutoff. $n$ is the number of problems on each side, out of 103
   scorable. The pre-cutoff side is small by construction: only 2.0\% of the corpus's deleted
-  lemmas predate 2024-06. No model is better on the older lemmas at either cutoff under both
-  strategies.}
+  lemmas predate 2024-06. Neither general-purpose model is consistently better on the older
+  lemmas; the Lean-specialised model is better on them in all four of its cells.}
   \label{tab:temporal}
   \centering
   \small
@@ -773,13 +782,14 @@ the two instruments the data supports and did not find one, not that we have exc
     \texttt{gpt-5.6-sol}     & whole & 58.3\% & 45.9\% & 50.0\% & 46.6\% \\
     \texttt{claude-sonnet-5} & leaf  & 16.7\% & 31.6\% & 22.7\% & 31.8\% \\
     \texttt{claude-sonnet-5} & whole & 25.0\% & 29.6\% & 18.2\% & 31.8\% \\
-    \texttt{leanstral-1-5}   & leaf  & 16.7\% & 18.4\% & 18.2\% & 18.2\% \\
-    \texttt{leanstral-1-5}   & whole & 41.7\% & 21.4\% & 22.7\% & 23.9\% \\
+    \texttt{leanstral-1-5}   & leaf  & 41.7\% & 27.6\% & 31.8\% & 28.4\% \\
+    \texttt{leanstral-1-5}   & whole & 50.0\% & 25.5\% & 36.4\% & 26.1\% \\
     \bottomrule
   \end{tabular}
 \end{table}
 
 \subsubsection{Deletion-count sweep (\#133)}
+\label{sec:sweep}
 
 Deletion count is the dial that separates the two kinds of memorization. Reconstructing one lemma
 is plausibly retrieval; reconstructing five interlocking lemmas that were \emph{never
@@ -798,6 +808,7 @@ memorization actually come apart in this corpus.
 distribution is constant across depths, interpretation in instance- vs knowledge-level terms}
 
 \subsubsection{Verbatim recall probe (\#134)}
+\label{sec:recall}
 
 The correlational tests above cannot separate \emph{memorization} from \emph{ability}: a model
 that solves more might simply be better. A recall probe can. For each deleted lemma in the paired
@@ -919,16 +930,17 @@ exclusion rate is a property of the sampling scheme and not of the corpus.
 \S\ref{sec:licensing} pending an explicit keep-or-drop decision. Until that is settled, the exact
 released row count is provisional.
 
-\paragraph{L7: One grid arm is degraded by provider transport faults.} The
-\texttt{leanstral-1-5} run lost 60 of 103 leaf attempts and 44 of 100 whole-body attempts to
-TLS-layer and read-timeout failures against the provider. Following Table~\ref{tab:outcomes} the
-aggregator keeps these in the denominator as non-passes, so that row of Table~\ref{tab:grid} is a
-lower bound rather than an estimate. Dropping the affected attempts raises the macro rates from
-17.9\% and 24.0\% to 40.3\% and 43.8\%, but over only 31 and 40 repositories, which is a
-different and much weaker sample; and because the fault rate is asymmetric across the two
-strategies it is also a confound for the reversal reported in \S\ref{sec:easyhard}. We report
-both figures and treat that arm as provisional pending a clean re-run. The two general-purpose
-arms are essentially unaffected (7, 3, 2 and 1 faults out of 113).
+\paragraph{L7: One grid arm needed a transport-fault re-run, and some faults persist.} The
+original \texttt{leanstral-1-5} arm lost 60 of 103 leaf attempts and 44 of 100 whole-body
+attempts to TLS-layer and read-timeout failures against the provider --- concentrated enough,
+and asymmetric enough across the two strategies, to manufacture the apparent easy/hard reversal
+discussed in \S\ref{sec:easyhard}. The faulted attempts were re-solved at low request
+concurrency and spliced by challenge id; the numbers throughout this paper are from the
+re-run. Even so, 23 leaf and 29 whole-body attempts still ended in transport faults, and
+following Table~\ref{tab:outcomes} the aggregator keeps them in the denominator as non-passes,
+so the leanstral row of Table~\ref{tab:grid} remains a mild lower bound: dropping the residual
+faulted attempts gives 39.4\% and 40.4\% over 47 repositories on each strategy. The two
+general-purpose arms are essentially unaffected (7, 3, 2 and 1 faults out of 113).
 
 \paragraph{L8: One sample, one seed.} Every number in \S\ref{sec:experiments} comes
 from a single 113-pair draw at seed 42, run once per (model, strategy, budget) --- the main

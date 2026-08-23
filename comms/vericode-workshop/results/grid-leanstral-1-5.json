@@ -5,26 +5,26 @@
     "max_turns": 50,
     "total": 113,
     "outcomes": {
-      "pass": 18,
+      "pass": 30,
       "dry_run": 0,
       "trivial": 0,
       "malformed": 10,
-      "context_exceeded": 0,
-      "tampered": 15,
-      "gave_up": 0,
-      "turn_limit": 9,
-      "error": 60,
+      "context_exceeded": 6,
+      "tampered": 26,
+      "gave_up": 1,
+      "turn_limit": 16,
+      "error": 23,
       "fail": 1
     },
-    "scorable": 103,
-    "micro_pass": 18,
-    "micro_rate": 0.17475728155339806,
-    "micro_ci_lo": 0.10679611650485436,
-    "micro_ci_hi": 0.2524271844660194,
-    "macro_n_repos": 53,
-    "macro_rate": 0.1792452830188679,
-    "macro_ci_lo": 0.1320754716981132,
-    "macro_ci_hi": 0.22641509433962265,
+    "scorable": 97,
+    "micro_pass": 30,
+    "micro_rate": 0.30927835051546393,
+    "micro_ci_lo": 0.21649484536082475,
+    "micro_ci_hi": 0.41237113402061853,
+    "macro_n_repos": 52,
+    "macro_rate": 0.3076923076923077,
+    "macro_ci_lo": 0.25961538461538464,
+    "macro_ci_hi": 0.36538461538461536,
     "per_repo": {
       "ArkLib": {
         "total": 2,
@@ -34,9 +34,9 @@
       },
       "Clear": {
         "total": 2,
-        "scorable": 2,
+        "scorable": 1,
         "pass": 1,
-        "rate": 0.5
+        "rate": 1.0
       },
       "CompPoly": {
         "total": 2,
@@ -47,12 +47,12 @@
       "CvxLean": {
         "total": 2,
         "scorable": 2,
-        "pass": 1,
-        "rate": 0.5
+        "pass": 2,
+        "rate": 1.0
       },
       "FLoPS": {
         "total": 2,
-        "scorable": 2,
+        "scorable": 1,
         "pass": 0,
         "rate": 0.0
       },
@@ -82,15 +82,15 @@
       },
       "LeroyCompilerVerificationCourse": {
         "total": 2,
-        "scorable": 2,
+        "scorable": 0,
         "pass": 0,
         "rate": 0.0
       },
       "SampCert": {
         "total": 2,
         "scorable": 2,
-        "pass": 0,
-        "rate": 0.0
+        "pass": 1,
+        "rate": 0.5
       },
       "SizzLean": {
         "total": 2,
@@ -125,14 +125,14 @@
       "adler-proofs": {
         "total": 2,
         "scorable": 2,
-        "pass": 0,
-        "rate": 0.0
+        "pass": 1,
+        "rate": 0.5
       },
       "aeneas": {
         "total": 2,
         "scorable": 2,
-        "pass": 0,
-        "rate": 0.0
+        "pass": 1,
+        "rate": 0.5
       },
       "apc-optimizer": {
         "total": 2,
@@ -143,8 +143,8 @@
       "btc-verified": {
         "total": 2,
         "scorable": 2,
-        "pass": 0,
-        "rate": 0.0
+        "pass": 1,
+        "rate": 0.5
       },
       "capless-lean": {
         "total": 2,
@@ -161,8 +161,8 @@
       "clean": {
         "total": 2,
         "scorable": 2,
-        "pass": 1,
-        "rate": 0.5
+        "pass": 2,
+        "rate": 1.0
       },
       "cslib": {
         "total": 2,
@@ -184,7 +184,7 @@
       },
       "evm-asm": {
         "total": 2,
-        "scorable": 2,
+        "scorable": 1,
         "pass": 0,
         "rate": 0.0
       },
@@ -197,8 +197,8 @@
       "hax-proof-libs-lean": {
         "total": 2,
         "scorable": 2,
-        "pass": 0,
-        "rate": 0.0
+        "pass": 1,
+        "rate": 0.5
       },
       "hex-dev": {
         "total": 2,
@@ -221,8 +221,8 @@
       "juvix-lean": {
         "total": 2,
         "scorable": 2,
-        "pass": 0,
-        "rate": 0.0
+        "pass": 1,
+        "rate": 0.5
       },
       "lampe": {
         "total": 2,
@@ -245,8 +245,8 @@
       "lean-yjs": {
         "total": 2,
         "scorable": 2,
-        "pass": 0,
-        "rate": 0.0
+        "pass": 1,
+        "rate": 0.5
       },
       "lean-zip": {
         "total": 2,
@@ -293,8 +293,8 @@
       "proven-zk": {
         "total": 2,
         "scorable": 2,
-        "pass": 0,
-        "rate": 0.0
+        "pass": 1,
+        "rate": 0.5
       },
       "ryu-lean4": {
         "total": 2,
@@ -328,15 +328,15 @@
       },
       "symcrust": {
         "total": 2,
-        "scorable": 2,
+        "scorable": 1,
         "pass": 0,
         "rate": 0.0
       },
       "veil": {
         "total": 2,
         "scorable": 2,
-        "pass": 1,
-        "rate": 0.5
+        "pass": 2,
+        "rate": 1.0
       },
       "verified-compiler": {
         "total": 2,
@@ -365,8 +365,8 @@
       "yul-semantics": {
         "total": 2,
         "scorable": 2,
-        "pass": 0,
-        "rate": 0.0
+        "pass": 1,
+        "rate": 0.5
       }
     }
   },
@@ -376,26 +376,26 @@
     "max_turns": 50,
     "total": 113,
     "outcomes": {
-      "pass": 25,
+      "pass": 29,
       "dry_run": 0,
       "trivial": 0,
       "malformed": 10,
       "context_exceeded": 3,
-      "tampered": 19,
-      "gave_up": 1,
-      "turn_limit": 11,
-      "error": 44,
+      "tampered": 22,
+      "gave_up": 2,
+      "turn_limit": 18,
+      "error": 29,
       "fail": 0
     },
     "scorable": 100,
-    "micro_pass": 25,
-    "micro_rate": 0.25,
-    "micro_ci_lo": 0.17,
-    "micro_ci_hi": 0.34,
-    "macro_n_repos": 52,
-    "macro_rate": 0.2403846153846154,
-    "macro_ci_lo": 0.19230769230769232,
-    "macro_ci_hi": 0.28846153846153844,
+    "micro_pass": 29,
+    "micro_rate": 0.29,
+    "micro_ci_lo": 0.2,
+    "micro_ci_hi": 0.39,
+    "macro_n_repos": 53,
+    "macro_rate": 0.2830188679245283,
+    "macro_ci_lo": 0.22641509433962265,
+    "macro_ci_hi": 0.33962264150943394,
     "per_repo": {
       "ArkLib": {
         "total": 2,
@@ -418,8 +418,8 @@
       "CvxLean": {
         "total": 2,
         "scorable": 2,
-        "pass": 1,
-        "rate": 0.5
+        "pass": 2,
+        "rate": 1.0
       },
       "FLoPS": {
         "total": 2,
@@ -442,8 +442,8 @@
       "LNSym": {
         "total": 2,
         "scorable": 1,
-        "pass": 0,
-        "rate": 0.0
+        "pass": 1,
+        "rate": 1.0
       },
       "Lentil": {
         "total": 2,
@@ -453,7 +453,7 @@
       },
       "LeroyCompilerVerificationCourse": {
         "total": 2,
-        "scorable": 0,
+        "scorable": 1,
         "pass": 0,
         "rate": 0.0
       },
@@ -514,8 +514,8 @@
       "btc-verified": {
         "total": 2,
         "scorable": 2,
-        "pass": 0,
-        "rate": 0.0
+        "pass": 1,
+        "rate": 0.5
       },
       "capless-lean": {
         "total": 2,
@@ -615,15 +615,15 @@
       },
       "lean-yjs": {
         "total": 2,
-        "scorable": 2,
+        "scorable": 1,
         "pass": 0,
         "rate": 0.0
       },
       "lean-zip": {
         "total": 2,
         "scorable": 2,
-        "pass": 0,
-        "rate": 0.0
+        "pass": 1,
+        "rate": 0.5
       },
       "lean4lean": {
         "total": 2,
@@ -675,7 +675,7 @@
       },
       "shortest-decimal": {
         "total": 2,
-        "scorable": 2,
+        "scorable": 1,
         "pass": 0,
         "rate": 0.0
       },
@@ -699,7 +699,7 @@
       },
       "symcrust": {
         "total": 2,
-        "scorable": 1,
+        "scorable": 2,
         "pass": 0,
         "rate": 0.0
       },
