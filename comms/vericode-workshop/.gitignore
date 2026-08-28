@@ -1,0 +1,49 @@
+# ---- LaTeX build artifacts ----
+*.aux
+*.bbl
+*.blg
+*.bcf
+*.run.xml
+*.fdb_latexmk
+*.fls
+*.log
+*.out
+*.toc
+*.lof
+*.lot
+*.nav
+*.snm
+*.vrb
+*.synctex.gz
+*.synctex(busy)
+*.xdv
+*.dvi
+*-blx.bib
+neurips_2026_vericode_workshop.pdf
+
+# ---- AUCTeX / Emacs ----
+auto/
+*~
+\#*\#
+.#*
+*.elc
+
+# ---- Python / uv (figures/) ----
+__pycache__/
+*.pyc
+*.egg-info/
+.venv/
+.uv-cache/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+# Generated figure sources; the rendered PDFs in figures/out/ ARE committed
+figures/out/*.pgf
+
+# ---- Editors / OS ----
+.DS_Store
+.vscode/
+.idea/
+*.swp
+*.swo

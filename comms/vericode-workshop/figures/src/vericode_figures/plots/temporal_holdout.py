@@ -14,6 +14,7 @@ from matplotlib.lines import Line2D
 
 from ..data import load_temporal_holdout
 from ..style import (
+    MODE_LABELS,
     MODEL_COLORS,
     MODEL_LABELS,
     MODEL_ORDER,
@@ -72,7 +73,7 @@ def render(pipeline_dir: Path, out_dir: Path) -> list[Path]:
                     markersize=4,
                     zorder=3,
                 )
-        ax.set_ylabel(f"{mode}\nmacro PASS (%)")
+        ax.set_ylabel(f"{MODE_LABELS.get(mode, mode)}\nPASS (%)")
         ax.set_ylim(0, 100)
 
     tick_labels = []
@@ -122,7 +123,7 @@ def render(pipeline_dir: Path, out_dir: Path) -> list[Path]:
         fontsize=6.5,
     )
     fig.suptitle(
-        "temporal holdout: pre- vs post-cutoff macro PASS", y=1.16, fontsize=8.5
+        "temporal holdout: pre- vs post-cutoff PASS", y=1.16, fontsize=8.5
     )
     fig.tight_layout()
 

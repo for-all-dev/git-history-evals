@@ -53,9 +53,9 @@ def render(data_dir: Path, out_dir: Path) -> list[Path]:
 
     ax.set_xticks(x)
     ax.set_xticklabels([MODE_LABELS[m] for m in MODE_ORDER])
-    ax.set_ylabel("macro PASS (%)")
+    ax.set_ylabel("PASS (%)")
     ax.set_ylim(0, 100)
     ax.legend(loc="upper right", ncol=1)
-    ax.set_title("macro PASS by model and mode")
+    ax.set_title("PASS by model and holing strategy")
 
     return save_figure(fig, out_dir / "grid-pass")

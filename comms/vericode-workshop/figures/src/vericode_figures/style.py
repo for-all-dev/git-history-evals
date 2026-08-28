@@ -54,7 +54,13 @@ MODEL_COLORS = {
 
 # --- Mode identity: the aggregate JSON's "leaves"/"whole" are the paper's easy/hard ----
 MODE_ORDER = ["leaves", "whole"]
-MODE_LABELS = {"leaves": "easy", "whole": "hard"}
+MODE_LABELS = {
+    "leaves": "leaf",
+    "whole": "whole",
+    # pipeline TSVs spell the modes easy/hard; map them onto the same paper terms.
+    "easy": "leaf",
+    "hard": "whole",
+}
 
 # pipeline/temporal_holdout.tsv spells model names without the pydantic-ai provider
 # prefix (e.g. "gpt-5.6-sol", not "openai:gpt-5.6-sol"). Map those onto the canonical

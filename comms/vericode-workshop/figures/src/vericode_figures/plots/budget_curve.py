@@ -90,7 +90,7 @@ def render(pipeline_dir: Path, out_dir: Path) -> list[Path]:
             )
 
     ax.set_xlabel("turn budget")
-    ax.set_ylabel("macro PASS (%)")
+    ax.set_ylabel("PASS (%)")
     ax.set_ylim(0, 100)
     ax.legend(loc="best", fontsize=6)
     ax.set_title("PASS vs turn budget")

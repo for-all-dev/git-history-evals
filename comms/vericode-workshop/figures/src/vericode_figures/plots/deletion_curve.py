@@ -55,7 +55,7 @@ def render(pipeline_dir: Path, out_dir: Path) -> list[Path]:
         linewidth=1.2,
         elinewidth=0.7,
         capsize=1.5,
-        label="macro PASS",
+        label="PASS",
     )
     # Independence null: solving a depth-N problem as N independent depth-1 problems.
     p1 = rows[0]["micro"]
