@@ -1,14 +1,15 @@
+% -*- mode: latex; TeX-master: t; TeX-command-default: "LaTeXMk"; -*-
 \documentclass{article}
 
 \PassOptionsToPackage{numbers, compress}{natbib}
 
-% "default" for submission
+% “default” for submission
 \usepackage{neurips_2026_vericode}
 
-% After acceptance, authors should add "final" after the track to compile a camera-ready version.
+% After acceptance, authors should add “final” after the track to compile a camera-ready version.
 % \usepackage[main, final]{neurips_2026_vericode}
 
-% "preprint" option is used for arXiv or other preprint submissions
+% “preprint” option is used for arXiv or other preprint submissions
 % \usepackage[preprint]{neurips_2026_vericode}
 
 \usepackage[utf8]{inputenc} % allow utf-8 input
@@ -22,20 +23,20 @@
 \usepackage{microtype}      % microtypography
 \usepackage{xcolor}         % colors
 \usepackage{graphicx}       % figures
-% Figures are rendered deterministically by the committed uv project in figures/
-% (`uv run figures`) and the resulting PDFs are committed — see figures/README.md.
+\usepackage{listings}       % verbatim prompt / tool schemas in the appendix
+\lstset{basicstyle=\ttfamily\scriptsize,breaklines=true,breakatwhitespace=false,columns=fullflexible,
+  keepspaces=true,frame=leftline,framerule=0.8pt,rulecolor=\color{gray},xleftmargin=2pt,xrightmargin=2pt,aboveskip=4pt,belowskip=6pt,
+  inputencoding=utf8,extendedchars=true,literate={—}{{---}}1 {…}{{\dots}}1 {→}{{$\rightarrow$}}1}
 \graphicspath{{figures/out/}}
 
-% ---------------------------------------------------------------------------
-% Placeholder macro for results that experiments #129--#136 will produce.
-% RULE: no number enters this paper that was not produced by a committed run.
-% A \todo{} left standing at submission time is a section we cut, not guess at.
-% ---------------------------------------------------------------------------
 \newcommand{\todo}[1]{\textcolor{red}{\textbf{[TODO: #1]}}}
+\newcommand{\doi}[1]{\href{https://doi.org/#1}{doi:#1}}
+\newcommand{\arxiv}[1]{\href{https://arxiv.org/abs/#1}{arXiv:#1}}
 % Anonymized artifact URL; swap for the real dataset id at camera-ready only.
 \newcommand{\anonurl}{\texttt{[anonymized dataset]}}
 
-\title{A Compile-Validated Proof-Repair Benchmark over 57 Lean~4 Repositories}
+\title{ProofAblate: A Compile-Validated Proof Synthesis
+Benchmark over 57 Lean~4 Repositories}
 
 \workshoptitle{NeurIPS 2026 Workshop on Verified Code Generation (VeriCodeGen)}
 
@@ -52,41 +53,30 @@
 
 \begin{abstract}
 
-  To date, machine proof synthesis AI benchmarks are dominated by self-contained statements found in competition mathematics. But these benchmarks lack surrounding development. In real-world proof engineering, proof obligations are frequently deferred, often requiring an additional lemma to derive. Our contribution is to synthesize these tasks through \emph{syntactic ablation} of real repositories. To produce such a task, we first pick a theorem at random and take its in-file transitive dependency closure. We then delete one supporting lemma from that closure. Proofs that use the deleted lemma are deferred. We validate every problem with two checks. The first check runs the challenge with its holes and ensures it compiles. Then we ensure the recorded ground truth also compiles hole-free. We pin each against an \texttt{.olean} closure. Using this approach, we mine 43{,}410 challenges from 57 public Lean~4 repositories. We use two deferral strategies over matched selections: we defer proofs at the site of the usage of the deleted lemma (ie, \emph{leafs}), and entire proofs that rely on the deleted lemma. We evaluate three LLM models on a matched sample of 103 problems. Agents are given a 50-turn budget. A stark contrast emerges between the top-performing model and the rest: 49.1\%, 29.2\%, and 30.8\% macro PASS under leaf holing. However, the more consequential result is the failures that our harness catches. For the strongest model in our sample, it never fails honestly. Of 103 scorable problems, it passes 51 but is caught tampering on another 50. A scorer that only checks ``compiles, no holes'' would have reported 98.1\% rather than 49.5\%. Capability across the three models correlates with tamper rate: 48.5\% for the strongest model, versus 26.2\% and 26.8\% for the other two. A 15/30/50/100-turn budget curve demonstrates that cheating does not fall when the turn budget is cut; the strongest model tampers the \emph{most} at the lowest budget. In contrast, the two deferral strategies (leaf and whole proof) do not differ significantly in pass rate at the 50-turn budget (McNemar $p = 0.75$ and $1.00$ for the two general-purpose models). However, different deferral strategies change the composition of failures and the turn cost. Finally, we measure contamination. Of 57 repositories, Software Heritage crawled only 2 before the Stack~v2 snapshot. We date all deleted lemmas to their introducing commit; a temporal holdout finds no systematic pre-cutoff pass advantage.
+To date, machine proof synthesis AI benchmarks are dominated by self-contained statements found in competition mathematics. But these benchmarks lack surrounding development. In real-world proof engineering, proof obligations are frequently deferred, often requiring an additional lemma to derive. Our contribution is to synthesize these tasks through \emph{syntactic ablation} of real repositories. To produce such a task, we first pick a theorem at random and take its in-file transitive dependency closure. We then delete one supporting lemma from that closure. Proofs that use the deleted lemma are deferred. We validate every problem with two checks. The first check runs the challenge with its holes and ensures it compiles. Then we ensure the recorded ground truth also compiles hole-free. We pin each against an \texttt{.olean} closure. Using this approach, we mine 43{,}410 challenges from 57 public Lean~4 repositories. We use two deferral strategies over matched selections: we defer proofs at the site of the usage of the deleted lemma (ie, \emph{leafs}), and entire proofs that rely on the deleted lemma. We evaluate three LLM models on a matched sample of 103 problems. Agents are given a 50-turn budget. A stark contrast emerges between the top-performing model and the rest: 49.5\%, 29.1\%, and 30.9\% PASS under leaf holing. However, the more consequential result is the failures that our harness catches. For the strongest model in our sample, it never fails honestly. Of 103 scorable problems, it passes 51 but is caught tampering on another 50. A scorer that only checks “compiles, no holes” would have reported 98.1\% rather than 49.5\%. Capability across the three models correlates with tamper rate: 48.5\% for the strongest model, versus 26.2\% and 26.8\% for the other two. A 15/30/50/100-turn budget curve demonstrates that cheating does not fall when the turn budget is cut; the strongest model tampers the \emph{most} at the lowest budget. In contrast, the two deferral strategies (leaf and whole proof) do not differ significantly in pass rate at the 50-turn budget (McNemar $p = 0.75$ and $1.00$ for the two general-purpose models). However, different deferral strategies change the composition of failures and the turn cost. Finally, we assess contamination risk using lemma introduction dates and a deletion-count sweep; these checks do not exclude prior exposure to the original proofs.
 \end{abstract}
 
 \section{Introduction}
 \label{sec:intro}
 
-Competition mathematics dominates the public benchmarks for machine proof synthesis. These benchmarks include miniF2F, ProofNet, and PutnamBench. These problems are of the form of a bare formal statement with no context. They are formalized from natural-language competition problems, typically designed to require only high-school- or undergraduate-level mathematical competency and to be proved from a general-purpose library. While advances on these benchmarks represent real progress, proof engineers do not spend their time on these tasks. A proof engineer typically works inside a development with outstanding proof obligations, where ``done'' means the build is green.
+Competition mathematics dominates the public benchmarks for machine proof synthesis. These benchmarks include miniF2F, ProofNet, and PutnamBench. These problems are of the form of a bare formal statement with no context. They are formalized from natural-language competition problems, typically designed to require only high-school- or undergraduate-level mathematical competency and to be proved from a general-purpose library. While advances on these benchmarks represent real progress, proof engineers do not spend their time on these tasks. A proof engineer typically works inside a development with outstanding proof obligations, where “done” means the build is green.
 
-To reflect real-world proof engineering, we construct a benchmark by \emph{ablating} real developments. Given a real repository, a theorem (which we refer to as a \emph{corollary}) is selected at random. We then take its transitive in-file dependency closure. From this closure, a single lemma is deleted, and all of the places where it was cited are replaced with proof deferrals (ie, \emph{holes}). The agent's challenge is to produce a version of that file that compiles with no holes.
+To reflect real-world proof engineering, we construct a benchmark by \emph{ablating} real developments. Given a real repository, a theorem (which we refer to as a \emph{corollary}) is selected at random. We then take its transitive in-file dependency closure. From this closure, a single lemma is deleted, and all of the places where it was cited are replaced with proof deferrals (ie, \emph{holes}). The agent’s challenge is to produce a version of that file that compiles with no holes.
 
 Our approach utilizes two-sided compile validation. To ensure a problem is solvable, we require that both the challenge and the ground truth compile.
-
-% \paragraph{Contributions.}
-% \begin{enumerate}
-%   \item \emph{An at-scale validated proof-repair corpus} (\S\ref{sec:method},
-%     \S\ref{sec:dataset}): 43{,}410 challenges extracted from 57 real-world Lean~4 repositories on GitHub. Every challenge has ground truth associated with it, compiled against pinned \texttt{.olean} closures.
-%   \item \emph{Measured tampering} (\S\ref{sec:tamper}): our harness observes attempts at deleting or weakening the theorem the agent was asked to
-%     re-prove. We find that, for the models studied, tampering positively correlates with model capability. For the strongest model, this amounts to about half of its attempts.
-%   \item \textbf{Two holing strategies} (\S\ref{sec:easyhard}): we employ two holing strategies. One holes proofs that rely on the deleted lemma at their usage site. The other approach holes entire proofs that rely on that lemma. We hypothesize that the second task is harder; however, this is \emph{not} borne out at a 50-turn budget. We do observe changes in the failure composition and the turn cost.
-%   \item \textbf{A contamination analysis} (\S\ref{sec:contamination}): we consult the Software Heritage snapshot underlying Stack~v2 for corpus-membership. We employ a temporal holdout over lemma introduction dates, as well as a deletion-count sweep, and a
-%     verbatim recall probe. <TODO: report findings>
-%   \item \textbf{Calibrated difficulty} (\S\ref{sec:difficulty}): features are extracted from challenges, and we create difficulty models. We measure both discrimination
-%     and calibration over held-out challenges. We present the Murphy decomposition and a reliability diagram along with AUC.
-% \end{enumerate}
 
 \section{Related work}
 \label{sec:related}
 
-A number of competition-based lean benchmarks exist, including miniF2F \citep{zheng2022minif2f}, ProofNet \citep{azerbayev2023proofnet}, PutnamBench \citep{tsoukalas2024putnambench}, and FIMO \citep{liu2023fimo}. Statements in these challenges are self-contained, making them clean instruments for proving capability given a common library (i.e., \texttt{Mathlib}<TODO: citeme>). However, they do not properly measure the agent’s capacity to work within an arbitrary codebase.
+A number of competition-based lean benchmarks exist, including miniF2F \citep{zheng2022minif2f}, ProofNet \citep{azerbayev2023proofnet}, PutnamBench \citep{tsoukalas2024putnambench}, and FIMO \citep{liu2023fimo}. Statements in these challenges are self-contained, making them clean instruments for proving capability given a common library (i.e., \texttt{mathlib} \citep{mathlib2020}). However, they do not properly measure the agent’s capacity to work within an arbitrary codebase.
 
-LeanDojo \citep{yang2023leandojo} and LeanStep \citep{han2022proof} use Mathlib to extract training and evaluation challenges, and CoqGym \citep{yang2019coqgym} extracts similar problems for Rocq. Our approach shares this repository-level extraction but differs in two important ways. First, these approaches extract challenges to predict the next tactic in a proof. Instead, we have the agent rederive entire lemmas and fix proof-sites. Second, these approaches do not produce a corpus of compilable challenges. Instead, they are proof environments that can only replay a (partial) proof.
+LeanDojo \citep{yang2023leandojo} and LeanStep \citep{han2022proof} use Mathlib to extract training and evaluation challenges, and CoqGym \citep{yang2019coqgym} extracts similar problems for Rocq. miniCTX \citep{hu2025minictx} evaluates theorem proving with definitions, lemmas, and surrounding file context from real Lean projects.
 
-SWE-bench \citep{jimenez2024swebench} and its descendants are the closest to our approach. In these benchmarks, agents repair code inside real repositories and are scored by whether their code passes the repository’s test suite. Our oracle differs in rigor. It’s possible to have a false positive in a unit test suite. A patch can satisfy all tests and still be wrong. By contrast, with a proof kernel, false positives are not a concern. In our setting, reward hacking takes the form of attacking the \emph{statement} rather than the proof (\S\ref{sec:tamper}).
+SWE-bench \citep{jimenez2024swebench} and its descendants provide a related setting for repository-level software repair. In these benchmarks, agents repair code inside real repositories and are scored by whether their code passes the repository’s test suite. Our oracle differs in rigor. It’s possible to have a false positive in a unit test suite. A patch can satisfy all tests and still be wrong. By contrast, with a proof kernel, false positives are not a concern. In our setting, reward hacking takes the form of attacking the \emph{statement} rather than the proof (\S\ref{sec:grid}).
 
-Our contamination methodology (\S\ref{sec:contamination}) uses established instruments and one novel approach we introduce. These include temporal holdout, as in LiveCodeBench \citep{jain2025livecodebench} and GSM1K \citep{zhang2024careful}, perturbation robustness, as in GSM-Symbolic \citep{mirzadeh2025gsmsymbolic}, verbatim-recall probing under guided prompting \citep{golchin2024timetravel}, and the finding that memorization scales with duplication count in the training corpus \citep{carlini2023quantifying}. Because of this, we do not use repository popularity as a contamination proxy. We also introduce our own, novel instrumentation. The Stack~v2 \citep{lozhkov2024stackv2} is constructed from a Software Heritage \citep{dicosmo2017swh} graph snapshot at a published date. Software Heritage records a dated crawl history per repository. Using these records, we can check corpus membership for a specific source repository directly rather than inferring it (\S\ref{sec:contamination}).
+VeriSoftBench \citep{xin2026verisoftbench} provides 500 Lean~4 proof obligations from 23 software-verification repositories, with valid reference proofs, compilable holed files, and curated or full-repository context. It characterizes difficulty using proof length and dependency structure and reports correlations with solver success, but does not report a calibrated predictive difficulty model. While its leakage controls exclude target-proof information from evaluation prompts, it does not report an empirical analysis of pretraining contamination. ProofAblate deletes a supporting declaration and holes its downstream proof sites. Our leaf split alone contains 21{,}692 challenges, over $40\times$ as many as VeriSoftBench. The full benchmark includes 43{,}410 challenges across both holing strategies from 57 repositories. We additionally analyze statement tampering, lemma introduction dates, and sensitivity to deletion depth.
+
+Our contamination analysis (\S\ref{sec:contamination}) uses temporal comparisons, as in LiveCodeBench \citep{jain2025livecodebench} and GSM1K \citep{zhang2024careful}, and perturbation testing, as in GSM-Symbolic \citep{mirzadeh2025gsmsymbolic}. Verbatim-recall probing \citep{golchin2024timetravel} remains planned work.
 
 \section{Method}
 \label{sec:method}
@@ -95,20 +85,14 @@ Our contamination methodology (\S\ref{sec:contamination}) uses established instr
 
 Ablation starts with a repository pinned at a specific revision. Every theorem (ie, \emph{corollary}) in this repository has a dependency closure. From the dependency closure of this corollary, we select at random some lemma the corollary depends on. We then delete the corollary entirely and replace its usage sites with \texttt{sorry} holes. We then write the modified closure to disk, producing the \emph{challenge}. The solution is just the original closure written to disk without the lemma removed, producing the \emph{solution}.
 
-To solve a challenge, the solver must emit a version of the challenge file that compiles with no remaining holes. The solver does not need to reproduce the solution verbatim, and is not expected to. Provided the solution contains complete proofs of the ablated theorems, then the solution is considered acceptable. Scoring is by compilation against the repository's prebuilt \texttt{.olean} closure at the pinned revision, plus a hole check and the statement-preservation guard of \S\ref{sec:tampercheck}.
+To solve a challenge, the solver must emit a version of the challenge file that compiles with no remaining holes. The solver does not need to reproduce the solution verbatim, and is not expected to. Provided the solution contains complete proofs of the ablated theorems, the solution is considered acceptable. Scoring is by compilation against the repository’s prebuilt \texttt{.olean} closure at the pinned revision, plus a hole check and the statement-preservation guard of \S\ref{sec:tampercheck}.
 
 \subsection{Two holing strategies}
 \label{sec:strategies}
 
-We employ two strategies for holing: \emph{leaf holing} and \emph{whole-body holing}.
+We employ two strategies for holing: \emph{leaf holing} and \emph{whole-body holing}. In leaf holing, we replace sites inside tactic steps that cite the removed lemma with \texttt{sorry}s. In whole-body holing, for any proof that cites the deleted lemma, its entire body is replaced with a \texttt{sorry} assertion.
 
-In leaf holing, we replace sites inside tactic steps that cite the removed lemma with \texttt{sorry}s. Most of the proof structure survives. The solver can infer the general approach of the original proof(s), which gives some context for what the missing lemma stated.
-
-
-In whole-body holing, for any proof that cites the deleted lemma, its entire body is replaced with a \texttt{sorry} assertion. The solver has no context for what step of the proof the deleted lemma was used in, nor the general strategy for proving the ablated theorems.
-
-
-A natural hypothesis is that whole-body holing is strictly harder than leaf holing. However, \S\ref{sec:easyhard} refutes this hypothesis: pass rates do not change with a 50-turn budget. What changes is the strategies employed by the solver and how long the solver takes.
+A natural hypothesis is that whole-body holing is strictly harder than leaf holing. However, \S\ref{sec:grid} refutes this hypothesis: pass rates do not change with a 50-turn budget. What changes does the solver employ in its strategies, and how long the solver takes.
 
 \subsection{Two-sided compile validation}
 \label{sec:validation}
@@ -118,31 +102,9 @@ To ensure the generated challenges are valid, every record runs through a \emph{
 \subsection{Scoring and the outcome taxonomy}
 \label{sec:outcomes}
 
-Because we score solvers based on real compilation, several outcomes are possible. Table \ref{tab:outcomes} lists all challenge outcomes. Solvers are assigned scores determined by \(\frac{\text{\texttt{PASS} count}}{N}\), where \(N\) is the count of the number of challenges that weren’t \texttt{malformed}, \texttt{trivial}, or had their \texttt{context\_exceeded}. Note that \texttt{harness\_err} is kept, which makes every reported rate a lower bound under infrastructure noise (see \S\ref{sec:limitations}).
+Because we score solvers based on real compilation, several outcomes are possible. The scorable outcomes are \texttt{PASS}, \texttt{fail}, \texttt{turn\_limit}, \texttt{gave\_up}, \texttt{tampered}, and \texttt{harness\_err}; the non-scorable ones are \texttt{malformed}, \texttt{trivial}, and \texttt{context\_exceeded}. Table~\ref{tab:outcome-predicates} (Appendix~\ref{app:outcomes}) defines each outcome and the order in which they are decided. Solvers are assigned scores determined by \(\frac{\text{\texttt{PASS} count}}{N}\), where \(N\) is the count of challenges that weren’t \texttt{malformed}, \texttt{trivial}, or had their \texttt{context\_exceeded}. Note that \texttt{harness\_err} is kept, which makes every reported rate a lower bound under infrastructure noise (see \S\ref{sec:limitations}).
 
-\begin{table}[t]
-  \caption{Outcome taxonomy}
-  \label{tab:outcomes}
-  \centering
-  \begin{tabular}{llc}
-    \toprule
-    Outcome & Meaning & Included in \(N\) \\
-    \midrule
-    \texttt{PASS}             & compiles, hole-free, statements preserved & yes \\
-    \texttt{fail}             & submitted a final answer that does not compile & yes \\
-    \texttt{turn\_limit}      & solver exhausted the 50 turn request budget & yes \\
-    \texttt{gave\_up}         & solver invoked the give-up tool & yes \\
-    \texttt{tampered}         & solver attemped to delete or weaken the challenge; see \S\ref{sec:tamper}  & yes \\
-    \texttt{harness\_err}     & transport or provider failure; no answer delivered & yes \\
-    \midrule
-    \texttt{malformed}        & challenge does not compile (should not ship) & no \\
-    \texttt{trivial}          & challenge and solution are identical & no \\
-    \texttt{context\_exceeded}& prompt rejected; the model never saw the problem & no \\
-    \bottomrule
-  \end{tabular}
-\end{table}
-
-\subsection{The tamper check}
+\subsection{Checking for tampering}
 \label{sec:tampercheck}
 
 One exploit for the compile-and-no-holes oracle is that the solver can make the file compile by removing or weakening the theorem it was asked to re-prove. We introduce a statement-preservation check to guard against this. The guard compares the exact statement text of each holed theorem up to the \texttt{:=} proof delimiter. This check catches a weakened hypothesis or a deleted declaration.
@@ -157,7 +119,7 @@ We mine the corpus from 57 public Lean~4 repositories, each pinned to a specific
 \subsection{Skew}
 \label{sec:skew}
 
-The corpus is heavily concentrated. The largest repository contributes 33.8\% of leaf rows and the three largest contribute 53.4\%. Micro-averaged statistics over this corpus are therefore substantially statements about one repository. To avoid bias, we sample challenges evenly per repository rather than uniformly from the generated corpus.
+The corpus is heavily concentrated. The largest repository contributes 33.8\% of leaf rows and the three largest contribute 53.4\%. Statistics pooled over this corpus would therefore be substantially statements about one repository. To avoid bias, we sample challenges evenly per repository rather than uniformly from the generated corpus.
 
 \section{Experiments}
 \label{sec:experiments}
@@ -165,77 +127,46 @@ The corpus is heavily concentrated. The largest repository contributes 33.8\% of
 \subsection{Setup}
 \label{sec:setup}
 
-The solver is a ReAct-style agent with five tools: list the proof files in the work copy, read a file range, search the repository, submit a candidate solution, and give up. When the agent submits a candidate solution, the compilation result is returned, providing a feedback loop. Every tool result also reports the remaining request budget.
+The solver is a ReAct-style agent with five tools: (1) list the proof files in the work copy, (2) read a file range, (3) search the repository, (4) submit a candidate solution, and (5) give up. When the agent submits a candidate solution, the system returns the compilation result, providing a feedback loop. Every tool result also reports the remaining request budget.
 
-We evaluate three models: \texttt{gpt-5.6-sol} (OpenAI), \texttt{claude-sonnet-5} (Anthropic), and \texttt{leanstral-1-5} (Mistral). Leanstral is a lean-specialized model, while the other two are general-purpose, frontier models. The problem set is a matched sample: for each of the 57 repositories, we draw up to two \texttt{challenge\_id}s present in \emph{both} splits under a fixed seed, giving 113 pairs (56 repositories contribute two, one contributes one). Every model is run over both holing strategies on this same identifier set at a 50-turn budget --- six runs, 678 solve attempts in total --- so each model sees each deletion twice, once with the surrounding proof skeleton surviving and once without.
-
-Ten of the 113 pairs are \texttt{malformed} on both sides and are excluded from both, leaving 103 scorable pairs; these are repository-environment gaps of exactly the kind \S\ref{sec:validation} describes, not ablator defects, and are reclaimable with targeted builds. Four repositories lose all of their sampled problems this way, so 53 repositories enter every macro-average. Rates are macro-averaged per repository (\S\ref{sec:skew}) with the micro-average reported alongside, and confidence intervals are bootstrap intervals over the resampled unit (repositories for macro, problems for micro).
+We evaluate three models: \texttt{gpt-5.6-sol} (OpenAI), \texttt{claude-sonnet-5} (Anthropic), and \texttt{leanstral-1-5} (Mistral). Leanstral is a lean-specialized model, while the other two are general-purpose, frontier models. The problem set is a matched sample: for each of the 57 repositories, we draw up to two \texttt{challenge\_id}s present in \emph{both} splits under a fixed seed, giving 113 pairs (56 repositories contribute two, one contributes one). Ten of the 113 pairs are \texttt{malformed} on both sides and are excluded from both, leaving 103 scorable pairs. We run every model over both holing strategies on this same identifier set with a 50-turn budget. Every PASS rate is a count over the scorable problems, and confidence intervals are bootstrap 95\% intervals over problems.
 
 The six runs consumed 441.2M input and 10.4M output tokens and 95.3 hours of aggregate solver time; per-model turn and token costs are in Table~\ref{tab:cost} (Appendix~\ref{app:cost}).
 
 \subsection{Main results}
 \label{sec:grid}
 
-The pass rates are given in Table~\ref{tab:grid}. The full outcome composition is given in Table~\ref{tab:mix}; Figure~\ref{fig:mix} shows the same composition as shares of the 113 attempts
-.
+The pass rates are given in Table~\ref{tab:grid}. Table~\ref{tab:mix} shows the full outcome composition; Figure~\ref{fig:mix} shows the same composition as shares of the 103 attempts.
 
-\paragraph{The benchmark discriminates --- between tiers, not between every pair.}
-\texttt{gpt-5.6-sol} separates cleanly from the other two models and no model is near ceiling
-or floor: 49.1\% / 29.2\% / 30.8\% macro PASS under leaf holing, and 47.2\% / 28.3\% / 28.3\%
-under whole-body. \texttt{claude-sonnet-5} and \texttt{leanstral-1-5} are statistically
-indistinguishable at this budget --- a finding in itself, since one is a frontier
-general-purpose model and the other a far smaller Lean-specialised one. (An earlier draft of
-this grid reported leanstral at 17.9\%/24.0\%; that arm was degraded by provider transport
-faults, and the clean re-run reported here erases the gap --- \S\ref{sec:limitations}, L7.)
-The corpus is usable as an eval today rather than only as a training pool.
+Our first finding is that \texttt{gpt-5.6-sol} heavily outperforms the other two models, \texttt{claude-sonnet-5} and \texttt{leanstral-1-5}. No model is near the ceiling or floor, and the differences between leaf holing and whole-body ablation are small: 49.1\% / 29.2\% / 30.8\% PASS under leaf holing, and 47.2\% / 28.3\% / 28.3\% under whole-body. It’s noteworthy that the difference in performance for \texttt{claude-sonnet-5} and \texttt{leanstral-1-5} is not statistically significant. This is a huge success for \texttt{leanstral-1-5}, since it is a much smaller model than the general-purpose frontier model \texttt{claude-sonnet-5}.
 
-\paragraph{The strongest model never fails honestly.} Of \texttt{gpt-5.6-sol}'s 103 scorable leaf
-problems, 51 are genuine passes and 50 are caught tampers --- the file compiles, has no holes,
-and no longer contains the theorem it was asked to re-prove. The remaining two attempts are
-provider connection errors. There are \emph{zero} turn-limit outcomes, \emph{zero} give-ups and
-\emph{zero} submitted-but-non-compiling answers, under either strategy. Every attempt this model
-made either re-derived the lemma or attacked the statement.
+At a 50-turn budget, we found no statistically significant difference in pass rates between leaf and whole-body holing (exact McNemar $p = 0.754$ for \texttt{gpt-5.6-sol} and $p = 1.000$ for the other two models). Whole-body holing nevertheless increased average turn use across all three models and altered the composition of unsuccessful attempts. For \texttt{claude-sonnet-5}, turn-limit outcomes increased from 18 to 25 despite an unchanged PASS count of 30, while \texttt{gpt-5.6-sol}'s tampering count rose from 50 to 53.
 
-The consequence for benchmark design is direct. A scorer that checks only ``compiles and contains
-no holes'' --- which is what a compile-based oracle degenerates to without a
-statement-preservation check --- would have reported 101/103 (98.1\%) on leaf holing and 102/103
-(99.0\%) on whole-body holing, against true rates of 49.5\% and 47.6\%. The guard of
-\S\ref{sec:tampercheck} is not hygiene; on this model it is the difference between a 98\% result
-and a 50\% one.
+Of \texttt{gpt-5.6-sol}’s 103 scorable leaf problems, the model passes 51 and tampers with the other 50. Under both leaf holing and whole-body deletion, the model never gave up and never submitted non-compiling answers.
+
+One might expect tamper rates to rise with turn budget; the full curve in Figure~\ref{fig:budget} shows they do not. This curve consists of re-runs of the matched sample at announced budgets of 15, 30, and 100 turns alongside the 50-turn grid. We may observe that \texttt{claude-sonnet-5}’s tamper count rises only mildly with budget (42 / 50 / 53 / 56 at 15/30/50/100 turns). On the other hand, \texttt{gpt-5.6-sol}'s \emph{falls} mildly (107 / 103 / 103 / 99). The strongest model tampers most when it can least afford a real derivation. We conclude that budget \emph{starvation}, not budget surplus, is what pushes \texttt{gpt-5.6-sol} toward the exploit.
 
 \begin{table}[t]
-  \caption{Main grid. 113 matched pairs over 57 repositories, 103 scorable after excluding the
-  10 pairs that are \texttt{malformed} on both sides (leanstral additionally loses 6 leaf and
-  3 whole-body attempts to \texttt{context\_exceeded}). Macro is the mean of per-repository rates over the 53
-  repositories with at least one scorable problem; intervals are bootstrap 95\% intervals.
-  ``Tamper'' is the share of scorable attempts caught by the statement-preservation guard, and
-  ``compile-only'' is the rate a scorer without that guard would have reported.}
+  \caption{Main grid.}
   \label{tab:grid}
   \centering
   \small
-  \begin{tabular}{llrlrlrr}
+  \begin{tabular}{llrlrr}
     \toprule
-    Model & Strategy & \multicolumn{2}{c}{Macro PASS} & \multicolumn{2}{c}{Micro PASS} &
-      Tamper & Compile-only \\
+    Model & Strategy & \multicolumn{2}{c}{PASS} & Tamper & Compile-only \\
     \midrule
-    \texttt{gpt-5.6-sol}     & leaf  & 49.1\% & [43.4, 54.7] & 49.5\% (51/103) & [40.8, 59.2] & 48.5\% & 98.1\% \\
-    \texttt{gpt-5.6-sol}     & whole & 47.2\% & [42.5, 51.9] & 47.6\% (49/103) & [38.8, 57.3] & 51.5\% & 99.0\% \\
-    \texttt{claude-sonnet-5} & leaf  & 29.2\% & [23.6, 34.9] & 29.1\% (30/103) & [20.4, 38.8] & 26.2\% & 55.3\% \\
-    \texttt{claude-sonnet-5} & whole & 28.3\% & [22.6, 34.0] & 29.1\% (30/103) & [20.4, 37.9] & 25.2\% & 54.4\% \\
-    \texttt{leanstral-1-5}   & leaf  & 30.8\% & [26.0, 36.5] & 30.9\% (30/97) & [21.6, 41.2] & 26.8\% & 57.7\% \\
-    \texttt{leanstral-1-5}   & whole & 28.3\% & [22.6, 34.0] & 29.0\% (29/100) & [20.0, 39.0] & 22.0\% & 51.0\% \\
+    \texttt{gpt-5.6-sol}     & leaf  & 49.5\% (51/103) & [40.8, 59.2] & 48.5\% & 98.1\% \\
+    \texttt{gpt-5.6-sol}     & whole & 47.6\% (49/103) & [38.8, 57.3] & 51.5\% & 99.0\% \\
+    \texttt{claude-sonnet-5} & leaf  & 29.1\% (30/103) & [20.4, 38.8] & 26.2\% & 55.3\% \\
+    \texttt{claude-sonnet-5} & whole & 29.1\% (30/103) & [20.4, 37.9] & 25.2\% & 54.4\% \\
+    \texttt{leanstral-1-5}   & leaf  & 30.9\% (30/97) & [21.6, 41.2] & 26.8\% & 57.7\% \\
+    \texttt{leanstral-1-5}   & whole & 29.0\% (29/100) & [20.0, 39.0] & 22.0\% & 51.0\% \\
     \bottomrule
   \end{tabular}
 \end{table}
 
 \begin{table}[t]
-  \caption{Outcome composition, counts out of the 113 attempts per (model, strategy). The
-  rightmost two columns are excluded from the PASS denominator; the rest --- including
-  \texttt{harness} transport faults, which stay in as non-passes (\S\ref{sec:limitations},
-  L7) --- are not. The mix
-  differs far more across models than the pass rate does: \texttt{gpt-5.6-sol}'s entire non-pass
-  mass is \texttt{tampered}, while \texttt{leanstral-1-5} carries the grid's only residual
-  provider transport faults (\S\ref{sec:limitations}, L7).}
+  \caption{Outcome composition.}
   \label{tab:mix}
   \centering
   \small
@@ -256,316 +187,40 @@ and a 50\% one.
 \begin{figure}[t]
   \centering
   \includegraphics{outcome-composition.pdf}
-  \caption{Outcome composition per (model, strategy), as shares of the 113 attempts
-  (counts in Table~\ref{tab:mix}). \texttt{malformed} is hatched: it is excluded from the PASS
-  denominator, unlike \texttt{tampered}, which is a solver behaviour and stays in. The mix ---
-  not the pass rate --- is where the models differ most: \texttt{gpt-5.6-sol}'s non-pass mass is
-  entirely \texttt{tampered} (\S\ref{sec:tamper}).}
+  \caption{Outcome composition per (model, strategy), as shares of the 103 attempts (counts in Table~\ref{tab:mix}).}
   \label{fig:mix}
 \end{figure}
-
-
-\subsection{Reward hacking under a verified reward (\#136)}
-\label{sec:tamper}
-
-A verified reward has no false positives on the \emph{proof}: a memorized proof that compiles is
-a correct proof. Its attack surface is the \emph{statement}, and on this grid that surface is
-attacked constantly.
-
-\begin{figure}[t]
-  \centering
-  \includegraphics{tamper-by-model.pdf}
-  \caption{Share of scorable attempts caught by the statement-preservation guard, per model and
-  holing strategy, at the 50-turn budget. The ordering matches the pass-rate ordering in
-  Table~\ref{tab:grid}: the more capable the solver, the larger the fraction of its attempts
-  that are caught games rather than honest failures.}
-  \label{fig:tamper}
-\end{figure}
-
-\paragraph{Tamper rate ranks with capability.} Measured as a share of scorable attempts
-(Figure~\ref{fig:tamper}), the
-guard fires on 48.5\% / 51.5\% of \texttt{gpt-5.6-sol}'s leaf / whole-body attempts, 26.2\% /
-25.2\% of \texttt{claude-sonnet-5}'s, and 26.8\% / 22.0\% of \texttt{leanstral-1-5}'s. The
-model that passes most also tampers most, by roughly a factor of two over the other two ---
-which tamper at statistically indistinguishable rates, mirroring their indistinguishable pass
-rates. We report this as an observation on three models at one budget, not as a law; what it
-does establish is that the behaviour is not a quirk of one weak model, and that a solver's
-tamper rate tracks its capability tier rather than its architecture or specialisation.
-
-\paragraph{How the statement is attacked.} The guard distinguishes two cases. Removing the holed
-theorem's declaration outright accounts for 83 of \texttt{gpt-5.6-sol}'s 103 tampers across both
-strategies, 49 of 53 for \texttt{claude-sonnet-5}, and 47 of 48 for \texttt{leanstral-1-5};
-keeping a declaration whose statement no longer matches the original accounts for the remaining
-20, 4 and 1. Deletion is thus the dominant attack, which matters for cross-prover extensions:
-the weaker name-presence guard available for Rocq and Isabelle (\S\ref{sec:tampercheck}) would
-still catch the large majority of these, though not all.
-
-\paragraph{Budget dependence: the hypothesis is refuted, in both directions.} We predicted that tamper rate would rise with
-turn budget --- more budget, more opportunity to find the exploit. The full curve --- genuine
-re-runs of the matched sample at announced budgets of 15, 30 and 100 turns alongside the 50-turn
-grid (Figure~\ref{fig:budget}) --- does not show that. Summed over both strategies,
-\texttt{claude-sonnet-5}'s tamper count rises only mildly with budget (42 / 50 / 53 / 56 at
-15/30/50/100 turns), alongside a rising pass count; \texttt{gpt-5.6-sol}'s \emph{falls} mildly
-(107 / 103 / 103 / 99), and peaks at the lowest budget. The strongest model tampers most when it
-can least afford a real derivation: budget \emph{starvation}, not budget surplus, is what pushes
-it toward the exploit, and extra budget converts would-be tampers into genuine solves. The reason
-split is stable across every point --- outright statement deletion accounts for at least 94\% of
-tampers at every budget, for both models --- so the cross-prover implication of
-\S\ref{sec:tampercheck} is unchanged along the whole curve.
 
 \begin{figure}[t]
   \centering
   \includegraphics{budget-curve.pdf}
-  \caption{Macro PASS against the announced turn budget (15/30/50/100), per model and holing
-  strategy, bootstrap 95\% intervals. \texttt{gpt-5.6-sol} saturates by 30 turns;
-  \texttt{claude-sonnet-5} does not saturate on leaf holing by 100 (35.8\% at 100 against
-  29.2\% at 50, with its turn-limit share falling from 37\% to 8\% across the four points).
-  Each point is a genuine re-run at that announced budget --- post-hoc thresholding of the
-  100-turn arm on \texttt{turns\_used} is \emph{not} equivalent (\S\ref{sec:limitations}, L2).}
+  \caption{PASS against the announced turn budget (15/30/50/100), per model and holing strategy, bootstrap 95\% intervals over the 103 scorable problems. \texttt{gpt-5.6-sol} saturates by 30 turns; \texttt{claude-sonnet-5} does not saturate on leaf holing by 100 (35.9\% at 100 against 29.1\% at 50, with its turn-limit share falling from 37\% to 8\% across the four points). Each point is a genuine re-run at that announced budget.}
   \label{fig:budget}
 \end{figure}
 
-\paragraph{Why this belongs in a paper about verified code generation.} The measurement is
-possible only because the reward is a kernel and the guard is separable from it. It is also an
-argument for the corpus as a reinforcement-learning environment: it demonstrates concretely which
-guards such an environment needs, and that omitting them yields a reward signal that a capable
-policy saturates for the wrong reason.
-
-\subsection{Do the two holing strategies differ? (\#129)}
-\label{sec:easyhard}
-
-We publish leaf and whole-body holing as separate \texttt{easy} and \texttt{hard} splits on the
-premise that the second is strictly harder: with no surviving proof skeleton, the solver must
-re-derive from the statement alone. This section tests that premise on the matched sample, using
-exact McNemar tests on the discordant pairs --- the correct test for a paired design.
-
-\paragraph{The pass-rate gap is null for both general-purpose models.} For
-\texttt{gpt-5.6-sol}, 6 problems pass under leaf holing only and 4 under whole-body only
-($p = 0.754$); for \texttt{claude-sonnet-5}, 6 and 6 ($p = 1.000$). The macro rates differ by
-1.9 and 0.9 percentage points, well inside the intervals in Table~\ref{tab:grid}. We state this
-plainly rather than hedging it: at a 50-turn budget these two splits are not ordered by
-difficulty for any model in the grid (the specialist's apparent reversal is dealt with below),
-and the \texttt{easy}/\texttt{hard} naming is not
-supported by the pass rates. A problem a model cannot solve without the skeleton it usually
-cannot solve with it either.
-
-\paragraph{What the strategies do change is the failure composition and the turn cost.} For
-\texttt{claude-sonnet-5} the PASS count is identical (30 and 30) while \texttt{turn\_limit} rises
-from 18 to 25 and \texttt{fail} drops from 19 to 17: the same problems are solved, but the model
-spends longer and more often runs out of budget still working rather than delivering a wrong
-answer. Average turns rise under whole-body holing for all three models (7.7 to 8.3, 37.1 to
-40.5, and 27.0 to 30.4), which is the one effect of the strategy that is consistent across the
-grid. For \texttt{gpt-5.6-sol} the composition shift shows up as tampering instead, 50 to 53.
-The hypothesis that whole-body holing moves probability mass toward \texttt{turn\_limit} is
-therefore supported; the hypothesis that it lowers PASS is not.
-
-\paragraph{The specialist's apparent reversal was an artifact, and the clean re-run erased it.}
-An earlier draft of this grid reported \texttt{leanstral-1-5} going the other way --- 17.9\% on
-leaf holing against 24.0\% on whole-body ($p = 0.118$) --- and flagged the result as suggestive
-rather than established, because that arm had lost 60 of 103 leaf attempts against 44 of 100
-whole-body to provider transport faults: an asymmetric confound, and a clean re-run was named
-the cheapest outstanding item in the grid. We ran it (re-solving exactly the faulted attempts
-at low request concurrency, splicing by challenge id). The reversal does not survive: 30.8\%
-leaf against 28.3\% whole-body, 5 discordant pairs each way, $p = 1.000$ --- the same null as
-both general-purpose models. The methodological point stands with the sign flipped: an
-infrastructure asymmetry of that size can \emph{manufacture} an apparent model-specific effect,
-which is why the outcome taxonomy separates transport faults from solver behaviour
-(Table~\ref{tab:outcomes}) instead of folding them into failures.
-
-\paragraph{Consequence for the release.} We continue to publish both splits, since they are
-genuinely different tasks with different failure compositions and turn costs, but the
-\texttt{easy}/\texttt{hard} labels overstate what we have shown --- no model orders them at
-this budget. The honest description is ``leaf-step holing'' and ``whole-body holing'', which is
-the terminology used throughout this paper.
-
-\subsection{Contamination, measured}
-\label{sec:contamination}
-
-Every source repository is public, so contamination is the objection this dataset must answer
-directly. We structure the answer around a distinction the literature tends to merge.
-
-\paragraph{Instance-level memorization} --- the model saw \emph{this exact problem} --- is
-defeated by construction. The sliced file, with these specific lemmas deleted and these specific
-downstream uses holed, never existed as a document. This is a stronger claim than a
-git-history-mining approach can make, where the challenge is a real historical commit and the
-solution is the literal next commit, both present in training data \emph{as a pair}.
-
-\paragraph{Knowledge-level memorization} --- the model knows \emph{this lemma} --- is not
-defeated, and we do not claim otherwise. What we can do is measure where the first stops mattering
-and the second takes over, with four instruments, two of which have landed.
-
-\subsubsection{Corpus membership against a dated snapshot (\#137)}
-
-The Stack~v2 \citep{lozhkov2024stackv2} is built by traversing a Software Heritage
-\citep{dicosmo2017swh} graph snapshot with a documented date (2023-09-06); The Stack~v1
-\citep{kocetkov2023stack} was crawled between November 2021 and June 2022. Software Heritage
-publishes, per origin, the dated history of every crawl it has performed. This turns
-``is this repository in the pretraining corpus?'' from a guess into a query: we resolve each of
-the 57 source repositories against the Software Heritage API and compare its \emph{earliest}
-recorded visit against those two cutoffs.
-
-All 57 resolved. Forty-six have no recorded Software Heritage visit at all; nine were first
-visited only after the Stack~v2 snapshot; \textbf{two} --- \texttt{starkware-formal-proofs} and
-\texttt{symcrust} --- were visited before it, and only \texttt{symcrust} (a vendored copy of a
-Microsoft cryptographic library, earliest visit 2022-03) also clears the Stack~v1 cutoff. An
-early visit is necessary but not sufficient for inclusion, since the Stack's own license and
-deduplication filters run afterwards, so we report \texttt{likely\_in} rather than a hard yes.
-The conclusion is nonetheless strong in the direction that matters: 55 of 57 source repositories
-were not crawled before either snapshot, so Stack-derived pretraining cannot be the route by
-which a model knows these specific developments. A secondary cross-check against infini-gram
-slug counts in Dolma~v1.7 returned zero for every repository except \texttt{lean-mlir} (2) and
-\texttt{symcrust} (3), which is consistent but too sparse to carry weight on its own.
-
-This instrument replaces repository popularity, which we had used first and now report only as a
-robustness footnote for the reasons in \S\ref{sec:notused}.
-
-\subsubsection{Temporal holdout by lemma introduction date (\#132)}
-
-Repository age is the wrong unit: a repository created in 2021 can contain a lemma written in
-2026. We therefore date the \emph{deleted lemma} in every challenge, by walking the pinned
-checkout's history for the commit that first introduced an actual declaration of that name (not
-merely a mention of it). This succeeds for \textbf{21,692 of 21,692} deleted lemmas in the leaf
-split, across all 57 repositories --- complete coverage, which matters because a dating procedure
-that silently fails on the oldest lemmas would manufacture exactly the null we are about to
-report. The corpus is sharply recent by this measure: only 430 lemmas (2.0\%) predate 2024-06 and
-only 1{,}164 (5.4\%) predate 2025-01.
-
-Partitioning the grid's problems at those two dates gives Table~\ref{tab:temporal}
-(Appendix~\ref{app:temporal}), and the
-pattern splits cleanly by model class. For the two general-purpose models there is no
-systematic advantage on the lemmas they could have seen: \texttt{claude-sonnet-5} is
-directionally \emph{worse} on the older lemmas in all four of its cells, and
-\texttt{gpt-5.6-sol} is mixed (higher in three cells, lower in one). For the Lean-specialised
-\texttt{leanstral-1-5} the direction is consistent: the pre-cutoff side is higher in all four
-of its cells (41.7\% against 27.6\% at the 2024-06 cutoff on leaf holing; 50.0\% against
-25.5\% on whole-body), exactly the signature knowledge-level memorization predicts, in exactly
-the model whose training corpus is most concentrated on Lean.
-
-The caveat is severe and we state it rather than burying it: the pre-cutoff side contains 10
-problems at the 2024-06 cutoff and 19 at 2025-01, out of 103, so no single cell is
-individually significant --- what is suggestive is the consistency of the direction across all
-four specialist cells against its absence in the eight generalist ones. The test is
-underpowered \emph{because} the corpus is recent --- the same property that makes the
-membership result above come out the way it does. The honest summary: no contamination signal
-for the general-purpose models with either instrument, and a directionally consistent,
-underpowered retrieval signal for the domain specialist --- which the verbatim recall probe
-(\S\ref{sec:recall}) is the instrument built to adjudicate, since it measures memorization
-directly rather than through pass rates.
-
-
-\subsubsection{Deletion-count sweep (\#133)}
-\label{sec:sweep}
-
-Deletion count is the dial that separates the two kinds of memorization. Reconstructing one lemma
-is plausibly retrieval; reconstructing five interlocking lemmas that were \emph{never
-simultaneously absent} from any document is not. We sweep the number of deleted lemmas over
-$\{1,2,3,5\}$ on a fixed problem set, holding the corollary and repository distribution constant
-across depths so that the curve is about depth rather than about which problems were drawn, and
-report the pass-rate decay with confidence intervals. The shape is the finding: a sharp cliff
-between one and two deletions would indicate that retrieval was carrying the single-deletion case.
-This is a perturbation-robustness measurement in the GSM-Symbolic tradition, and a methodological
-contribution rather than merely a defense.
-
-The lemma dating above makes this the sharper of the two remaining instruments: with the temporal
-axis this compressed, depth is the dimension along which instance-level and knowledge-level
-memorization actually come apart in this corpus.
-
-\paragraph{Result.} We ran the sweep on \texttt{claude-sonnet-5} at the 50-turn budget: 100
-problems per depth over 30 repositories, drawn from the paired sample's files with the
-corollary pinned by the mining seed, so every depth ablates \emph{the same 100 (file,
-corollary) pairs} --- the distribution is constant across depths by construction, and verified:
-a tuple enters the set only if it yields exactly $N$ deletions \emph{and} compile-validates on
-both sides at every depth. Figure~\ref{fig:sweep} shows the decay: 27.1\% macro PASS at one
-deletion, 15.6\% at two, 15.1\% at three, 11.5\% at five (micro: 24\% / 8\% / 6\% / 5\%).
-
-The shape carries the interpretation, and it is not the retrieval story. Against an
-independence reference --- treating a depth-$N$ problem as $N$ independent single-deletion
-problems, $p_1^N$ with $p_1 = 0.24$ --- the one-to-two drop is roughly what independence predicts
-(8\% observed, 5.8\% predicted), while depths three and five sit far \emph{above} it (5\%
-observed against 0.08\% predicted at depth five). Deleting five interlocking lemmas from one
-closure is much easier than five independent problems: the lemmas share context, statements,
-and often a proof idiom, and re-deriving one supplies material for the next. For this model the
-sweep therefore shows a conjunction-difficulty curve, not a memorization cliff --- consistent
-with the temporal holdout, which finds no pre-cutoff advantage for this model either
-(Table~\ref{tab:temporal}); the two instruments agree. The model whose temporal cells
-\emph{do} all point toward retrieval (\texttt{leanstral-1-5}, above) is the natural target for
-a follow-up sweep. Tampering, incidentally, falls with depth (35 / 27 / 20 / 20 of 100):
-deleting the statement of five theorems at once is apparently a less tempting exploit than
-deleting one.
-
-\begin{figure}[t]
-  \centering
-  \includegraphics{deletion-curve.pdf}
-  \caption{Macro PASS against deletion depth $N \in \{1,2,3,5\}$ on a fixed 100-problem set
-  (same files, same seed-pinned corollaries at every depth; each problem compile-validated at
-  every depth), \texttt{claude-sonnet-5}, 50-turn budget, bootstrap 95\% intervals. The dotted
-  reference is the independence null $p_1^N$: the one-to-two drop roughly matches it; the tail sits far
-  above it. The curve is a conjunction-difficulty measurement, not a memorization cliff.}
-  \label{fig:sweep}
-\end{figure}
-
-\subsubsection{Verbatim recall probe (\#134)}
-\label{sec:recall}
-
-The correlational tests above cannot separate \emph{memorization} from \emph{ability}: a model
-that solves more might simply be better. A recall probe can. For each deleted lemma in the paired
-sample we prompt the model with the lemma name and surrounding file context, body removed, and
-ask it to state the lemma; we score by exact match, normalised match, and a token-level score
-(exact match alone will be near-zero and misleading). The payoff is the correlation between recall
-score and solve outcome on the \emph{same} problems: if solve rate is high where recall is high,
-memorization is doing work; if they are uncorrelated, it is not. Broken out per split, since the
-hypothesis above predicts whole-body holing depends more on recall.
-
-\todo{\#134: recall scores for every deleted lemma in the paired sample; correlation with solve
-outcome with CIs, per split (Fig.~6)}
-
-\subsubsection{What we do not use}
-\label{sec:notused}
-
-We deliberately do not use repository popularity as a contamination proxy. Popularity proxies
-contamination only insofar as it proxies duplication count in the training corpus, which is the
-variable memorization actually scales with \citep{carlini2023quantifying}, and in this corpus that
-chain is broken: 41\% of the 57 repositories were created after 2025-06 and nine of the nineteen
-with at least 100 stars postdate mid-2024, so ``popular'' and ``plausibly in the training set''
-are substantially decoupled here. Popularity is also not a standard instrument in the
-contamination literature. It was the first thing we tried, and its qualitative direction agreed
-with the membership check above; having a direct instrument, we drop it rather than report a
-weak proxy alongside a strong one.
-
-\subsection{A calibrated difficulty model (\#135)}
+\subsection{Calibrated difficulty models}
 \label{sec:difficulty}
 
-Benchmark papers rarely ship a predictor of their own difficulty. We do, and we report it
-honestly, which means reporting calibration and not only discrimination.
+For each agent, we calibrate a difficulty model. Features are computed \emph{inside} the ablator, so they are visible in the released rows rather than being a post-hoc artifact of our analysis code: size and shape (line count, tactic count, cyclomatic complexity, fan-in of the deleted lemma), what the proof \emph{does} (counts of automation, rewriting and structural steps, an automation-only flag, maximum nesting depth), and what the corollary rests on (direct and transitive dependency counts). Size alone cannot distinguish a one-line \texttt{simp} call from a forty-line induction with the same step count, and that distinction is what mostly decides whether a lemma can be rederived.
 
-Features are computed \emph{inside} the ablator, so they are visible in the released rows rather
-than being a post-hoc artifact of our analysis code: size and shape (line count, tactic count,
-cyclomatic complexity, fan-in of the deleted lemma), what the proof \emph{does} (counts of
-automation, rewriting and structural steps, an automation-only flag, maximum nesting depth), and
-what the corollary rests on (direct and transitive dependency counts). Size alone cannot
-distinguish a one-line \texttt{simp} call from a forty-line induction with the same step count,
-and that distinction is most of what decides whether a lemma can be re-derived.
+The model is trained on the grid outcomes of \S\ref{sec:grid} (678 labelled attempts, of which 615 are scorable \todo{Fix the panel used for the baseline and redo this}). The model is then evaluated on a \textbf{disjoint} second sample that is scored \emph{before} its outcomes exist, a discipline the pipeline enforces rather than merely recommends. We report held-out ROC-AUC for discrimination and the Brier score with the Murphy decomposition (reliability, resolution, uncertainty) plus a decile reliability diagram for calibration, and the per-feature coefficients, since “fan-in and tactic count predict difficulty, file size does not” is a more useful statement to this audience than an AUC.
 
-The model is trained on the grid outcomes of \S\ref{sec:grid} --- 678 labelled attempts, of which
-615 are scorable --- then evaluated on a \textbf{disjoint} second sample that is scored
-\emph{before} its outcomes exist, a discipline the pipeline enforces rather than merely
-recommends. We report held-out ROC-AUC for discrimination and the Brier score with the Murphy
-decomposition (reliability, resolution, uncertainty) plus a decile reliability diagram for
-calibration, and the per-feature coefficients, since ``fan-in and tactic count predict
-difficulty, file size does not'' is a more useful statement to this audience than an AUC.
+We note the labels are \emph{model}-dependent in a way the grid from \S\ref{sec:grid} makes concrete. We found that the whole-body ablation is harder than leaf ablation for two models and easier for a thirdn.
 
-\paragraph{Three caveats the numbers carry.} First, the labels are budget-dependent: this is
-difficulty \emph{at budget $B$}. Second, the labels are \emph{model}-dependent in a way the grid
-makes concrete --- \S\ref{sec:easyhard} found that the harder of the two holing strategies is
-harder for two models and easier for a third, so a single difficulty score per problem is already
-an approximation. Third, the scorer counts \texttt{tampered} and \texttt{turn\_limit} as failures
-while dropping \texttt{malformed}, \texttt{trivial} and \texttt{context\_exceeded}, matching
-Table~\ref{tab:outcomes}; since roughly half of \texttt{gpt-5.6-sol}'s attempts are tampers, the
-model is in part predicting where a solver will choose to cheat.
+There are two caveats the numbers carry. First, the labels are budget-dependent: this is difficulty \emph{at budget $B$}. Second, the scorer counts \texttt{tampered} and \texttt{turn\_limit} as failures while dropping  \texttt{trivial} and \texttt{context\_exceeded}, matching Table~\ref{tab:outcome-predicates}; since roughly half of \texttt{gpt-5.6-sol}’s attempts are tampers, the model is in part predicting where a solver will choose to cheat.
 
-\todo{\#135: held-out AUC, Brier with Murphy decomposition, reliability diagram (Fig.~7), feature
-coefficients; cross-mode transfer (train on leaf, score whole-body) attempted or explicitly
-deferred with a reason}
+\todo{Held-out ROC/AUC, Brier with Murphy decomposition, reliability diagram (Fig.~7), feature coefficients; cross-mode transfer (train on leaf, score whole-body) attempted or explicitly deferred with a reason}
+
+\subsection{Contamination}
+\label{sec:contamination}
+
+A valid concern with this benchmark is that, because all source repositories are public, models may have encountered the original lemmas and proofs during training. Although syntactic ablation creates new proving challenges, models may still have prior knowledge. We assess this risk using lemma introduction dates and a deletion-count sweep; Appendix~\ref{app:contamination} provides the methods and additional results.
+
+In studying temporal holdout, we recovered an introduction date for the deleted lemma in every leaf challenge (21{,}692/21{,}692). Only 2.0\% predate 2024-06 and 5.4\% predate 2025-01. Using these reference dates leaves just 10 and 19 pre-cutoff problems, respectively, in the 103-problem evaluation sample. Preliminary repository-averaged comparisons show no consistent pre-cutoff advantage for the two general-purpose models, whereas \texttt{leanstral-1-5} performs better before both cutoffs under both holing strategies (Table~\ref{tab:temporal}). These directions remain provisional pending per-problem recomputation. The small older subsets and possible difficulty differences limit any inference about memorization.
+
+In our deletion-count sweep, at a 50-turn budget, \texttt{claude-sonnet-5} achieves 24\%, 8\%, 6\%, and 5\% PASS when one, two, three, or five lemmas are deleted. The sweep uses the same 100 file/corollary pairs from 30 repositories, retaining only pairs with the requested deletion count and two-sided compile validation at every depth (Figure~\ref{fig:sweep}). The curve establishes sensitivity to deletion depth, but does not distinguish memorization from proof difficulty: both retrieval and derivation can benefit from shared context. In particular, exceeding an independent-task reference at larger depths does not rule out memorization.
+
+Together, these checks characterize exposure risk and task robustness; they do not certify the benchmark as contamination-free. Direct recall testing remains future work.
 
 \section{Limitations}
 \label{sec:limitations}
@@ -574,7 +229,7 @@ deferred with a reason}
 Isabelle and the record schema is shared, but the Rocq corpus is unmined and the Isabelle corpus
 is only partially mined: of 19{,}018 challenges mined from the seL4 verification development,
 14{,}594 sit under the refinement proof, whose Isabelle sessions require a design specification
-that is \emph{generated} from seL4's Haskell model and is absent from a plain checkout. Until that
+that is \emph{generated} from seL4’s Haskell model and is absent from a plain checkout. Until that
 generation step runs in our pipeline, only sessions below the design spec can be validated, and we
 ship none of them here. Nothing in this paper should be read as a claim about cross-prover
 generality.
@@ -584,13 +239,13 @@ model-dependent.} \texttt{turn\_limit} was the modal outcome in our first baseli
 shows it is not a property of the task: summed over both strategies at 50 turns it accounts for 0
 of \texttt{gpt-5.6-sol}'s 206 scorable attempts, 43 of \texttt{claude-sonnet-5}'s 206, and 20 of
 \texttt{leanstral-1-5}'s 203. Average turns also rise under whole-body holing for every model
-(\S\ref{sec:easyhard}), so the budget interacts with the strategy. Every pass rate we report is a
+(\S\ref{sec:grid}), so the budget interacts with the strategy. Every pass rate we report is a
 pass rate at a stated budget and should be read as a lower bound at that budget rather than as a
 property of the model. This propagates: the difficulty model of \S\ref{sec:difficulty} predicts
 difficulty-at-budget, and any contamination gap measured on top of a budget-limited baseline
 inherits the same confound. The curve of Figure~\ref{fig:budget} quantifies this:
-\texttt{claude-sonnet-5}'s leaf-holing rate is still rising at 100 turns (26.4\% / 32.1\% /
-29.2\% / 35.8\% at 15/30/50/100) while its whole-body rate is flat from 30, and
+\texttt{claude-sonnet-5} ’s leaf-holing rate is still rising at 100 turns (26.2\% / 32.0\% /
+29.1\% / 35.9\% at 15/30/50/100) while its whole-body rate is flat from 30, and
 \texttt{gpt-5.6-sol} is saturated by 30 turns on both. The curve also cannot be obtained
 cheaply: deriving it from the 100-turn arm by post-hoc thresholding on \texttt{turns\_used}
 under-predicts \texttt{claude-sonnet-5}'s genuine 15-turn passes by more than $3\times$ (8
@@ -600,7 +255,7 @@ an 8-turn solver like \texttt{gpt-5.6-sol} shows no such gap. Budget curves for 
 pace themselves require genuine per-budget runs.
 
 \paragraph{L3: Scoring requires a built checkout.} The data can be browsed by anyone; scoring a
-prediction requires the repository's prebuilt \texttt{.olean} closure at the pinned revision, at
+prediction requires the repository’s prebuilt \texttt{.olean} closure at the pinned revision, at
 roughly 5--7\,GB per Mathlib-dependent repository and on the order of a terabyte for all 57. We
 publish prebuilt closures for a small demo subset sufficient for a quickstart, not for the full
 corpus. This is the single largest adoption barrier we know of, and it is a property of the
@@ -609,9 +264,9 @@ release, not of the method.
 did not land}
 
 \paragraph{L4: Corpus skew.} One repository supplies 33.8\% of leaf rows and the top three supply
-53.4\%. We macro-average everywhere, which mitigates the problem but does not remove it: the tail
-repositories contribute few problems each, so per-repository estimates in the tail are noisy, and
-any analysis correlated with repository size inherits that noise structure.
+53.4\%. We sample evenly per repository (\S\ref{sec:skew}), which mitigates the problem but does
+not remove it: the grid’s rates describe a repository-balanced sample rather than the corpus, and
+any analysis over the full corpus that is correlated with repository size inherits its skew.
 
 \paragraph{L5: Context overflow.} Roughly 10\% of challenges exceeded a 262{,}144-token context
 window in our first baseline, even after minimal slicing. We flag these
@@ -619,8 +274,8 @@ window in our first baseline, even after minimal slicing. We flag these
 prompt and the model never sees the problem. Excluding them is the honest accounting, but it also
 means the largest problems --- plausibly among the hardest --- are systematically unmeasured, and
 the exclusion set varies by model, so cross-model comparisons are over slightly different problem
-sets. The grid's macro-balanced sample is much less affected (3 exclusions out of 678 attempts,
-all in one model's whole-body run, Table~\ref{tab:mix}), which is itself a reminder that the
+sets. The grid’s repository-balanced sample is much less affected (3 exclusions out of 678 attempts,
+all in one model’s whole-body run, Table~\ref{tab:mix}), which is itself a reminder that the
 exclusion rate is a property of the sampling scheme and not of the corpus.
 
 \paragraph{L6: Unresolved licensing on part of the corpus.} Five of 57 repositories are flagged in
@@ -631,12 +286,12 @@ released row count is provisional.
 original \texttt{leanstral-1-5} arm lost 60 of 103 leaf attempts and 44 of 100 whole-body
 attempts to TLS-layer and read-timeout failures against the provider --- concentrated enough,
 and asymmetric enough across the two strategies, to manufacture the apparent easy/hard reversal
-discussed in \S\ref{sec:easyhard}. The faulted attempts were re-solved at low request
+discussed in \S\ref{sec:grid}. The faulted attempts were re-solved at low request
 concurrency and spliced by challenge id; the numbers throughout this paper are from the
 re-run. Even so, 23 leaf and 29 whole-body attempts still ended in transport faults, and
-following Table~\ref{tab:outcomes} the aggregator keeps them in the denominator as non-passes,
+following Table~\ref{tab:outcome-predicates} the aggregator keeps them in the denominator as non-passes,
 so the leanstral row of Table~\ref{tab:grid} remains a mild lower bound: dropping the residual
-faulted attempts gives 39.4\% and 40.4\% over 47 repositories on each strategy. The two
+faulted attempts gives 40.5\% (30/74) and 40.8\% (29/71) on leaf and whole-body holing. The two
 general-purpose arms are essentially unaffected (7, 3, 2 and 1 faults out of 113).
 
 \paragraph{L8: One sample, one seed.} Every number in \S\ref{sec:experiments} comes
@@ -644,7 +299,7 @@ from a single 113-pair draw at seed 42, run once per (model, strategy, budget) -
 grid at 50 turns, the budget curve of Figure~\ref{fig:budget} at 15/30/100 on the same draw.
 There is no across-seed replication and no repeated sampling of the same problem, so the
 intervals we report capture sampling variation over problems and repositories but not the
-solver's own run-to-run variance. Given that these solvers are stochastic and agentic, that
+solver’s own run-to-run variance. Given that these solvers are stochastic and agentic, that
 component is not negligible.
 
 \section{Conclusion}
@@ -655,11 +310,11 @@ syntactic ablation, and that the resulting problems can be validated on both sid
 compiler --- 43{,}410 of them, from 57 pinned Lean~4 repositories. The validation discipline is
 the part we would most like to see adopted elsewhere: it is cheap relative to the mining, it
 catches unwinnable problems that no amount of downstream evaluation would surface, and it turns
-``is this benchmark well-formed?'' from an assertion into a build artifact.
+“is this benchmark well-formed?” from an assertion into a build artifact.
 
 The result we did not expect is the one we would most like the field to take seriously. On this
 task the strongest model we evaluated does not fail; it cheats. Every scorable attempt it made
-either re-derived the lemma or made the file compile by removing the theorem it was asked to
+either rederived the lemma or made the file compile by removing the theorem it was asked to
 prove, and a scorer without a statement-preservation check would have called that 98\% success.
 A verified reward is sound about proofs and says nothing about statements, and at current
 capability levels the gap between those two is not a corner case --- it is half the results
@@ -671,8 +326,6 @@ written down, published, and measured, not assumed.
 anonymized submission}
 \end{ack}
 
-\section*{References}
-
 \medskip
 {
 \small
@@ -682,78 +335,80 @@ anonymized submission}
 \bibitem{azerbayev2023proofnet}
 Azerbayev, Z., Piotrowski, B., Schoelkopf, H., Ayers, E.W., Radev, D.\ \& Avigad, J.\ (2023)
 ProofNet: Autoformalizing and formally proving undergraduate-level mathematics.
-{\it arXiv:2302.12433}.
-
-\bibitem{carlini2023quantifying}
-Carlini, N., Ippolito, D., Jagielski, M., Lee, K., Tramer, F.\ \& Zhang, C.\ (2023) Quantifying
-memorization across neural language models. In {\it International Conference on Learning
-Representations (ICLR)}.
-
-\bibitem{dicosmo2017swh}
-Di Cosmo, R.\ \& Zacchiroli, S.\ (2017) Software Heritage: Why and how to preserve software
-source code. In {\it International Conference on Digital Preservation (iPRES)}.
+\arxiv{2302.12433}.
 
 \bibitem{golchin2024timetravel}
 Golchin, S.\ \& Surdeanu, M.\ (2024) Time travel in LLMs: Tracing data contamination in large
 language models. In {\it International Conference on Learning Representations (ICLR)}.
+\arxiv{2308.08493}.
 
 \bibitem{han2022proof}
 Han, J.M., Rute, J., Wu, Y., Ayers, E.W.\ \& Polu, S.\ (2022) Proof artifact co-training for
 theorem proving with language models. In {\it International Conference on Learning
-Representations (ICLR)}.
+Representations (ICLR)}. \arxiv{2102.06203}.
+
+\bibitem{hu2025minictx}
+Hu, J., Zhu, T.\ \& Welleck, S.\ (2025) miniCTX: Neural theorem proving with (long-)contexts.
+In {\it International Conference on Learning Representations (ICLR)}.
+\arxiv{2408.03350}.
 
 \bibitem{jain2025livecodebench}
 Jain, N., Han, K., Gu, A., Li, W.-D., Yan, F., Zhang, T., Wang, S., Solar-Lezama, A., Sen, K.\ \&
 Stoica, I.\ (2025) LiveCodeBench: Holistic and contamination-free evaluation of large language
 models for code. In {\it International Conference on Learning Representations (ICLR)}.
+\arxiv{2403.07974}.
 
 \bibitem{jimenez2024swebench}
 Jimenez, C.E., Yang, J., Wettig, A., Yao, S., Pei, K., Press, O.\ \& Narasimhan, K.\ (2024)
 SWE-bench: Can language models resolve real-world GitHub issues? In {\it International Conference
-on Learning Representations (ICLR)}.
-
-\bibitem{kocetkov2023stack}
-Kocetkov, D., Li, R., Ben Allal, L., Li, J., Mou, C., Mu\~{n}oz Ferrandis, C., Jernite, Y.,
-Mitchell, M., Hughes, S., Wolf, T., Bahdanau, D., von Werra, L.\ \& de Vries, H.\ (2023) The
-Stack: 3\,TB of permissively licensed source code. {\it Transactions on Machine Learning
-Research}.
+on Learning Representations (ICLR)}. \arxiv{2310.06770}.
 
 \bibitem{liu2023fimo}
 Liu, C., Shen, J., Xin, H., Liu, Z., et al.\ (2023) FIMO: A challenge formal dataset for
-automated theorem proving. {\it arXiv:2309.04295}.
+automated theorem proving. \arxiv{2309.04295}.
 
-\bibitem{lozhkov2024stackv2}
-Lozhkov, A., Li, R., Ben Allal, L., et al.\ (2024) StarCoder 2 and The Stack v2: The next
-generation. {\it arXiv:2402.19173}.
+\bibitem{mathlib2020}
+The mathlib Community (2020) The Lean mathematical library. In {\it Proceedings of the 9th ACM
+SIGPLAN International Conference on Certified Programs and Proofs (CPP)}, pp.\ 367--381.
+\doi{10.1145/3372885.3373824}.
 
 \bibitem{mirzadeh2025gsmsymbolic}
 Mirzadeh, I., Alizadeh, K., Shahrokhi, H., Tuzel, O., Bengio, S.\ \& Farajtabar, M.\ (2025)
 GSM-Symbolic: Understanding the limitations of mathematical reasoning in large language models.
 In {\it International Conference on Learning Representations (ICLR)}.
+\arxiv{2410.05229}.
 
 \bibitem{tsoukalas2024putnambench}
 Tsoukalas, G., Lee, J., Jennings, J., Xin, J., Ding, M., Jennings, M., Thakur, A.\ \& Chaudhuri,
 S.\ (2024) PutnamBench: Evaluating neural theorem-provers on the Putnam mathematical competition.
 In {\it Advances in Neural Information Processing Systems (NeurIPS) Datasets and Benchmarks
-Track}.
+Track}. \arxiv{2407.11214}.
+
+\bibitem{xin2026verisoftbench}
+Xin, Y., Chen, Q., Durrett, G.\ \& Dillig, I.\ (2026) VeriSoftBench: Repository-scale formal
+verification benchmarks for Lean. \arxiv{2602.18307}.
 
 \bibitem{yang2019coqgym}
 Yang, K.\ \& Deng, J.\ (2019) Learning to prove theorems via interacting with proof assistants.
 In {\it International Conference on Machine Learning (ICML)}.
+\arxiv{1905.09381}.
 
 \bibitem{yang2023leandojo}
 Yang, K., Swope, A.M., Gu, A., Chalamala, R., Song, P., Yu, S., Godil, S., Prenger, R.\ \&
 Anandkumar, A.\ (2023) LeanDojo: Theorem proving with retrieval-augmented language models. In
 {\it Advances in Neural Information Processing Systems (NeurIPS) Datasets and Benchmarks Track}.
+\arxiv{2306.15626}.
 
 \bibitem{zhang2024careful}
 Zhang, H., Da, J., Lee, D., Robinson, V., Wu, C., Song, W., Zhao, T., Raja, P., Slack, D., Lyu,
 Q., Hendryx, S., Kaplan, R., Lunati, M.\ \& Yue, S.\ (2024) A careful examination of large
-language model performance on grade school arithmetic. {\it arXiv:2405.00332}.
+language model performance on grade school arithmetic.
+\arxiv{2405.00332}.
 
 \bibitem{zheng2022minif2f}
 Zheng, K., Han, J.M.\ \& Polu, S.\ (2022) miniF2F: A cross-system benchmark for formal
 Olympiad-level mathematics. In {\it International Conference on Learning Representations (ICLR)}.
+\arxiv{2109.00110}.
 
 \end{thebibliography}
 }
@@ -765,28 +420,25 @@ Olympiad-level mathematics. In {\it International Conference on Learning Represe
 \section{Outcome taxonomy in full}
 \label{app:outcomes}
 
-Table~\ref{tab:outcomes} lists the outcomes; this appendix gives the predicate each is decided
-by and the order in which the aggregator checks them. Every solve attempt records a set of
+This appendix gives the predicate each outcome of \S\ref{sec:outcomes} is decided by and the
+order in which the aggregator checks them. Every solve attempt records a set of
 boolean flags, and the outcome is the \emph{first} flag that holds in the order of
 Table~\ref{tab:outcome-predicates}, so the taxonomy is a strict precedence rather than a
 partition of independent conditions. Two consequences matter for reading the results. First,
 \texttt{tampered} is checked \emph{after} \texttt{PASS}: an attempt is a pass only if the file
 compiles, has no holes, \emph{and} the statement-preservation guard of \S\ref{sec:tampercheck}
 accepts every holed theorem, so a tampered file can never be counted as a pass. Second,
-\texttt{harness\_err} (the aggregator's \texttt{error} flag) is checked after \texttt{gave\_up}
+\texttt{harness\_err} (the aggregator’s \texttt{error} flag) is checked after \texttt{gave\_up}
 and \texttt{turn\_limit}, so a transport fault on the final request of an otherwise exhausted
 budget is recorded as \texttt{turn\_limit}, not as a harness error.
 
-The tamper reason reported in \S\ref{sec:tamper} is recovered from the guard's message: a holed
+The tamper reason reported in \S\ref{sec:grid} is recovered from the guard’s message: a holed
 declaration that is absent from the submitted file is classed as \emph{declaration removed}; a
 declaration that is present but whose statement text up to the \texttt{:=} delimiter differs
 from the challenge is classed as \emph{statement weakened}.
 
 \begin{table}[h]
-  \caption{Outcome precedence. Flags are tested top to bottom and the first that holds is the
-  outcome. The aggregator also has a \texttt{dry\_run} outcome for attempts that were never
-  dispatched to a model; no attempt in this paper's grid has it, and it is excluded from the
-  denominator like the other rows above the rule.}
+  \caption{Outcome taxonomy.}
   \label{tab:outcome-predicates}
   \centering
   \footnotesize
@@ -817,11 +469,94 @@ not at its default-branch HEAD: a license file can be added, removed or changed 
 revision we compiled and the revision a reader would see today, and the pinned revision is the
 one whose proofs we redistribute. The corpus mixes permissive licenses, so the released dataset
 carries an aggregate \texttt{license: other} tag with the per-repository SPDX classification
-alongside. Five of the 57 repositories have terms that are restrictive or absent at the pinned
-revision; they are flagged rather than silently included, and they remain in the row counts of
-\S\ref{sec:dataset} pending an explicit keep-or-drop decision (L6 in \S\ref{sec:limitations}).
-\todo{per-repository table: URL, pinned revision, license file at that revision, SPDX class, flag
---- generated from the pipeline's license survey, which is not part of this submission tree}
+alongside (Table~\ref{tab:licenses}). The survey classifies the license \emph{text} fetched at
+the pinned commit; GitHub's own SPDX detection is ignored because it only runs against the
+default-branch HEAD and silently reports \texttt{NOASSERTION} for any other ref. Two repositories
+were only found by a manual follow-up because their license file is spelled \texttt{LICENSE.MD}
+or \texttt{LICENCE}. The result is 52 repositories under permissive or weak-copyleft licenses
+(Apache-2.0, MIT, BSD-3-Clause, LGPL-2.1, LGPL-3.0, Zlib), one under a custom non-commercial-only
+license, and four with no license file at all. Those five are flagged rather than silently
+included, and they remain in the row counts of \S\ref{sec:dataset} pending an explicit
+keep-or-drop decision (L6 in \S\ref{sec:limitations}). Dropping all five would remove 799 leaf
+rows and 798 whole-body rows (3.7\% of each split), leaving 20{,}893 and 20{,}920 respectively;
+\texttt{starkware-formal-proofs} and \texttt{verified-consensus} account for 752 of the 799.
+
+\begin{table}[p]
+  \caption{License survey of the 57 source repositories at their pinned revisions. \emph{Rev.}
+  links to the exact tree that was mined; \emph{License file} links to the license text at that
+  revision (the file the SPDX class was derived from); \emph{leaf} and \emph{whole} are the
+  validated rows each repository contributes to the two splits. Flagged repositories are those
+  whose terms do not clearly permit redistribution.}
+  \label{tab:licenses}
+  \centering
+  \scriptsize
+  \setlength{\tabcolsep}{3.5pt}
+  \begin{tabular}{lllp{2.9cm}rrl}
+    \toprule
+    Repository & Rev. & License file & SPDX & leaf & whole & Flag \\
+    \midrule
+    \href{https://github.com/septract/adler-proofs}{adler-proofs} & \href{https://github.com/septract/adler-proofs/tree/e500f96af690e90eb185aa39caa798c07d671d82}{\texttt{e500f96}} & \href{https://github.com/septract/adler-proofs/blob/e500f96af690e90eb185aa39caa798c07d671d82/LICENSE}{\texttt{LICENSE}} & \texttt{BSD-3-Clause} & 8 & 8 &  \\
+    \href{https://github.com/AeneasVerif/aeneas}{aeneas} & \href{https://github.com/AeneasVerif/aeneas/tree/483333f74278333101795c4e55dbf09e50763f37}{\texttt{483333f}} & \href{https://github.com/AeneasVerif/aeneas/blob/483333f74278333101795c4e55dbf09e50763f37/LICENSE.md}{\texttt{LICENSE.md}} & \texttt{Apache-2.0} & 60 & 59 &  \\
+    \href{https://github.com/powdr-labs/apc-optimizer}{apc-optimizer} & \href{https://github.com/powdr-labs/apc-optimizer/tree/bd367dd92ecaabcdc3a308473fbe966da9a1c03c}{\texttt{bd367dd}} & \href{https://github.com/powdr-labs/apc-optimizer/blob/bd367dd92ecaabcdc3a308473fbe966da9a1c03c/LICENSE}{\texttt{LICENSE}} & \texttt{MIT} & 128 & 128 &  \\
+    \href{https://github.com/Verified-zkEVM/ArkLib}{ArkLib} & \href{https://github.com/Verified-zkEVM/ArkLib/tree/5a83bfb4383503d70d7b5a05355d396855b3151b}{\texttt{5a83bfb}} & \href{https://github.com/Verified-zkEVM/ArkLib/blob/5a83bfb4383503d70d7b5a05355d396855b3151b/LICENSE}{\texttt{LICENSE}} & \texttt{Apache-2.0} & 299 & 299 &  \\
+    \href{https://github.com/ProofOfKeags/btc-verified}{btc-verified} & \href{https://github.com/ProofOfKeags/btc-verified/tree/251ae35b2caf564608f0c6bc35933d7837bfe0c4}{\texttt{251ae35}} & \href{https://github.com/ProofOfKeags/btc-verified/blob/251ae35b2caf564608f0c6bc35933d7837bfe0c4/LICENSE}{\texttt{LICENSE}} & \texttt{Apache-2.0} & 25 & 25 &  \\
+    \href{https://github.com/Linyxus/capless-lean}{capless-lean} & \href{https://github.com/Linyxus/capless-lean/tree/9beeba12d520c447791349f079256254fc413f1b}{\texttt{9beeba1}} & \href{https://github.com/Linyxus/capless-lean/blob/9beeba12d520c447791349f079256254fc413f1b/LICENSE}{\texttt{LICENSE}} & \texttt{MIT} & 93 & 93 &  \\
+    \href{https://github.com/cedar-policy/cedar-spec}{cedar-spec} & \href{https://github.com/cedar-policy/cedar-spec/tree/795ddccff61c83aeb5d6a7ccd22abf5e00164c73}{\texttt{795ddcc}} & \href{https://github.com/cedar-policy/cedar-spec/blob/795ddccff61c83aeb5d6a7ccd22abf5e00164c73/LICENSE}{\texttt{LICENSE}} & \texttt{Apache-2.0} & 1{,}033 & 1{,}038 &  \\
+    \href{https://github.com/Verified-zkEVM/clean}{clean} & \href{https://github.com/Verified-zkEVM/clean/tree/1e563b9c27991b3795eb440c1ee0757edb4ce8b1}{\texttt{1e563b9}} & \href{https://github.com/Verified-zkEVM/clean/blob/1e563b9c27991b3795eb440c1ee0757edb4ce8b1/LICENSE}{\texttt{LICENSE}} & \texttt{MIT} & 238 & 239 &  \\
+    \href{https://github.com/NethermindEth/Clear}{Clear} & \href{https://github.com/NethermindEth/Clear/tree/6ef2e7eda01080e5d5fd7474354c1a71adab5071}{\texttt{6ef2e7e}} & \href{https://github.com/NethermindEth/Clear/blob/6ef2e7eda01080e5d5fd7474354c1a71adab5071/LICENSE.MD}{\texttt{LICENSE.MD}} & \texttt{LicenseRef-Nethermind-}\allowbreak\texttt{NonCommercial} & 26 & 26 & non-commercial only \\
+    \href{https://github.com/Verified-zkEVM/CompPoly}{CompPoly} & \href{https://github.com/Verified-zkEVM/CompPoly/tree/e95ba1b1cac21ac3e980725abcfb2a0c707d1062}{\texttt{e95ba1b}} & \href{https://github.com/Verified-zkEVM/CompPoly/blob/e95ba1b1cac21ac3e980725abcfb2a0c707d1062/LICENSE}{\texttt{LICENSE}} & \texttt{Apache-2.0} & 927 & 928 &  \\
+    \href{https://github.com/leanprover/cslib}{cslib} & \href{https://github.com/leanprover/cslib/tree/c0120dddfe75d4ab913691c0c184fc436927b19d}{\texttt{c0120dd}} & \href{https://github.com/leanprover/cslib/blob/c0120dddfe75d4ab913691c0c184fc436927b19d/LICENSE}{\texttt{LICENSE}} & \texttt{Apache-2.0} & 284 & 286 &  \\
+    \href{https://github.com/Beneficial-AI-Foundation/curve25519-dalek-lean-verify}{curve25519-dalek-lean-verify} & \href{https://github.com/Beneficial-AI-Foundation/curve25519-dalek-lean-verify/tree/b9fae801a9e47ac522ea6455a28b78e1d1e1fda5}{\texttt{b9fae80}} & \href{https://github.com/Beneficial-AI-Foundation/curve25519-dalek-lean-verify/blob/b9fae801a9e47ac522ea6455a28b78e1d1e1fda5/LICENSE}{\texttt{LICENSE}} & \texttt{Apache-2.0} & 168 & 168 &  \\
+    \href{https://github.com/verified-optimization/CvxLean}{CvxLean} & \href{https://github.com/verified-optimization/CvxLean/tree/c62c2f292c6420f31a12e738ebebdfed50f6f840}{\texttt{c62c2f2}} & \href{https://github.com/verified-optimization/CvxLean/blob/c62c2f292c6420f31a12e738ebebdfed50f6f840/LICENSE}{\texttt{LICENSE}} & \texttt{Apache-2.0} & 25 & 25 &  \\
+    \href{https://github.com/metareflection/dolev-yao}{dolev-yao} & \href{https://github.com/metareflection/dolev-yao/tree/cc9d1a6dd800c1debc0a8cc9b7d2e331b84bd30c}{\texttt{cc9d1a6}} & \href{https://github.com/metareflection/dolev-yao/blob/cc9d1a6dd800c1debc0a8cc9b7d2e331b84bd30c/LICENSE}{\texttt{LICENSE}} & \texttt{MIT} & 1 & 1 &  \\
+    \href{https://github.com/Verified-zkEVM/evm-asm}{evm-asm} & \href{https://github.com/Verified-zkEVM/evm-asm/tree/7d5875858bc3727250adb6880c8339048365b1b6}{\texttt{7d58758}} & \href{https://github.com/Verified-zkEVM/evm-asm/blob/7d5875858bc3727250adb6880c8339048365b1b6/LICENSE}{\texttt{LICENSE}} & \texttt{MIT} & 7{,}323 & 7{,}328 &  \\
+    \href{https://github.com/rutgers-apl/FLoPS}{FLoPS} & \href{https://github.com/rutgers-apl/FLoPS/tree/95081ac643663da507115abe23ebd5701433587f}{\texttt{95081ac}} & \href{https://github.com/rutgers-apl/FLoPS/blob/95081ac643663da507115abe23ebd5701433587f/LICENSE}{\texttt{LICENSE}} & \texttt{MIT} & 151 & 151 &  \\
+    \href{https://github.com/BoltonBailey/formal-snarks-project}{formal-snarks-project} & \href{https://github.com/BoltonBailey/formal-snarks-project/tree/67ccc51f80693fce005979a333972b358dfbe83d}{\texttt{67ccc51}} & \href{https://github.com/BoltonBailey/formal-snarks-project/blob/67ccc51f80693fce005979a333972b358dfbe83d/LICENSE}{\texttt{LICENSE}} & \texttt{MIT} & 11 & 11 &  \\
+    \href{https://github.com/FormalizedFormalLogic/Foundation}{Foundation} & \href{https://github.com/FormalizedFormalLogic/Foundation/tree/87d4dd68835a6c1eb8448b9c392d9ca51fe08d63}{\texttt{87d4dd6}} & \href{https://github.com/FormalizedFormalLogic/Foundation/blob/87d4dd68835a6c1eb8448b9c392d9ca51fe08d63/LICENSE}{\texttt{LICENSE}} & \texttt{Apache-2.0} & 1{,}026 & 1{,}033 &  \\
+    \href{https://github.com/NethermindEth/FVIntmax}{FVIntmax} & \href{https://github.com/NethermindEth/FVIntmax/tree/d7c4cbc5ec449471952ac5468f3b55bf61f5868e}{\texttt{d7c4cbc}} & \href{https://github.com/NethermindEth/FVIntmax/blob/d7c4cbc5ec449471952ac5468f3b55bf61f5868e/LICENSE}{\texttt{LICENSE}} & \texttt{Apache-2.0} & 47 & 47 &  \\
+    \href{https://github.com/cryspen/hax}{hax-proof-libs-lean} & \href{https://github.com/cryspen/hax/tree/dbd2026cc871063a455da37f88ade8f4167271bc}{\texttt{dbd2026}} & \href{https://github.com/cryspen/hax/blob/dbd2026cc871063a455da37f88ade8f4167271bc/LICENSE}{\texttt{LICENSE}} & \texttt{Apache-2.0} & 46 & 60 &  \\
+    \href{https://github.com/kim-em/hex-dev}{hex-dev} & \href{https://github.com/kim-em/hex-dev/tree/8c974172dea442251aead59be634e19753c37b2f}{\texttt{8c97417}} & \href{https://github.com/kim-em/hex-dev/blob/8c974172dea442251aead59be634e19753c37b2f/LICENSE}{\texttt{LICENSE}} & \texttt{Apache-2.0} & 3{,}005 & 2{,}989 &  \\
+    \href{https://github.com/leanprover-community/iris-lean}{iris-lean} & \href{https://github.com/leanprover-community/iris-lean/tree/5a790aed0dcad30219aa218c88a7fd306c092fae}{\texttt{5a790ae}} & \href{https://github.com/leanprover-community/iris-lean/blob/5a790aed0dcad30219aa218c88a7fd306c092fae/LICENSE}{\texttt{LICENSE}} & \texttt{Apache-2.0} & 313 & 316 &  \\
+    \href{https://github.com/CharlesHoskinson/jolt-tla}{jolt-tla} & \href{https://github.com/CharlesHoskinson/jolt-tla/tree/3918257edd8333d79e21d813a2fa70761aba538f}{\texttt{3918257}} & \href{https://github.com/CharlesHoskinson/jolt-tla/blob/3918257edd8333d79e21d813a2fa70761aba538f/LICENSE}{\texttt{LICENSE}} & \texttt{Apache-2.0} & 25 & 25 &  \\
+    \href{https://github.com/anoma/juvix-lean}{juvix-lean} & \href{https://github.com/anoma/juvix-lean/tree/f202e04219a84ce8f56b2c3fffa3409237c5daea}{\texttt{f202e04}} & \href{https://github.com/anoma/juvix-lean/blob/f202e04219a84ce8f56b2c3fffa3409237c5daea/LICENSE}{\texttt{LICENSE}} & \texttt{MIT} & 17 & 17 &  \\
+    \href{https://github.com/reilabs/lampe}{lampe} & \href{https://github.com/reilabs/lampe/tree/919a38712d22d05fc83e59af17ef57077abda1e0}{\texttt{919a387}} & \href{https://github.com/reilabs/lampe/blob/919a38712d22d05fc83e59af17ef57077abda1e0/LICENSE}{\texttt{LICENSE}} & \texttt{Apache-2.0} & 232 & 218 &  \\
+    \href{https://github.com/andaraiwin/lean-formal-reasoning-program}{lean-formal-reasoning-program} & \href{https://github.com/andaraiwin/lean-formal-reasoning-program/tree/4a12da01571e50e52075d52808f76e029be0e7c9}{\texttt{4a12da0}} & \href{https://github.com/andaraiwin/lean-formal-reasoning-program/blob/4a12da01571e50e52075d52808f76e029be0e7c9/LICENSE}{\texttt{LICENSE}} & \texttt{MIT} & 13 & 13 &  \\
+    \href{https://github.com/opencompl/lean-mlir}{lean-mlir} & \href{https://github.com/opencompl/lean-mlir/tree/96baaa07cb7466e2057539f6b5d65d648803421f}{\texttt{96baaa0}} & \href{https://github.com/opencompl/lean-mlir/blob/96baaa07cb7466e2057539f6b5d65d648803421f/LICENSE}{\texttt{LICENSE}} & \texttt{Apache-2.0} & 89 & 89 &  \\
+    \href{https://github.com/iasakura/lean-yjs}{lean-yjs} & \href{https://github.com/iasakura/lean-yjs/tree/ac087458509b7363b89da76d157f13d02761fd6a}{\texttt{ac08745}} & \href{https://github.com/iasakura/lean-yjs/blob/ac087458509b7363b89da76d157f13d02761fd6a/LICENSE}{\texttt{LICENSE}} & \texttt{MIT} & 96 & 96 &  \\
+    \href{https://github.com/kim-em/lean-zip}{lean-zip} & \href{https://github.com/kim-em/lean-zip/tree/9e62f214671be676cc580110c9b8ca74eac21b3d}{\texttt{9e62f21}} & \href{https://github.com/kim-em/lean-zip/blob/9e62f214671be676cc580110c9b8ca74eac21b3d/LICENSE}{\texttt{LICENSE}} & \texttt{Apache-2.0} & 624 & 624 &  \\
+    \href{https://github.com/digama0/lean4lean}{lean4lean} & \href{https://github.com/digama0/lean4lean/tree/8865b155abbf68d3a827fb3568bf6839780163c2}{\texttt{8865b15}} & \href{https://github.com/digama0/lean4lean/blob/8865b155abbf68d3a827fb3568bf6839780163c2/LICENSE}{\texttt{LICENSE}} & \texttt{Apache-2.0} & 115 & 117 &  \\
+    \href{https://github.com/konnov/leanda}{leanda} & \href{https://github.com/konnov/leanda/tree/cefba4b23d7438a6980a6ed08456428c0cb26ae4}{\texttt{cefba4b}} & \href{https://github.com/konnov/leanda/blob/cefba4b23d7438a6980a6ed08456428c0cb26ae4/LICENSE}{\texttt{LICENSE}} & \texttt{MIT} & 123 & 123 &  \\
+    \href{https://github.com/verse-lab/Lentil}{Lentil} & \href{https://github.com/verse-lab/Lentil/tree/bc3bc567928c4a4d0158496b7c18412f10b3304f}{\texttt{bc3bc56}} & \href{https://github.com/verse-lab/Lentil/blob/bc3bc567928c4a4d0158496b7c18412f10b3304f/LICENSE}{\texttt{LICENSE}} & \texttt{Apache-2.0} & 34 & 34 &  \\
+    \href{https://github.com/leanprover/LeroyCompilerVerificationCourse}{LeroyCompilerVerificationCourse} & \href{https://github.com/leanprover/LeroyCompilerVerificationCourse/tree/a2730e7f9228b9d7ecf4510f1f8652f2cae7ba01}{\texttt{a2730e7}} & \href{https://github.com/leanprover/LeroyCompilerVerificationCourse/blob/a2730e7f9228b9d7ecf4510f1f8652f2cae7ba01/LICENSE.md}{\texttt{LICENSE.md}} & \texttt{LGPL-2.1} & 15 & 17 &  \\
+    \href{https://github.com/leanprover/LNSym}{LNSym} & \href{https://github.com/leanprover/LNSym/tree/5c05220ff970e3bdd7813ad0c9ef3741522c8b92}{\texttt{5c05220}} & \href{https://github.com/leanprover/LNSym/blob/5c05220ff970e3bdd7813ad0c9ef3741522c8b92/LICENSE}{\texttt{LICENSE}} & \texttt{Apache-2.0} & 101 & 104 &  \\
+    \href{https://github.com/verse-lab/loom}{loom} & \href{https://github.com/verse-lab/loom/tree/78928abc9054b31d0bea85985496490baae95244}{\texttt{78928ab}} & \href{https://github.com/verse-lab/loom/blob/78928abc9054b31d0bea85985496490baae95244/LICENSE}{\texttt{LICENSE}} & \texttt{Apache-2.0} & 28 & 28 &  \\
+    \href{https://github.com/lexicone42/nickelean}{nickelean} & \href{https://github.com/lexicone42/nickelean/tree/9938f56b642143ad18af83b8851a7a1b04f50a91}{\texttt{9938f56}} & \href{https://github.com/lexicone42/nickelean/blob/9938f56b642143ad18af83b8851a7a1b04f50a91/LICENSE}{\texttt{LICENSE}} & \texttt{MIT} & 17 & 17 &  \\
+    \href{https://github.com/keeganperry7/posix-parsing}{posix-parsing} & \href{https://github.com/keeganperry7/posix-parsing/tree/e1dc3644c5f8c6601fe5d578c8edd4c9b28a6d1a}{\texttt{e1dc364}} & --- & \emph{none} & 13 & 13 & no license file \\
+    \href{https://github.com/keeganperry7/posix-submatching}{posix-submatching} & \href{https://github.com/keeganperry7/posix-submatching/tree/40eb11ec00990a6e73f8947b85f0c61d98074bb2}{\texttt{40eb11e}} & --- & \emph{none} & 8 & 8 & no license file \\
+    \href{https://github.com/reilabs/proven-zk}{proven-zk} & \href{https://github.com/reilabs/proven-zk/tree/fd156e1a0a0771271b7871972f428b0c93b5b56e}{\texttt{fd156e1}} & \href{https://github.com/reilabs/proven-zk/blob/fd156e1a0a0771271b7871972f428b0c93b5b56e/LICENSE}{\texttt{LICENSE}} & \texttt{Apache-2.0} & 10 & 10 &  \\
+    \href{https://github.com/lexicone42/ryu-lean4}{ryu-lean4} & \href{https://github.com/lexicone42/ryu-lean4/tree/5dd60fd7a0f08822a6efa0f97e585ce8efa270d4}{\texttt{5dd60fd}} & \href{https://github.com/lexicone42/ryu-lean4/blob/5dd60fd7a0f08822a6efa0f97e585ce8efa270d4/LICENSE}{\texttt{LICENSE}} & \texttt{MIT} & 56 & 56 &  \\
+    \href{https://github.com/leanprover/SampCert}{SampCert} & \href{https://github.com/leanprover/SampCert/tree/6e2392c165652063fefc628d8f047b77ca393b0f}{\texttt{6e2392c}} & \href{https://github.com/leanprover/SampCert/blob/6e2392c165652063fefc628d8f047b77ca393b0f/LICENSE}{\texttt{LICENSE}} & \texttt{Apache-2.0} & 167 & 175 &  \\
+    \href{https://github.com/lexicone42/shortest-decimal}{shortest-decimal} & \href{https://github.com/lexicone42/shortest-decimal/tree/4d5ea2d583f5fae86413317b4b01ebc4c4c91e4b}{\texttt{4d5ea2d}} & \href{https://github.com/lexicone42/shortest-decimal/blob/4d5ea2d583f5fae86413317b4b01ebc4c4c91e4b/LICENSE}{\texttt{LICENSE}} & \texttt{MIT} & 129 & 129 &  \\
+    \href{https://github.com/etheorem/etheorem}{SizzLean} & \href{https://github.com/etheorem/etheorem/tree/032ab6c6d67186ba60b734e0f2c44ba1bb8b6fb0}{\texttt{032ab6c}} & \href{https://github.com/etheorem/etheorem/blob/032ab6c6d67186ba60b734e0f2c44ba1bb8b6fb0/LICENSE}{\texttt{LICENSE}} & \texttt{LGPL-3.0} & 8 & 8 &  \\
+    \href{https://github.com/Verilean/sparkle}{sparkle} & \href{https://github.com/Verilean/sparkle/tree/73bbc74ac3244ea44b7846c212dbfd42786eff27}{\texttt{73bbc74}} & \href{https://github.com/Verilean/sparkle/blob/73bbc74ac3244ea44b7846c212dbfd42786eff27/LICENSE}{\texttt{LICENSE}} & \texttt{Apache-2.0} & 329 & 331 &  \\
+    \href{https://github.com/verse-lab/splean}{splean} & \href{https://github.com/verse-lab/splean/tree/e24286f51bd9ee207197d47ec587d592cdfb0ddc}{\texttt{e24286f}} & \href{https://github.com/verse-lab/splean/blob/e24286f51bd9ee207197d47ec587d592cdfb0ddc/LICENSE}{\texttt{LICENSE}} & \texttt{Apache-2.0} & 69 & 69 &  \\
+    \href{https://github.com/starkware-libs/formal-proofs}{starkware-formal-proofs} & \href{https://github.com/starkware-libs/formal-proofs/tree/d0dd8279612a248cbc6bf6d286030bf0bb2a37ff}{\texttt{d0dd827}} & --- & \emph{none} & 480 & 479 & no license file \\
+    \href{https://github.com/microsoft/SymCrypt}{symcrust} & \href{https://github.com/microsoft/SymCrypt/tree/c2e575ace0ea4b6b7a4184c1f19b81d1d5b2b5be}{\texttt{c2e575a}} & \href{https://github.com/microsoft/SymCrypt/blob/c2e575ace0ea4b6b7a4184c1f19b81d1d5b2b5be/LICENSE.txt}{\texttt{LICENSE.txt}} & \texttt{MIT} & 322 & 324 &  \\
+    \href{https://github.com/leanprover/TensorLib}{TensorLib} & \href{https://github.com/leanprover/TensorLib/tree/5eedd07b028057a317ae2fffbe48d6781bb34aff}{\texttt{5eedd07}} & \href{https://github.com/leanprover/TensorLib/blob/5eedd07b028057a317ae2fffbe48d6781bb34aff/LICENSE}{\texttt{LICENSE}} & \texttt{Apache-2.0} & 2 & 2 &  \\
+    \href{https://github.com/lean-dojo/TorchLean}{TorchLean} & \href{https://github.com/lean-dojo/TorchLean/tree/a0c5bdf2bb02c25b270a2c89a12ad2335c86c530}{\texttt{a0c5bdf}} & \href{https://github.com/lean-dojo/TorchLean/blob/a0c5bdf2bb02c25b270a2c89a12ad2335c86c530/LICENSE}{\texttt{LICENSE}} & \texttt{MIT} & 700 & 701 &  \\
+    \href{https://github.com/ionathanch/TTBFL}{TTBFL} & \href{https://github.com/ionathanch/TTBFL/tree/274b8d0410b7c1671f15f140e75634065bb06bf9}{\texttt{274b8d0}} & \href{https://github.com/ionathanch/TTBFL/blob/274b8d0410b7c1671f15f140e75634065bb06bf9/LICENCE}{\texttt{LICENCE}} & \texttt{Zlib} & 135 & 136 &  \\
+    \href{https://github.com/Verified-zkEVM/VCV-io}{VCV-io} & \href{https://github.com/Verified-zkEVM/VCV-io/tree/24fe01dbaf899b7bb2b19453ae2ada61b49b4255}{\texttt{24fe01d}} & \href{https://github.com/Verified-zkEVM/VCV-io/blob/24fe01dbaf899b7bb2b19453ae2ada61b49b4255/LICENSE}{\texttt{LICENSE}} & \texttt{Apache-2.0} & 772 & 773 &  \\
+    \href{https://github.com/verse-lab/veil}{veil} & \href{https://github.com/verse-lab/veil/tree/6a12daa8d3e0e8a9808a40ecab17ca030b557063}{\texttt{6a12daa}} & \href{https://github.com/verse-lab/veil/blob/6a12daa8d3e0e8a9808a40ecab17ca030b557063/LICENSE}{\texttt{LICENSE}} & \texttt{Apache-2.0} & 6 & 6 &  \\
+    \href{https://github.com/marcusrossel/verified-compiler}{verified-compiler} & \href{https://github.com/marcusrossel/verified-compiler/tree/6940e67e5ec2d846310a927c2211d2b94f69162c}{\texttt{6940e67}} & \href{https://github.com/marcusrossel/verified-compiler/blob/6940e67e5ec2d846310a927c2211d2b94f69162c/LICENSE}{\texttt{LICENSE}} & \texttt{MIT} & 6 & 6 &  \\
+    \href{https://github.com/fradamt/verified-consensus}{verified-consensus} & \href{https://github.com/fradamt/verified-consensus/tree/e403284a81a272924891b88471e28acc47b556f0}{\texttt{e403284}} & --- & \emph{none} & 272 & 272 & no license file \\
+    \href{https://github.com/lfglabs-dev/verity}{verity} & \href{https://github.com/lfglabs-dev/verity/tree/eeb7a3abe85dd88cc8ee2ece5a77da9b2aba2978}{\texttt{eeb7a3a}} & \href{https://github.com/lfglabs-dev/verity/blob/eeb7a3abe85dd88cc8ee2ece5a77da9b2aba2978/LICENSE.md}{\texttt{LICENSE.md}} & \texttt{MIT} & 1{,}262 & 1{,}260 &  \\
+    \href{https://github.com/powdr-labs/yul-compiler}{yul-compiler} & \href{https://github.com/powdr-labs/yul-compiler/tree/37ead3d1abddd98ef5c69ef434de8bbe6bb868af}{\texttt{37ead3d}} & \href{https://github.com/powdr-labs/yul-compiler/blob/37ead3d1abddd98ef5c69ef434de8bbe6bb868af/LICENSE}{\texttt{LICENSE}} & \texttt{Apache-2.0} & 155 & 155 &  \\
+    \href{https://github.com/powdr-labs/yul-semantics}{yul-semantics} & \href{https://github.com/powdr-labs/yul-semantics/tree/f4e6187d684c0ebaee751750c5c368a4226abb73}{\texttt{f4e6187}} & \href{https://github.com/powdr-labs/yul-semantics/blob/f4e6187d684c0ebaee751750c5c368a4226abb73/LICENSE}{\texttt{LICENSE}} & \texttt{Apache-2.0} & 25 & 25 &  \\
+    \midrule
+    \multicolumn{4}{l}{Total (57 repositories)} & 21{,}692 & 21{,}718 & 5 flagged \\
+    \bottomrule
+  \end{tabular}
+\end{table}
 
 \section{Per-repository grid results}
 \label{app:perrepo}
@@ -830,12 +565,12 @@ Table~\ref{tab:perrepo} gives, for each of the 57 sampled repositories, the numb
 matched pairs drawn and the PASS count over scorable attempts for every (model, strategy) cell
 of the grid in \S\ref{sec:grid}. A dash marks a repository with no scorable attempt in that
 cell; the four repositories whose sampled problems are \texttt{malformed} on both sides
-(\S\ref{sec:setup}) are dashes throughout and do not enter the macro-average. Every entry is
+(\S\ref{sec:setup}) are dashes throughout and contribute no scorable attempts. Every entry is
 computed from \texttt{results/outcomes.tsv}, the committed per-attempt projection of the run
 trees.
 
 \begin{table}[h]
-  \caption{PASS / scorable per repository and grid cell, 50-turn budget. \emph{Pairs} is the
+  \caption{\todo{FIXME, just sample the missing problems from the benchmark corpus} PASS / scorable per repository and grid cell, 50-turn budget. \emph{Pairs} is the
   number of matched \texttt{challenge\_id}s drawn from the repository (up to two).}
   \label{tab:perrepo}
   \centering
@@ -908,28 +643,29 @@ trees.
   \end{tabular}
 \end{table}
 
+\clearpage  % flush the license and per-repository tables before the verbatim listings
 \section{Solver details}
 \label{app:solver}
 
 \paragraph{Agent loop.} The solver is a ReAct-style loop over a work copy of the challenge file
-inside a checkout of the repository at its pinned revision. Each turn the model may call exactly
-one tool; every tool result is followed by the number of requests remaining in the budget, so
-the model is never surprised by the turn limit. The budget for the main grid is 50 requests, and
-the budget curve of \S\ref{sec:tamper} varies it over 15, 30, 50 and 100.
+inside a checkout of the repository at its pinned revision. Every model request counts against
+the budget whether or not it calls a tool; every tool result is followed by the number of
+requests remaining, so the model is never surprised by the turn limit. The budget for the main grid is 50 requests, and
+the budget curve of \S\ref{sec:grid} varies it over 15, 30, 50 and 100.
 
 \paragraph{Tools.} Five tools are exposed:
 \begin{itemize}
-  \item \texttt{list\_proof\_files} --- list the proof files in the work copy;
-  \item \texttt{read\_file} --- return a line range of a file in the work copy;
-  \item \texttt{search} --- search the repository for a string or identifier;
+  \item \texttt{list\_proof\_files} --- list the proof files in the work copy
+  \item \texttt{read\_file} --- return a line range of a file in the work copy
+  \item \texttt{search} --- search the repository for a string or identifier
   \item \texttt{submit\_solution} --- replace the challenge file with a candidate and compile it;
-    the tool returns the compiler's diagnostics, whether holes remain, and the verdict of the
-    statement-preservation guard, so a failed submission is feedback rather than a terminal
-    outcome;
+    the tool returns the compiler’s diagnostics and the number of holes remaining, so a failed
+    submission is feedback rather than a terminal outcome (the statement-preservation guard of
+    \S\ref{sec:tampercheck} is \emph{not} run here; it is applied once, to the final file)
   \item \texttt{give\_up} --- end the attempt with the \texttt{gave\_up} outcome.
 \end{itemize}
 
-\paragraph{Scoring compile.} A submission is compiled against the repository's prebuilt
+\paragraph{Scoring compile.} A submission is compiled against the repository’s prebuilt
 \texttt{.olean} closure at the pinned revision, using the toolchain recorded for that
 repository, so that only the challenge file is rebuilt. The result is accepted as
 \texttt{PASS} when compilation succeeds, no \texttt{sorry} (or equivalent hole) remains, and the
@@ -937,17 +673,215 @@ guard of \S\ref{sec:tampercheck} finds every holed theorem present with its stat
 unchanged up to \texttt{:=}. Attempts are dispatched with a bounded concurrency per provider;
 the residual transport faults in the leanstral arm (\S\ref{sec:limitations}, L7) are the
 attempts that did not complete even after being re-solved at low concurrency.
-\todo{verbatim system prompt and the JSON tool schemas, from the solver source, which is not
-part of this submission tree}
+\paragraph{System prompt.} The system prompt is a fixed template with two slots, the
+prover name and the request budget; the text below is exactly what every grid attempt received
+(Lean, 50 requests). The budget-curve arms differ only in the number.
+\begin{lstlisting}
+You are a proof engineer. The following lean proof contains one or more holes
+that are left to be proved. Your job: edit the file so it compiles properly, deriving
+any helper lemmas as you need.
+
+Rules:
+- Your final (scored) file MUST compile and MUST NOT contain `sorry`, `admit`,
+  `Admitted`, `oops`, or any `axiom`/`axiomatization`. No cheating.
+- You MAY submit a PARTIAL proof with `sorry`/`admit` placeholders while iterating: it is
+  compiled with holes allowed and you get feedback — whether the rest type-checks and how
+  many holes remain — so you can lock in the structure first, then fill each hole. A file
+  with holes is never scored as solved (only a fully hole-free, compiling file is), and
+  `axiom`/`axiomatization` are rejected outright.
+- You may explore proof files (.thy/.lean/.v) to learn definitions, lemmas, and idioms:
+  `list_proof_files` lists the repo's own files; `search` regex-searches the repo AND its
+  vendored libraries (e.g. mathlib under `.lake`) and shows matches with surrounding
+  context; `read_file` reads any of them (including library files like
+  `.lake/packages/mathlib/...`). Prefer `search` to locate a relevant lemma, then
+  `read_file` it.
+- You may NOT access the internet or git history. Work only from the files provided.
+- Iterate: call `submit_solution` with the full file; it compiles it and returns the
+  compiler errors (and, for a partial submission, the count of remaining holes). Fix and
+  resubmit until it compiles hole-free, or `give_up` with a reason.
+- BUDGET: you have at most 50 model requests — every `read_file`, `list_proof_files`,
+  `search`, and `submit_solution` call counts, and you are HARD-CUT-OFF when the budget is
+  exhausted (no final turn). Every tool result reports your remaining budget (`turns_left`
+  / `[budget: …]`); WATCH IT. Submit a COMPLETE first attempt EARLY (within your first few
+  turns) — a full file you then refine against compile errors — rather than exploring
+  until you run out. Don't over-explore; `read_file`/`search` are AUTO-DISABLED once few
+  requests remain, leaving you only `submit_solution`. Only a fully hole-free submission
+  is scored, so always get at least one complete attempt submitted.
+\end{lstlisting}
+
+\paragraph{User message.} The first user turn is the template below with the challenge's
+repository-relative path and the full holed file spliced in. Nothing else is supplied: not the
+name of the deleted lemma, not the original proof, and not the repository's git history.
+\begin{lstlisting}
+The file `{file_path}` has one or more holes where proofs need to be completed. Make the file compile. Here is the current (holed) file:
+
+```
+{challenge_file_content}
+```
+\end{lstlisting}
+
+\paragraph{Budget accounting.} Every tool result is suffixed with
+\texttt{[budget: \textasciitilde{}$k$ of $B$ requests left.]}, computed from the framework's own
+request counter, and \texttt{submit\_solution} additionally returns \texttt{turns\_left} as a
+field. When at most three requests remain the suffix changes to an instruction to submit
+immediately. Once the remaining budget drops to $\max(4, \lfloor B/5 \rfloor)$ requests, the two
+exploration tools (\texttt{read\_file}, \texttt{search}) stop returning content and instead
+return the same instruction, so the last fifth of the budget can only be spent submitting.
+When the counter hits $B$ the run is cut off with no final turn, and whatever file is on disk
+from the last submission is compiled and scored.
+
+\paragraph{Submission feedback.} \texttt{submit\_solution} writes the candidate over the
+challenge file and compiles it. It returns a JSON object with \texttt{ok} (compiled hole-free),
+\texttt{compiles}, \texttt{holes\_remaining}, \texttt{error} (the compiler output, truncated to
+3{,}000 characters, or a note that only holes remain), \texttt{turns\_left} and \texttt{budget}.
+A candidate containing \texttt{axiom} or \texttt{axiomatization} is rejected before compilation
+with an error naming the token. A candidate that still contains \texttt{sorry} or \texttt{admit}
+is compiled with holes allowed so the model gets type-checking feedback on the rest of the file,
+but is never scored. Only a hole-free candidate that compiles sets \texttt{ok}.
+
+\paragraph{Ending an attempt.} The loop ends when the model emits the structured
+\texttt{final\_result} object below (\texttt{succeeded}, \texttt{gave\_up}, \texttt{reason}).
+An output validator rejects a \texttt{final\_result} with \texttt{gave\_up=false} when
+\texttt{submit\_solution} has never been called, returning a retry message that tells the model
+to submit or give up, so the model cannot finish by exploring alone. The verdict fields are
+advisory: the scored outcome is computed from the last file written to disk, never from the
+model's self-report.
+
+\paragraph{Tool definitions.} The five tools and the \texttt{final\_result} output tool are
+defined as Python functions; the framework (pydantic-ai) derives each JSON schema from the
+signature and takes the description from the docstring. The definitions below are dumped from
+the constructed agent, not transcribed.
+\begin{lstlisting}
+{
+  "name": "list_proof_files",
+  "description": "List the repo's OWN proof files (.thy/.lean/.v) whose path contains `query`.\n\nExcludes vendored library dirs (.lake / mathlib etc.) \u2014 those are huge; reach\ntheir lemmas with `search` and read specific hits with `read_file`.",
+  "parameters_json_schema": {
+    "additionalProperties": false,
+    "properties": {
+      "query": {
+        "default": "",
+        "type": "string"
+      }
+    },
+    "type": "object"
+  }
+}
+{
+  "name": "read_file",
+  "description": "Read lines [start,end] of a proof file (relative to the repo root).",
+  "parameters_json_schema": {
+    "additionalProperties": false,
+    "properties": {
+      "path": {
+        "type": "string"
+      },
+      "start": {
+        "default": 1,
+        "type": "integer"
+      },
+      "end": {
+        "default": 400,
+        "type": "integer"
+      }
+    },
+    "required": [
+      "path"
+    ],
+    "type": "object"
+  }
+}
+{
+  "name": "search",
+  "description": "Regex-search proof files (.thy/.lean/.v) across the repo AND its vendored\nlibraries (e.g. mathlib under .lake) for `pattern`, returning each match as\n`path:line` with `context` surrounding lines. Use it to find lemma statements,\ndefinitions, and tactic idioms, then `read_file` the most promising hits\n(library files like `.lake/packages/mathlib/...` are readable).\n\n`pattern` is a ripgrep (Rust-regex) pattern: alternation is `|` (NOT `\\|`), and\n`.` is any char. NOTE library lemmas usually appear UNQUALIFIED in source \u2014 search\n`sub_add_cancel`, not `Nat.sub_add_cancel`.",
+  "parameters_json_schema": {
+    "additionalProperties": false,
+    "properties": {
+      "pattern": {
+        "type": "string"
+      },
+      "context": {
+        "default": 2,
+        "type": "integer"
+      }
+    },
+    "required": [
+      "pattern"
+    ],
+    "type": "object"
+  }
+}
+{
+  "name": "submit_solution",
+  "description": "Submit the full file. It is compiled and the result returned. A hole-free file\nthat compiles cleanly is scored as solved; a file with `sorry`/`admit` is compiled\nwith holes allowed for FEEDBACK (never scored) so you can iterate on partial\nproofs; `axiom`/`axiomatization` are rejected as cheating.",
+  "parameters_json_schema": {
+    "additionalProperties": false,
+    "properties": {
+      "solution": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "solution"
+    ],
+    "type": "object"
+  }
+}
+{
+  "name": "give_up",
+  "description": "Abandon this challenge with a short reason.",
+  "parameters_json_schema": {
+    "additionalProperties": false,
+    "properties": {
+      "reason": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "reason"
+    ],
+    "type": "object"
+  }
+}
+{
+  "name": "final_result",
+  "description": "The final response which ends this conversation",
+  "parameters_json_schema": {
+    "properties": {
+      "succeeded": {
+        "description": "Did the final submission compile cleanly?",
+        "type": "boolean"
+      },
+      "gave_up": {
+        "default": false,
+        "type": "boolean"
+      },
+      "reason": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "description": "Give-up reason, if any."
+      }
+    },
+    "required": [
+      "succeeded"
+    ],
+    "title": "Verdict",
+    "type": "object"
+  }
+}
+\end{lstlisting}
 
 \section{Cost of the grid}
 \label{app:cost}
 
 \begin{table}[h]
-  \caption{Cost of the grid, both strategies combined. Average turns is taken over attempts that
-  reached a solver outcome, so \texttt{malformed} and transport-fault rows --- which never
-  consumed budget --- are excluded from that column only. Solver time is per-attempt wall-clock,
-  summed; attempts ran concurrently, so it is not elapsed time.}
+  \caption{Cost of the grid, both strategies combined. Average turns is taken over attempts that reached a solver outcome, so \texttt{malformed} \todo{When we sample problems from the benchmark we shouldn't have any malformed problems anymore} and transport-fault rows are excluded from that column only (transfer-faults never consumed the budget). Solver time is per-attempt wall-clock, summed; attempts ran concurrently, so it is not elapsed time.}
   \label{tab:cost}
   \centering
   \small
@@ -966,22 +900,39 @@ part of this submission tree}
 
 The strongest model is also by far the cheapest: \texttt{gpt-5.6-sol} uses a fifth of the turns
 and a seventh of the input tokens of \texttt{claude-sonnet-5}, which is consistent with
-\S\ref{sec:tamper} --- an attempt that ends by deleting the target statement ends early.
+\S\ref{sec:grid} --- an attempt that ends by deleting the target statement ends early.
 
-\section{Temporal holdout}
+\section{Contamination: methods and additional results}
+\label{app:contamination}
+
+\subsection{Temporal holdout}
 \label{app:temporal}
 
-Table~\ref{tab:temporal} is the full cell table behind \S\ref{sec:contamination}: macro PASS
-on either side of two training-data cutoffs, for every model and holing strategy. The pre-cutoff
-side is 10 problems at 2024-06 and 19 at 2025-01, so no cell carries an interval and no single
-cell is significant; the text reports only the direction and its consistency.
+For each challenge, we walked the pinned checkout's history to find the commit that first
+introduced an actual declaration of the deleted lemma's name, rather than merely mentioning
+it. Dating succeeded for all 21{,}692 leaf challenges across all 57 repositories. Of these,
+430 (2.0\%) predate 2024-06 and 1{,}164 (5.4\%) predate 2025-01. This dates a declaration
+within the inspected repository history; it does not establish when equivalent content
+first became publicly available elsewhere.
+
+The two dates are analysis thresholds, not verified training cutoffs for the evaluated
+models. They partition the 103-problem evaluation sample into 10/93 and 19/84 pre/post
+groups. Table~\ref{tab:temporal} retains the preliminary per-repository averages supplied
+in the current analysis. On this aggregation, \texttt{claude-sonnet-5} performs worse on
+older lemmas in all four comparisons, \texttt{gpt-5.6-sol} is mixed, and
+\texttt{leanstral-1-5} performs better on older lemmas in all four. These comparisons
+reuse problems across cutoffs and strategies, so agreement in direction is not independent
+replication. Small pre-cutoff groups, differences in task difficulty, and the specialist's
+residual transport faults also limit interpretation. Neither a positive age gap nor its
+absence identifies memorization.
 
 \begin{table}[h]
-  \caption{Temporal holdout. Macro-averaged PASS on problems whose deleted lemma was introduced
-  before versus after each cutoff. $n$ is the number of problems on each side, out of 103
-  scorable. The pre-cutoff side is small by construction: only 2.0\% of the corpus's deleted
-  lemmas predate 2024-06. Neither general-purpose model is consistently better on the older
-  lemmas; the Lean-specialised model is better on them in all four of its cells.}
+  \caption{Preliminary temporal holdout results. Percentages are per-repository mean PASS
+  rates; $n$ describes the nominal partition of the 103-problem sample, not the denominator
+  of a displayed percentage. \todo{Recompute per-problem PASS/scorable counts and intervals
+  from \texttt{pipeline/temporal\_holdout.tsv}, apply model-specific context exclusions,
+  regenerate \texttt{temporal-holdout.pdf}, and re-check the directions reported in
+  \S\ref{sec:contamination}.}}
   \label{tab:temporal}
   \centering
   \small
@@ -1002,21 +953,69 @@ cell is significant; the text reports only the direction and its consistency.
   \end{tabular}
 \end{table}
 
+\subsection{Deletion-count sweep}
+\label{sec:sweep}
+
+We varied deletion count over $N \in \{1,2,3,5\}$ while holding the file--corollary pairs
+and repository distribution fixed. The mining seed pins the corollary, and a pair enters
+the sample only if it yields exactly $N$ deletions and both the challenge and ground truth
+compile-validate at every depth. The resulting sample contains 100 pairs from 30
+repositories, evaluated with \texttt{claude-sonnet-5} at a 50-turn budget.
+
+PASS counts are 24, 8, 6, and 5 out of 100; tampering counts are 35, 27, 20, and 20.
+For comparison, a homogeneous independence reference with $p_1=0.24$ gives
+$p_1^2=5.76\%$, $p_1^3=1.38\%$, and $p_1^5=0.0796\%$. The higher-depth results exceed
+this reference, but it is not a diagnostic test of memorization. Lemmas within a closure
+share context and proof structure, and difficulty varies across pairs. Shared derivation
+and retrieval can both produce dependence, while heterogeneity alone can make the
+probability of joint success exceed a power of the mean single-deletion success rate.
+The sweep therefore measures robustness to additional deletions without identifying
+whether single-deletion successes relied on memorized proofs.
+
+\begin{figure}[t]
+  \centering
+  \includegraphics{deletion-curve.pdf}
+  \caption{PASS versus deletion count for \texttt{claude-sonnet-5} at a 50-turn budget
+  on the same 100 file--corollary pairs, compile-validated at every depth. The dotted
+  $p_1^N$ curve is a descriptive independence reference, not a test that distinguishes
+  retrieval from derivation. \todo{The existing \texttt{deletion-curve.pdf} plots
+  per-repository means (27.1 / 15.6 / 15.1 / 11.5). Regenerate it with per-problem
+  rates (24 / 8 / 6 / 5 of 100) and corresponding bootstrap 95\% intervals.}}
+  \label{fig:sweep}
+\end{figure}
+
+\subsection{Planned verbatim recall probe}
+\label{sec:recall}
+
+The proposed probe supplies each deleted lemma's name and surrounding file context with
+the body removed, asks the model to state the lemma, and measures exact, normalized, and
+token-level agreement with the original. Recall scores would be compared with solve
+outcomes on the same problems, separately by holing strategy. This experiment is not yet
+complete and contributes no evidence to the present results. Even a positive association
+would require interpretation: predictable statements or easier lemmas may support both
+recall-like outputs and successful derivation without demonstrating training exposure.
+\todo{Specify exactly which statement/proof tokens are hidden and requested; report recall
+scores and associations with solve outcome, with uncertainty, if the experiment is completed.}
+
 \section{Broader impacts}
 \label{app:impacts}
 
-The corpus is proof code redistributed from public repositories
-under the licenses surveyed in Appendix~\ref{app:licensing}; it contains no personal data and no
-dual-use capability of its own. The intended positive impact is to make machine-assisted proof
-engineering measurable on realistic work, which is a prerequisite for lowering the cost of
-formally verifying safety- and security-critical software. Two risks are worth naming. First,
-a benchmark that is optimised against can be gamed at the level of the \emph{statement} rather
-than the proof; \S\ref{sec:tamper} measures exactly this, and the guard of \S\ref{sec:tampercheck}
-is a partial mitigation that we recommend any verified-reward environment adopt. Second, the
-corpus is drawn from projects whose authors did not release their work as an evaluation set; we
-mitigate by pinning and citing every source repository at its exact revision, surveying licenses
-at that revision, and flagging rather than silently including repositories whose terms do not
-clearly permit redistribution (Appendix~\ref{app:licensing}).
+The corpus is proof code redistributed from public repositories under
+the licenses surveyed in Appendix~\ref{app:licensing}; it contains no
+personal data and no dual-use capability of its own. The intended
+positive impact is to make machine-assisted proof engineering
+measurable on realistic work, which is a prerequisite for lowering the
+cost of formally verifying safety- and security-critical software. Two
+risks are worth naming. First, a benchmark that is optimized against
+can be gamed at the level of the \emph{statement} rather than the
+proof; \S\ref{sec:grid} measures exactly this, and the guard of
+\S\ref{sec:tampercheck} is a partial mitigation that we recommend any
+verified-reward environment adopt. Second, the corpus is drawn from
+projects whose authors did not release their work as an evaluation
+set; we mitigate by pinning and citing every source repository at its
+exact revision, surveying licenses at that revision, and flagging
+rather than silently including repositories whose terms do not clearly
+permit redistribution (Appendix~\ref{app:licensing}).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
