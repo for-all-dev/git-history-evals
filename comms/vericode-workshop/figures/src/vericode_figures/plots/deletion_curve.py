@@ -1,5 +1,10 @@
-"""Figure (f): PASS vs deletion depth (#133), macro rate with bootstrap CI whiskers,
-plus the independence-null reference p1^N drawn from the depth-1 micro rate.
+"""Figure (f): PASS vs deletion depth (#133), per-problem (micro) rate with bootstrap CI
+whiskers, plus the independence-null reference p1^N drawn from the depth-1 rate.
+
+Per-problem, not per-repository: the sweep holds one set of 100 file-corollary pairs fixed
+across depths, so the problem is the unit the design varies and the repository is not a
+meaningful stratum here (30 repos, most contributing a couple of pairs). The paper's
+deletion-count sweep section quotes the same 24/8/6/5-of-100 counts.
 
 pipeline/deletion_curve.tsv may not exist on older checkouts; like budget_curve, this
 prints a skip message and renders nothing rather than failing, so the same `uv run
@@ -32,9 +37,8 @@ def render(pipeline_dir: Path, out_dir: Path) -> list[Path]:
                 {
                     "depth": float(row["depth"]),
                     "micro": float(row["micro_rate"]),
-                    "macro": float(row["macro_rate"]),
-                    "lo": float(row["macro_ci_lo"]),
-                    "hi": float(row["macro_ci_hi"]),
+                    "lo": float(row["micro_ci_lo"]),
+                    "hi": float(row["micro_ci_hi"]),
                 }
             )
     rows.sort(key=lambda r: r["depth"])
@@ -44,10 +48,10 @@ def render(pipeline_dir: Path, out_dir: Path) -> list[Path]:
     depths = [r["depth"] for r in rows]
     ax.errorbar(
         depths,
-        [r["macro"] * 100 for r in rows],
+        [r["micro"] * 100 for r in rows],
         yerr=[
-            [(r["macro"] - r["lo"]) * 100 for r in rows],
-            [(r["hi"] - r["macro"]) * 100 for r in rows],
+            [(r["micro"] - r["lo"]) * 100 for r in rows],
+            [(r["hi"] - r["micro"]) * 100 for r in rows],
         ],
         color=MODEL_COLORS[_MODEL],
         marker="o",

@@ -32,7 +32,8 @@
 \newcommand{\todo}[1]{\textcolor{red}{\textbf{[TODO: #1]}}}
 \newcommand{\doi}[1]{\href{https://doi.org/#1}{doi:#1}}
 \newcommand{\arxiv}[1]{\href{https://arxiv.org/abs/#1}{arXiv:#1}}
-% Anonymized artifact URL; swap for the real dataset id at camera-ready only.
+% Identifier for the full released corpus, withheld during review; swap for the real
+% dataset id at camera-ready only. The review-time artifact is the supplementary bundle.
 \newcommand{\anonurl}{\texttt{[anonymized dataset]}}
 
 \title{ProofAblate: A Compile-Validated Proof Synthesis
@@ -76,7 +77,7 @@ SWE-bench \citep{jimenez2024swebench} and its descendants provide a related sett
 
 VeriSoftBench \citep{xin2026verisoftbench} provides 500 Lean~4 proof obligations from 23 software-verification repositories, with valid reference proofs, compilable holed files, and curated or full-repository context. It characterizes difficulty using proof length and dependency structure and reports correlations with solver success, but does not report a calibrated predictive difficulty model. While its leakage controls exclude target-proof information from evaluation prompts, it does not report an empirical analysis of pretraining contamination. ProofAblate deletes a supporting declaration and holes its downstream proof sites. Our leaf split alone contains 21{,}692 challenges, over $40\times$ as many as VeriSoftBench. The full benchmark includes 43{,}410 challenges across both holing strategies from 57 repositories. We additionally analyze statement tampering, lemma introduction dates, and sensitivity to deletion depth.
 
-Our contamination analysis (\S\ref{sec:contamination}) uses temporal comparisons, as in LiveCodeBench \citep{jain2025livecodebench} and GSM1K \citep{zhang2024careful}, and perturbation testing, as in GSM-Symbolic \citep{mirzadeh2025gsmsymbolic}. Verbatim-recall probing \citep{golchin2024timetravel} remains planned work.
+Our contamination analysis (\S\ref{sec:contamination}) uses temporal comparisons, as in LiveCodeBench \citep{jain2025livecodebench} and GSM1K \citep{zhang2024careful}, perturbation testing, as in GSM-Symbolic \citep{mirzadeh2025gsmsymbolic}, and verbatim-recall probing \citep{golchin2024timetravel}.
 
 \section{Method}
 \label{sec:method}
@@ -116,6 +117,16 @@ One exploit for the compile-and-no-holes oracle is that the solver can make the 
 
 We mine the corpus from 57 public Lean~4 repositories, each pinned to a specific revision and toolchain. Of 26{,}157 mined candidate ablations per holing strategy, 21{,}692 leaf holing challenges are valid and 21{,}718 whole-body holing challenges are valid. The small difference comes from the fact that a deletion can validate under one holing strategy but not the other. The two strategies apply to the same set of candidate selections, so the released splits form a matched pair.
 
+\paragraph{Availability.} The three ablators, the evaluation harness, the pipeline
+scripts, the per-repository manifests and the 113-pair matched evaluation sample of
+\S\ref{sec:setup} accompany this submission as supplementary material, together with one
+prebuilt \texttt{.olean} closure (verified-compiler) so that a scored challenge can be
+reproduced end to end without first building a repository. The mined corpus itself is
+1.8\,GB of JSONL across the two holing strategies and does not fit a supplementary bundle;
+it is released separately at \anonurl. Scoring any challenge outside the one bundled
+closure requires a built checkout of its repository, which is the limitation of
+\S\ref{sec:limitations} (L3) rather than a property of the data.
+
 \subsection{Skew}
 \label{sec:skew}
 
@@ -129,7 +140,7 @@ The corpus is heavily concentrated. The largest repository contributes 33.8\% of
 
 The solver is a ReAct-style agent with five tools: (1) list the proof files in the work copy, (2) read a file range, (3) search the repository, (4) submit a candidate solution, and (5) give up. When the agent submits a candidate solution, the system returns the compilation result, providing a feedback loop. Every tool result also reports the remaining request budget.
 
-We evaluate three models: \texttt{gpt-5.6-sol} (OpenAI), \texttt{claude-sonnet-5} (Anthropic), and \texttt{leanstral-1-5} (Mistral). Leanstral is a lean-specialized model, while the other two are general-purpose, frontier models. The problem set is a matched sample: for each of the 57 repositories, we draw up to two \texttt{challenge\_id}s present in \emph{both} splits under a fixed seed, giving 113 pairs (56 repositories contribute two, one contributes one). Ten of the 113 pairs are \texttt{malformed} on both sides and are excluded from both, leaving 103 scorable pairs. We run every model over both holing strategies on this same identifier set with a 50-turn budget. Every PASS rate is a count over the scorable problems, and confidence intervals are bootstrap 95\% intervals over problems.
+We evaluate three models: \texttt{gpt-5.6-sol} (OpenAI), \texttt{claude-sonnet-5} (Anthropic), and \texttt{leanstral-1-5} (Mistral). Leanstral is a lean-specialized model, while the other two are general-purpose, frontier models. The problem set is a matched sample: for each of the 57 repositories, we draw up to two \texttt{challenge\_id}s present in \emph{both} splits under a fixed seed, giving 113 pairs (56 repositories contribute two, one contributes one). Ten of the 113 pairs are \texttt{malformed} on both sides and are excluded from both, leaving 103 scorable pairs.\todo{The ten are environment-malformed (incompletely built packages), not bad challenges; they are being built and re-run to bring the sample to 113 scorable. Every 103-based denominator, PASS count and interval in \S\ref{sec:grid}, \S\ref{sec:contamination}, Tables~\ref{tab:grid}, \ref{tab:mix}, \ref{tab:perrepo}, \ref{tab:cost} and \ref{tab:temporal}, the budget curve, and the recall-probe join must be regenerated together once that run completes --- do not update any of them piecemeal.} We run every model over both holing strategies on this same identifier set with a 50-turn budget. Every PASS rate is a count over the scorable problems, and confidence intervals are bootstrap 95\% intervals over problems.
 
 The six runs consumed 441.2M input and 10.4M output tokens and 95.3 hours of aggregate solver time; per-model turn and token costs are in Table~\ref{tab:cost} (Appendix~\ref{app:cost}).
 
@@ -203,9 +214,9 @@ One might expect tamper rates to rise with turn budget; the full curve in Figure
 
 For each agent, we calibrate a difficulty model. Features are computed \emph{inside} the ablator, so they are visible in the released rows rather than being a post-hoc artifact of our analysis code: size and shape (line count, tactic count, cyclomatic complexity, fan-in of the deleted lemma), what the proof \emph{does} (counts of automation, rewriting and structural steps, an automation-only flag, maximum nesting depth), and what the corollary rests on (direct and transitive dependency counts). Size alone cannot distinguish a one-line \texttt{simp} call from a forty-line induction with the same step count, and that distinction is what mostly decides whether a lemma can be rederived.
 
-The model is trained on the grid outcomes of \S\ref{sec:grid} (678 labelled attempts, of which 615 are scorable \todo{Fix the panel used for the baseline and redo this}). The model is then evaluated on a \textbf{disjoint} second sample that is scored \emph{before} its outcomes exist, a discipline the pipeline enforces rather than merely recommends. We report held-out ROC-AUC for discrimination and the Brier score with the Murphy decomposition (reliability, resolution, uncertainty) plus a decile reliability diagram for calibration, and the per-feature coefficients, since “fan-in and tactic count predict difficulty, file size does not” is a more useful statement to this audience than an AUC.
+Each agent's model is trained on that agent's own outcomes from the grid of \S\ref{sec:grid} and evaluated on a \textbf{disjoint} second sample of challenges drawn from repositories and files the training sample does not touch. Difficulty is model-dependent (below), so a panel pooled across agents would predict an average solver rather than a particular one; per-agent models are what the quantity means. We report held-out ROC-AUC for discrimination and the Brier score with the Murphy decomposition (reliability, resolution, uncertainty) plus a decile reliability diagram for calibration, and the per-feature coefficients, since “fan-in and tactic count predict difficulty, file size does not” is a more useful statement to this audience than an AUC.
 
-We note the labels are \emph{model}-dependent in a way the grid from \S\ref{sec:grid} makes concrete. We found that the whole-body ablation is harder than leaf ablation for two models and easier for a thirdn.
+We note the labels are \emph{model}-dependent in a way the grid from \S\ref{sec:grid} makes concrete. We found that the whole-body ablation is harder than leaf ablation for two models and easier for a third.
 
 There are two caveats the numbers carry. First, the labels are budget-dependent: this is difficulty \emph{at budget $B$}. Second, the scorer counts \texttt{tampered} and \texttt{turn\_limit} as failures while dropping  \texttt{trivial} and \texttt{context\_exceeded}, matching Table~\ref{tab:outcome-predicates}; since roughly half of \texttt{gpt-5.6-sol}’s attempts are tampers, the model is in part predicting where a solver will choose to cheat.
 
@@ -214,13 +225,13 @@ There are two caveats the numbers carry. First, the labels are budget-dependent:
 \subsection{Contamination}
 \label{sec:contamination}
 
-A valid concern with this benchmark is that, because all source repositories are public, models may have encountered the original lemmas and proofs during training. Although syntactic ablation creates new proving challenges, models may still have prior knowledge. We assess this risk using lemma introduction dates and a deletion-count sweep; Appendix~\ref{app:contamination} provides the methods and additional results.
+A valid concern with this benchmark is that, because all source repositories are public, models may have encountered the original lemmas and proofs during training. Although syntactic ablation creates new proving challenges, models may still have prior knowledge. We assess this risk using lemma introduction dates, a deletion-count sweep, and a verbatim-recall probe; Appendix~\ref{app:contamination} provides the methods and additional results.
 
 In studying temporal holdout, we recovered an introduction date for the deleted lemma in every leaf challenge (21{,}692/21{,}692). Only 2.0\% predate 2024-06 and 5.4\% predate 2025-01. Using these reference dates leaves just 10 and 19 pre-cutoff problems, respectively, in the 103-problem evaluation sample. Preliminary repository-averaged comparisons show no consistent pre-cutoff advantage for the two general-purpose models, whereas \texttt{leanstral-1-5} performs better before both cutoffs under both holing strategies (Table~\ref{tab:temporal}). These directions remain provisional pending per-problem recomputation. The small older subsets and possible difficulty differences limit any inference about memorization.
 
 In our deletion-count sweep, at a 50-turn budget, \texttt{claude-sonnet-5} achieves 24\%, 8\%, 6\%, and 5\% PASS when one, two, three, or five lemmas are deleted. The sweep uses the same 100 file/corollary pairs from 30 repositories, retaining only pairs with the requested deletion count and two-sided compile validation at every depth (Figure~\ref{fig:sweep}). The curve establishes sensitivity to deletion depth, but does not distinguish memorization from proof difficulty: both retrieval and derivation can benefit from shared context. In particular, exceeding an independent-task reference at larger depths does not rule out memorization.
 
-Together, these checks characterize exposure risk and task robustness; they do not certify the benchmark as contamination-free. Direct recall testing remains future work.
+Probing recall directly, we find that no model reproduces a non-trivial deleted proof body verbatim, and that recall similarity is unassociated with solve outcome in five of six model--strategy comparisons (\S\ref{sec:recall}). The models that solve these problems cannot recite the proofs they solve. Together, these checks characterize exposure risk and task robustness; they do not certify the benchmark as contamination-free.
 
 \section{Limitations}
 \label{sec:limitations}
@@ -257,11 +268,13 @@ pace themselves require genuine per-budget runs.
 \paragraph{L3: Scoring requires a built checkout.} The data can be browsed by anyone; scoring a
 prediction requires the repository’s prebuilt \texttt{.olean} closure at the pinned revision, at
 roughly 5--7\,GB per Mathlib-dependent repository and on the order of a terabyte for all 57. We
-publish prebuilt closures for a small demo subset sufficient for a quickstart, not for the full
-corpus. This is the single largest adoption barrier we know of, and it is a property of the
-release, not of the method.
-\todo{state exactly which repositories have published closures once \#143 lands, or state that it
-did not land}
+build and checksum prebuilt closures for a demo subset of five repositories --- verified-compiler,
+LNSym, capless-lean, FVIntmax and ArkLib, each pinned to the revision listed in
+Table~\ref{tab:licenses} and round-tripped through the scorer with no rebuild --- which is
+sufficient for a quickstart but not for the full corpus. Only verified-compiler, at 0.5\,MB
+compressed, is small enough to accompany the submission; the other four run from 0.6 to 2.6\,GB
+compressed and are distributed separately. This is the single largest adoption barrier we know
+of, and it is a property of the release, not of the method.
 
 \paragraph{L4: Corpus skew.} One repository supplies 33.8\% of leaf rows and the top three supply
 53.4\%. We sample evenly per repository (\S\ref{sec:skew}), which mitigates the problem but does
@@ -570,8 +583,13 @@ computed from \texttt{results/outcomes.tsv}, the committed per-attempt projectio
 trees.
 
 \begin{table}[h]
-  \caption{\todo{FIXME, just sample the missing problems from the benchmark corpus} PASS / scorable per repository and grid cell, 50-turn budget. \emph{Pairs} is the
-  number of matched \texttt{challenge\_id}s drawn from the repository (up to two).}
+  \caption{PASS / scorable per repository and grid cell, 50-turn budget. \emph{Pairs} is the
+  number of matched \texttt{challenge\_id}s drawn from the repository (up to two).
+  \todo{Ten pairs from six repositories (lampe, lean-mlir, sparkle, starkware-formal-proofs,
+  LNSym, verity) currently score \texttt{malformed} on both sides for every model because the
+  package holding the challenge file is incompletely built in our checkout --- a property of
+  our build, not of the challenges. Those packages are being built and the ten pairs re-run
+  across the grid; refresh this table and drop this note once that lands.}}
   \label{tab:perrepo}
   \centering
   \scriptsize
@@ -881,7 +899,7 @@ the constructed agent, not transcribed.
 \label{app:cost}
 
 \begin{table}[h]
-  \caption{Cost of the grid, both strategies combined. Average turns is taken over attempts that reached a solver outcome, so \texttt{malformed} \todo{When we sample problems from the benchmark we shouldn't have any malformed problems anymore} and transport-fault rows are excluded from that column only (transfer-faults never consumed the budget). Solver time is per-attempt wall-clock, summed; attempts ran concurrently, so it is not elapsed time.}
+  \caption{Cost of the grid, both strategies combined. Average turns is taken over attempts that reached a solver outcome, so \texttt{malformed} and transport-fault rows are excluded from that column only (transfer-faults never consumed the budget). Solver time is per-attempt wall-clock, summed; attempts ran concurrently, so it is not elapsed time.}
   \label{tab:cost}
   \centering
   \small
@@ -976,26 +994,102 @@ whether single-deletion successes relied on memorized proofs.
   \centering
   \includegraphics{deletion-curve.pdf}
   \caption{PASS versus deletion count for \texttt{claude-sonnet-5} at a 50-turn budget
-  on the same 100 file--corollary pairs, compile-validated at every depth. The dotted
-  $p_1^N$ curve is a descriptive independence reference, not a test that distinguishes
-  retrieval from derivation. \todo{The existing \texttt{deletion-curve.pdf} plots
-  per-repository means (27.1 / 15.6 / 15.1 / 11.5). Regenerate it with per-problem
-  rates (24 / 8 / 6 / 5 of 100) and corresponding bootstrap 95\% intervals.}}
+  on the same 100 file--corollary pairs, compile-validated at every depth. Rates are
+  per-problem, with bootstrap 95\% intervals over the 100 problems. The dotted $p_1^N$
+  curve is a descriptive independence reference, not a test that distinguishes retrieval
+  from derivation; the depth-2 interval contains it, so the gap at that depth is not
+  resolved by this sample.}
   \label{fig:sweep}
 \end{figure}
 
-\subsection{Planned verbatim recall probe}
+\subsection{Verbatim recall probe}
 \label{sec:recall}
 
-The proposed probe supplies each deleted lemma's name and surrounding file context with
-the body removed, asks the model to state the lemma, and measures exact, normalized, and
-token-level agreement with the original. Recall scores would be compared with solve
-outcomes on the same problems, separately by holing strategy. This experiment is not yet
-complete and contributes no evidence to the present results. Even a positive association
-would require interpretation: predictable statements or easier lemmas may support both
-recall-like outputs and successful derivation without demonstrating training exposure.
-\todo{Specify exactly which statement/proof tokens are hidden and requested; report recall
-scores and associations with solve outcome, with uncertainty, if the experiment is completed.}
+The probe supplies the repository, the revision, the file path and the deleted lemma's full
+declaration header, withholds the proof body, and asks for the body. The cut between what is
+shown and what is requested is the signature's \texttt{:=}: the model sees the docstring,
+attributes, binders and statement --- what a reader of the file would have, minus the proof ---
+and the ground truth is the text following \texttt{:=}, usually a \texttt{by} block. Each probe
+is single-shot, with no tools and no access to the repository, so a reproduced body cannot have
+been retrieved during the probe. The paired sample deletes the same lemma on both sides of a
+pair, so recall is a property of the lemma; it is measured once per model and joined to the
+outcomes of both holing strategies.
+
+This addresses the knowledge-level exposure that ablation does not defeat by construction.
+Instance-level exposure is already excluded, since the holed file never existed before we
+made it; whether a model separately knows the lemma is the open question, and reciting a
+proof body it was never shown is the one observation that would settle it affirmatively.
+
+Table~\ref{tab:recall-scores} reports exact agreement after whitespace normalization,
+normalized Levenshtein similarity, and token-level F1. Exact agreement is the only
+unambiguous evidence of recall and is nearly absent: 2 of 339 probes reproduce the body,
+both from \texttt{gpt-5.6-sol}, and both are one-line \texttt{by simp} proofs that any model
+fluent in Lean writes from the statement alone. That stratum has to be separated, because a
+corpus-wide exact-match rate is otherwise dominated by stock one-liners. On the 96 lemmas of
+113 whose bodies exceed one line --- where reproducing a specific tactic sequence token for
+token is not guessable --- no model matched exactly and none reached the high-similarity
+band. Mean similarity is low throughout.
+
+\begin{table}[h]
+  \caption{Verbatim recall against the original proof body, per model, over the 113 deleted
+  lemmas of the paired sample. \emph{Non-trivial} restricts to the 96 lemmas whose body runs
+  to more than one line after the leading \texttt{by}; the high band is similarity
+  $\geq 0.9$.}
+  \label{tab:recall-scores}
+  \centering
+  \small
+  \begin{tabular}{lrrrrrr}
+    \toprule
+    & \multicolumn{4}{c}{All 113} & \multicolumn{2}{c}{Non-trivial (96)} \\
+    \cmidrule(lr){2-5}\cmidrule(lr){6-7}
+    Model & exact & mean lev. & mean tok.\ F1 & high band & exact & mean lev. \\
+    \midrule
+    \texttt{gpt-5.6-sol}     & 2/113 & 0.269 & 0.330 & 1.8\% & 0/96 & 0.238 \\
+    \texttt{claude-sonnet-5} & 0/113 & 0.286 & 0.327 & 0.9\% & 0/96 & 0.284 \\
+    \texttt{leanstral-1-5}   & 0/113 & 0.189 & 0.218 & 0.0\% & 0/96 & 0.200 \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+The association between recall and success is the quantity of interest, not the recall rate
+on its own. Table~\ref{tab:recall-corr} gives the point-biserial correlation between recall
+similarity and the same model's PASS outcome on the same problem, with a bootstrap interval
+and a permutation $p$-value. Five of the six model--strategy comparisons are consistent with
+no association. The sixth, \texttt{claude-sonnet-5} under whole-body holing, is positive
+($r = +0.257$, $p = 0.007$) and survives controlling for proof size ($+0.235$), but it is one
+result among six comparisons on a shared set of problems, and the same model's leaf-holing
+estimate does not reach significance. Pass rate stratified by recall band adds nothing here:
+the high band contains one or two problems per model, so its intervals span most of the unit
+interval.
+
+\begin{table}[h]
+  \caption{Recall similarity against solve outcome, same model on both sides. $r$ is the
+  point-biserial correlation with the PASS indicator over scorable problems, with a bootstrap
+  95\% interval and a permutation $p$-value; the last column partials out proof size.}
+  \label{tab:recall-corr}
+  \centering
+  \small
+  \begin{tabular}{llrrrrr}
+    \toprule
+    Model & Strategy & $n$ & PASS & $r$ & 95\% CI & partial $r$ \\
+    \midrule
+    \texttt{gpt-5.6-sol}     & leaf  & 103 & 51 & $+0.033$ & $[-0.156, +0.241]$ & $+0.097$ \\
+    \texttt{gpt-5.6-sol}     & whole & 103 & 49 & $+0.015$ & $[-0.172, +0.219]$ & $+0.111$ \\
+    \texttt{claude-sonnet-5} & leaf  & 103 & 30 & $+0.184$ & $[-0.009, +0.375]$ & $+0.171$ \\
+    \texttt{claude-sonnet-5} & whole & 103 & 30 & $+0.257$ & $[+0.056, +0.451]$ & $+0.235$ \\
+    \texttt{leanstral-1-5}   & leaf  & 103 & 30 & $+0.055$ & $[-0.167, +0.270]$ & $+0.061$ \\
+    \texttt{leanstral-1-5}   & whole & 103 & 29 & $+0.018$ & $[-0.210, +0.232]$ & $+0.025$ \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+The probe finds no evidence that success on this sample is retrieval: the models that solve
+these problems cannot recite the proofs they solve. A null result is weaker than its
+converse would have been, and it is bounded in the obvious ways --- 113 lemmas, one prompt
+format, one sample per probe, and no claim about equivalent content published elsewhere.
+The interpretive caution runs in both directions. Predictable statements and easier lemmas
+can support recall-like output and successful derivation at once, so even the one positive
+association we found does not demonstrate training exposure.
 
 \section{Broader impacts}
 \label{app:impacts}

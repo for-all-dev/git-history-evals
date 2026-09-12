@@ -122,9 +122,7 @@ def render(pipeline_dir: Path, out_dir: Path) -> list[Path]:
         handlelength=1.4,
         fontsize=6.5,
     )
-    fig.suptitle(
-        "temporal holdout: pre- vs post-cutoff PASS", y=1.16, fontsize=8.5
-    )
+    fig.suptitle("temporal holdout: pre- vs post-cutoff PASS", y=1.16, fontsize=8.5)
     fig.tight_layout()
 
     return save_figure(fig, out_dir / "temporal-holdout")
