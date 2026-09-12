@@ -128,7 +128,7 @@ From `./pipeline/` (inside `nix develop`):
 - `bash pipeline/clone_repos.sh lean` — fetch source repos at their pinned revisions
 - `bash pipeline/run.sh all <scratch>` — mine -> validate -> index -> eval, both modes
 - `bash pipeline/run.sh mine|validate|index|eval <scratch> …` — one stage at a time
-- `bash pipeline/upload_ablations.sh` — publish bulk JSONL to `s3://forall-ablations/lean/<mode>/<repo>/`
+- `bash pipeline/upload_ablations.sh` — publish bulk JSONL to `s3://forall-evals/ablations/lean/<mode>/<repo>/`
 - `bash pipeline/publish_hf.sh` — rebuild + publish the `for-all-dev/ablation-eval` easy/hard splits
 
 From `./baselines/`:

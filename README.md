@@ -68,7 +68,7 @@ One stage at a time:
 Publishing:
 
 ```bash
-bash pipeline/upload_ablations.sh   # bulk JSONL -> s3://forall-ablations/lean/<mode>/<repo>/
+bash pipeline/upload_ablations.sh   # bulk JSONL -> s3://forall-evals/ablations/lean/<mode>/<repo>/
 bash pipeline/publish_hf.sh         # easy/hard splits -> for-all-dev/ablation-eval
 ```
 

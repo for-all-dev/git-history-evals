@@ -16,7 +16,7 @@ Or one stage at a time:
 | `run.sh validate <scratch> [leaves\|whole]` | really compile challenge + ground truth; write `artifacts/` |
 | `run.sh index <scratch>` | regenerate `_index.json` (counts + sha256 per blob) |
 | `run.sh eval <scratch> <n> [model]` | sample, solve, train the difficulty model, test on a disjoint sample |
-| `upload_ablations.sh` | publish to `s3://forall-ablations/lean/<mode>/<repo>/` (needs `BUCKET_*_KEY`) |
+| `upload_ablations.sh` | publish to `s3://forall-evals/ablations/lean/<mode>/<repo>/` (needs `BUCKET_*_KEY`) |
 | `publish_hf.sh` | rebuild + publish `for-all-dev/ablation-eval` easy/hard splits (needs `BUCKET_*_KEY`, `HF_TOKEN`) |
 | `pack_closures.sh <repo>...` / `fetch_closure.sh <repo>` | publish/download a prebuilt `.lake` build closure so a third party can score challenges without building the repo themselves (needs `BUCKET_*_KEY`) — see "Prebuilt closures" below |
 
@@ -103,7 +103,7 @@ BUCKET_ACCESS_KEY=... BUCKET_SECRET_KEY=... pipeline/fetch_closure.sh <repo> [<d
 `pack_closures.sh` tars the repo's whole checkout directory (`repos.tsv`'s `checkout` column —
 not just `.lake`, since a few repos have several lake roots nested under one checkout),
 zstd-compresses it (`-T4` max, so a pack run doesn't starve other builds/evals sharing the
-machine), uploads it PRIVATE to `s3://forall-ablations/lean/closures/<name>-<revision-short>.tar.zst`,
+machine), uploads it PRIVATE to `s3://forall-evals/ablations/lean/closures/<name>-<revision-short>.tar.zst`,
 and records name/revision/sha256/sizes as a row in `closures.tsv`. `fetch_closure.sh` downloads,
 verifies the sha256 against that row, and unpacks to `data/lean/<repo>` (or an explicit
 `<dest-dir>`) in one command.

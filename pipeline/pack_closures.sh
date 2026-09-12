@@ -24,11 +24,12 @@
 #                           script's checkout is a git worktree and the built corpus
 #                           only exists in the main working tree)
 #
-# Publishes to s3://forall-ablations/lean/closures/<name>-<revision-short>.tar.zst
+# Publishes to s3://forall-evals/ablations/lean/closures/<name>-<revision-short>.tar.zst
 # (PRIVATE by default, same as upload_ablations.sh) and records
 # name/revision/sha256/sizes as a row in pipeline/closures.tsv (re-running for a repo
-# replaces its existing row rather than duplicating it). See fetch_closure.sh to
-# download + verify what this uploads.
+# replaces its existing row rather than duplicating it; object_key stays relative to
+# the ablations/ prefix, so rows written before the bucket consolidation still
+# resolve). See fetch_closure.sh to download + verify what this uploads.
 set -uo pipefail
 ROOT="${PIPELINE_DATA_ROOT:-$(cd "$(dirname "$0")/.." && pwd)}"
 cd "$ROOT" || exit 1
@@ -39,6 +40,9 @@ if [ "${NO_UPLOAD:-0}" != "1" ]; then
 fi
 [ $# -ge 1 ] || { echo "usage: pack_closures.sh <repo-name> [<repo-name> ...]" >&2; exit 1; }
 
+# Bucket prefix holding the closures. `object_key` in closures.tsv is relative to
+# this, so historical rows keep working across the bucket consolidation.
+SPACE="${CLOSURE_SPACE:-s3://forall-evals/ablations}"
 ZSTD_LEVEL="${ZSTD_LEVEL:-9}"
 ZSTD_THREADS="${ZSTD_THREADS:-4}"
 CLOSURES_TSV=pipeline/closures.tsv
@@ -99,8 +103,8 @@ pack_one() {
   sha=$(sha256sum "$outfile" | cut -d' ' -f1)
 
   if [ "${NO_UPLOAD:-0}" != "1" ]; then
-    echo "== upload -> s3://forall-ablations/$key"
-    s3cmd -c "$CFG" --no-progress put "$outfile" "s3://forall-ablations/$key" || {
+    echo "== upload -> $SPACE/$key"
+    s3cmd -c "$CFG" --no-progress put "$outfile" "$SPACE/$key" || {
       echo "!! upload failed for $name" >&2
       rm -rf "$work"
       return 1

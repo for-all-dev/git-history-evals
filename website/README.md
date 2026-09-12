@@ -87,7 +87,7 @@ theories / ~294 MB**.
 
 - `scripts/mirror-afp.py` mirrors the corpus. `--full` downloads the single AFP
   release tarball once, extracts every `.thy`, and uploads (parallel `s3cmd`)
-  public-read to `s3://forall-git-evals/afp/<Entry>/…`:
+  public-read to `s3://forall-evals/ablations/isabelle/_data/afp/<Entry>/…`:
 
   ```bash
   python scripts/mirror-afp.py --full              # whole AFP (the deliverable)
@@ -99,14 +99,14 @@ theories / ~294 MB**.
   (Requires `s3cmd` configured for the DO Space; not needed to *run* the site.)
 
 - **Split manifest** (keeps first paint light for 1000 entries):
-  - `afp/index.json` — lightweight: `{ schema:"afp-mirror/2", release, entries:
+  - `<prefix>/index.json` — lightweight: `{ schema:"afp-mirror/2", release, entries:
     [{name, n_theories, afp_url}] }`. Loaded once when the panel opens.
-  - `afp/<Entry>/theories.json` — that entry's theory list (`{file, url, bytes}`),
+  - `<prefix>/<Entry>/theories.json` — that entry's theory list (`{file, url, bytes}`),
     fetched lazily when the entry is selected.
 
 - `src/lib/afp.ts` reads the manifest + theory text; the UI is a searchable
   entry combobox (1000 entries) + theory dropdown. The mirror base URL is
-  `https://forall-git-evals.nyc3.digitaloceanspaces.com/afp` by default;
+  `https://forall-evals.nyc3.digitaloceanspaces.com/ablations/isabelle/_data/afp` by default;
   override with the **non-secret** build env var `VITE_AFP_BASE_URL` to point at
   a different bucket/CDN.
 
@@ -124,5 +124,5 @@ theories / ~294 MB**.
     </CORSRule>
   </CORSConfiguration>
   XML
-  s3cmd setcors cors.xml s3://forall-git-evals
+  s3cmd setcors cors.xml s3://forall-evals
   ```

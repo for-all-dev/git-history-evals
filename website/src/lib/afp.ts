@@ -8,7 +8,7 @@
  *  different bucket/CDN via a *non-secret* build env var; reads are anonymous. */
 export const AFP_BASE: string =
   import.meta.env.VITE_AFP_BASE_URL ??
-  'https://forall-git-evals.nyc3.digitaloceanspaces.com/afp'
+  'https://forall-evals.nyc3.digitaloceanspaces.com/ablations/isabelle/_data/afp'
 
 export interface AfpTheory {
   file: string // e.g. "Regular_Set.thy"
