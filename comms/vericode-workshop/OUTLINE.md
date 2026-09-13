@@ -189,7 +189,7 @@ Source data for everything marked **Ready (data committed)** lives in
 
 | Float | Content | Produced by | Ready? |
 |---|---|---|---|
-| **Fig. 1** | Pipeline schematic: repo @ pinned revision → corollary closure → delete + hole → two-sided compile validation → split. | none (schematic) | Ready to draw |
+| **Fig. 1** | Pipeline schematic: repo @ pinned revision → corollary closure → delete + hole → two-sided compile validation → split, plus the solve → oracle → outcome row sharing the same `.olean` closure. | none (schematic) | **Drawn** — inline TikZ, `fig:pipeline`, opens §2 so it floats to the top of page 2 |
 | **Fig. 2** | Worked example: one file, the same deletion under leaf vs whole-body holing, side by side. Makes §3.2 concrete in one glance. | none (corpus excerpt) | Ready to draw |
 | **Fig. 3** | Stacked outcome mix per (model, strategy) — 6 bars, PASS / tampered / fail / turn-limit / gave-up / harness. This is the figure that *shows* the reward-hacking finding, and it is now the single highest-value float in the paper. Currently in the text as Table 5. | **#129/#130** | **Ready (data committed)** — `results/outcomes.tsv` |
 | **Fig. 4** | Deletion-count decay curve, `--count` ∈ {1,2,3,5}, CIs, problem distribution held fixed across depths. The shape is the finding. | **#133** | Pending |
