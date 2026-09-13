@@ -36,18 +36,21 @@ OKABE_ITO = {
 # bars, so a reader can track a model by color across the whole figure set.
 MODEL_ORDER = [
     "claude-sonnet-5",
+    "claude-opus-5",
     "openai:gpt-5.6-sol",
     "mistral:labs-leanstral-1-5",
 ]
 
 MODEL_LABELS = {
     "claude-sonnet-5": "Claude Sonnet 5",
+    "claude-opus-5": "Claude Opus 5",
     "openai:gpt-5.6-sol": "GPT-5.6-sol",
     "mistral:labs-leanstral-1-5": "Leanstral 1.5",
 }
 
 MODEL_COLORS = {
     "claude-sonnet-5": OKABE_ITO["blue"],
+    "claude-opus-5": OKABE_ITO["sky_blue"],
     "openai:gpt-5.6-sol": OKABE_ITO["vermillion"],
     "mistral:labs-leanstral-1-5": OKABE_ITO["bluish_green"],
 }
@@ -67,6 +70,7 @@ MODE_LABELS = {
 # MODEL_ORDER keys so every figure shares one color/label per model.
 TSV_MODEL_ALIASES = {
     "claude-sonnet-5": "claude-sonnet-5",
+    "claude-opus-5": "claude-opus-5",
     "gpt-5.6-sol": "openai:gpt-5.6-sol",
     "leanstral-1-5": "mistral:labs-leanstral-1-5",
 }

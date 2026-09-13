@@ -47,7 +47,10 @@ def render(pipeline_dir: Path, out_dir: Path) -> list[Path]:
             tsv_name = _TSV_NAME_BY_CANONICAL[model]
             color = MODEL_COLORS[model]
             for c_idx, cutoff in enumerate(cutoffs):
-                row = by_key[(tsv_name, mode, cutoff)]
+                key = (tsv_name, mode, cutoff)
+                if key not in by_key:
+                    continue  # model absent from the TSV (e.g. a newly added arm)
+                row = by_key[key]
                 x = c_idx + offsets[i]
                 pre_pct = row["pre_macro"] * 100
                 post_pct = row["post_macro"] * 100

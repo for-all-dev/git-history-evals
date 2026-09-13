@@ -112,7 +112,7 @@
 \item {\bf Experiments compute resources}
     \item[] Question: For each experiment, does the paper provide sufficient information on the computer resources (type of compute workers, memory, time of execution) needed to reproduce the experiments?
     \item[] Answer: \answerYes{}
-    \item[] Justification: Table~\ref{tab:cost} reports, per model, the average number of solver requests, the input and output token counts, and the aggregate solver wall-clock time for the six runs of the main grid: 441.2M input tokens, 10.4M output tokens and 95.3 hours in total over 678 solve attempts. Inference runs against hosted APIs; all proof compilation --- mining, two-sided validation, and the per-submission scoring compile inside the solver loop --- runs CPU-only on a single workstation, and no accelerators are used anywhere in the pipeline. Preliminary and failed runs preceding the reported grid are not included in those totals.
+    \item[] Justification: Table~\ref{tab:cost} reports, per model, the average number of solver requests, the input and output token counts, and the aggregate solver wall-clock time for the eight runs of the main grid: 704.5M input tokens, 14.0M output tokens and 113.6 hours in total over 900 solve attempts. Inference runs against hosted APIs; all proof compilation --- mining, two-sided validation, and the per-submission scoring compile inside the solver loop --- runs CPU-only on a single workstation, and no accelerators are used anywhere in the pipeline. Preliminary and failed runs preceding the reported grid are not included in those totals.
     \item[] Guidelines:
     \begin{itemize}
         \item The answer \answerNA{} means that the paper does not include experiments.

@@ -1,4 +1,226 @@
 model	mode	repo	challenge_id	outcome	tamper_class	max_turns	turns_used	input_tokens	output_tokens	elapsed_seconds
+claude-opus-5	leaf	ArkLib	3eaf7490820eb45f	turn_limit		50	50	0	0	95.4
+claude-opus-5	leaf	ArkLib	c8f7852f85b1c244	pass		50	10	155193	3216	67.7
+claude-opus-5	leaf	Clear	6435e1d0534addbb	pass		50	4	72253	11977	142.0
+claude-opus-5	leaf	Clear	801815299db16764	pass		50	42	1913641	15575	245.0
+claude-opus-5	leaf	CompPoly	0942fe2ed2dead21	tampered	declaration_removed	50	45	2643712	19841	238.4
+claude-opus-5	leaf	CompPoly	b6c0958faa9b4e50	pass		50	43	1148184	8336	129.1
+claude-opus-5	leaf	CvxLean	7e72fb53bb7b2c85	pass		50	21	516666	2718	46.5
+claude-opus-5	leaf	CvxLean	ab451f34742004c1	pass		50	43	2046544	15021	205.4
+claude-opus-5	leaf	FLoPS	8119349c53d69fdf	tampered	declaration_removed	50	43	3222020	5176	139.4
+claude-opus-5	leaf	FLoPS	e1636d84d45168d3	tampered	declaration_removed	50	43	3480710	17033	213.1
+claude-opus-5	leaf	FVIntmax	90336b1db31181a3	tampered	declaration_removed	50	15	207763	9528	124.6
+claude-opus-5	leaf	FVIntmax	a6980f1a1d6f7fd4	tampered	statement_weakened	50	16	783184	19863	435.9
+claude-opus-5	leaf	Foundation	03368880f2abd6e9	turn_limit		50	50	0	0	107.7
+claude-opus-5	leaf	Foundation	ed7f94e1f237638c	error		50	0	0	0	857.0
+claude-opus-5	leaf	LNSym	4a823a81a8028fc9	pass		50	3	22210	3525	33.8
+claude-opus-5	leaf	LNSym	6011b971e91f0d3a	pass		50	44	2376312	67891	671.6
+claude-opus-5	leaf	Lentil	17de49f70e7d5d1e	pass		50	6	104812	9649	101.2
+claude-opus-5	leaf	Lentil	540a0ff7d3ae7a19	pass		50	45	1555855	16348	183.5
+claude-opus-5	leaf	LeroyCompilerVerificationCourse	7d115958af5c1d1e	pass		50	49	1625803	15416	202.3
+claude-opus-5	leaf	LeroyCompilerVerificationCourse	d8f33a913429b46e	fail		50	50	2247150	80858	758.4
+claude-opus-5	leaf	SampCert	26c4eaeee8c6ce58	pass		50	27	1318458	25345	266.4
+claude-opus-5	leaf	SampCert	68918926206d7fc4	turn_limit		50	50	0	0	1510.0
+claude-opus-5	leaf	SizzLean	5cd1ea3baef5200a	pass		50	3	34055	4043	37.4
+claude-opus-5	leaf	SizzLean	83f97f349caa71e9	pass		50	5	87027	5814	57.2
+claude-opus-5	leaf	TTBFL	28a3d1dccdb83b0a	tampered	declaration_removed	50	42	1285387	7365	126.7
+claude-opus-5	leaf	TTBFL	6f689fa4d6606e04	tampered	declaration_removed	50	11	288501	2977	47.8
+claude-opus-5	leaf	TensorLib	11e0ea962fc2c31d	tampered	declaration_removed	50	42	1312917	10202	144.8
+claude-opus-5	leaf	TensorLib	502c8803cf78d1a4	pass		50	50	0	0	324.0
+claude-opus-5	leaf	TorchLean	8dd8cec9f03d72a7	pass		50	5	137389	16191	151.2
+claude-opus-5	leaf	TorchLean	bb506cf047659a6e	pass		50	2	30096	8320	70.2
+claude-opus-5	leaf	VCV-io	9f31dffd2bc2975a	tampered	declaration_removed	50	35	2400726	13181	190.4
+claude-opus-5	leaf	VCV-io	c14999a9673608e5	turn_limit		50	50	0	0	1024.5
+claude-opus-5	leaf	adler-proofs	b464691a882d0e3c	pass		50	43	1155796	16086	217.4
+claude-opus-5	leaf	adler-proofs	bb165801ff15e632	pass		50	20	827903	22401	236.9
+claude-opus-5	leaf	aeneas	65c6eaf0933ac3bc	pass		50	27	973351	14841	156.1
+claude-opus-5	leaf	aeneas	c59817dd14d2eb89	tampered	declaration_removed	50	33	2005242	17343	239.7
+claude-opus-5	leaf	apc-optimizer	19fe8265c1e6f2c2	error		50	0	0	0	655.7
+claude-opus-5	leaf	apc-optimizer	bc557726c0c45489	error		50	0	0	0	638.3
+claude-opus-5	leaf	btc-verified	813d77ef0033bd15	pass		50	4	74426	9193	86.4
+claude-opus-5	leaf	btc-verified	929a50d0b6a01c2e	tampered	declaration_removed	50	44	1036762	19023	235.5
+claude-opus-5	leaf	capless-lean	1f7dcc7181ec615c	pass		50	43	3021506	5463	127.4
+claude-opus-5	leaf	capless-lean	abe14cc5c66753fb	pass		50	44	2093064	8078	145.3
+claude-opus-5	leaf	cedar-spec	4ca75d6e5031c6d9	pass		50	9	262516	3649	40.4
+claude-opus-5	leaf	cedar-spec	bd1dec8fef9ca817	tampered	declaration_removed	50	41	4116035	12407	155.3
+claude-opus-5	leaf	clean	2c92b4267395fb49	turn_limit		50	50	0	0	241.0
+claude-opus-5	leaf	clean	7331a8bd16838470	pass		50	9	199568	7205	77.2
+claude-opus-5	leaf	cslib	03f9877b6b7c5816	tampered	declaration_removed	50	8	204728	7205	74.8
+claude-opus-5	leaf	cslib	a4ce553d6553ca3a	tampered	declaration_removed	50	3	30552	2841	35.9
+claude-opus-5	leaf	curve25519-dalek-lean-verify	2092154f552b6444	pass		50	9	442751	59584	575.6
+claude-opus-5	leaf	curve25519-dalek-lean-verify	b62bdabff93ea603	turn_limit		50	50	0	0	341.4
+claude-opus-5	leaf	dolev-yao	92d5feb5271286db	tampered	declaration_removed	50	5	35687	1414	30.0
+claude-opus-5	leaf	evm-asm	7b7626fc3b093a25	tampered	declaration_removed	50	8	239333	8062	86.7
+claude-opus-5	leaf	evm-asm	cbadd5a663aa3f7a	tampered	declaration_removed	50	12	741571	3190	50.7
+claude-opus-5	leaf	formal-snarks-project	54b29208d59e384a	pass		50	43	2235313	32718	368.7
+claude-opus-5	leaf	formal-snarks-project	a52a412058f32352	tampered	declaration_removed	50	3	78567	3384	37.7
+claude-opus-5	leaf	hax-proof-libs-lean	5a4b0ee657d13463	pass		50	5	176964	40124	314.3
+claude-opus-5	leaf	hax-proof-libs-lean	645b573e4662a040	tampered	declaration_removed	50	44	2371734	54944	469.3
+claude-opus-5	leaf	hex-dev	0733ea13aaaae37a	pass		50	44	626499	17196	205.5
+claude-opus-5	leaf	hex-dev	7f5a6a8a46a36844	tampered	declaration_removed	50	23	1263769	13759	162.8
+claude-opus-5	leaf	iris-lean	4475f0da376e5ef9	error		50	0	0	0	996.4
+claude-opus-5	leaf	iris-lean	73cf11986048d1e2	tampered	statement_weakened	50	43	3059439	38624	394.6
+claude-opus-5	leaf	jolt-tla	99dd9f11041170de	pass		50	35	1274029	5944	97.2
+claude-opus-5	leaf	jolt-tla	b63ffa5aac5b5e34	pass		50	3	10380	834	14.2
+claude-opus-5	leaf	juvix-lean	9ec8a7a07defdcb6	pass		50	44	1808851	16549	215.3
+claude-opus-5	leaf	juvix-lean	a6be38abcec14ea7	tampered	declaration_removed	50	43	2423696	23378	270.1
+claude-opus-5	leaf	lean-formal-reasoning-program	9cb5056f3dd2ef88	pass		50	3	10289	710	8.2
+claude-opus-5	leaf	lean-formal-reasoning-program	af161070ba37dd94	tampered	declaration_removed	50	44	1797010	7272	102.7
+claude-opus-5	leaf	lean-mlir	34e263561f91d923	malformed		50	0	0	0	7.6
+claude-opus-5	leaf	lean-mlir	a20e18f35e8b43e4	malformed		50	0	0	0	0.4
+claude-opus-5	leaf	lean-yjs	94b181719a4a8688	pass		50	18	695432	11416	122.8
+claude-opus-5	leaf	lean-yjs	d2c087aa9bbebfa7	turn_limit		50	50	0	0	310.6
+claude-opus-5	leaf	lean-zip	5847e2d920b6041e	pass		50	38	2477192	23754	273.7
+claude-opus-5	leaf	lean-zip	5e51e92feada77de	pass		50	43	1981250	8306	151.8
+claude-opus-5	leaf	lean4lean	9d29ef4dc342e3f9	turn_limit		50	50	0	0	309.3
+claude-opus-5	leaf	lean4lean	e605b051b91ee2cc	pass		50	42	576128	3940	91.3
+claude-opus-5	leaf	leanda	0a5f78f39912afa0	tampered	declaration_removed	50	50	2048482	22317	252.1
+claude-opus-5	leaf	leanda	be744f333456203c	tampered	declaration_removed	50	42	1260608	10617	139.6
+claude-opus-5	leaf	loom	9586b73159c4f2e8	turn_limit		50	50	0	0	493.1
+claude-opus-5	leaf	loom	acee1f355e4ebad9	tampered	declaration_removed	50	5	88544	3980	52.5
+claude-opus-5	leaf	nickelean	562f4fffaa14159e	tampered	declaration_removed	50	9	163134	2332	43.0
+claude-opus-5	leaf	nickelean	91ec2fac1890db47	turn_limit		50	50	0	0	189.2
+claude-opus-5	leaf	posix-parsing	68a3168be1d7a904	pass		50	28	693066	25336	263.4
+claude-opus-5	leaf	posix-parsing	779a3ae2765e6e45	tampered	declaration_removed	50	19	364255	13089	146.3
+claude-opus-5	leaf	posix-submatching	1fbd99eb5aaf285f	pass		50	43	1144203	8107	128.9
+claude-opus-5	leaf	posix-submatching	92aa2b1733897d5a	pass		50	45	961888	22406	237.2
+claude-opus-5	leaf	proven-zk	9ba6e1c09e92b1d1	pass		50	3	38134	3462	37.3
+claude-opus-5	leaf	proven-zk	dbdd64157b7d7426	turn_limit		50	50	0	0	559.4
+claude-opus-5	leaf	ryu-lean4	5bac3500a6bab4b4	tampered	declaration_removed	50	3	11605	538	10.0
+claude-opus-5	leaf	ryu-lean4	89a4ee7e159a40d6	tampered	declaration_removed	50	43	856816	8530	140.9
+claude-opus-5	leaf	shortest-decimal	10171d84a7f98c0f	tampered	declaration_removed	50	5	45008	3490	42.7
+claude-opus-5	leaf	shortest-decimal	b703264a818fcd5e	tampered	declaration_removed	50	43	3788972	19421	236.9
+claude-opus-5	leaf	sparkle	6a458f2f159b083b	pass		50	4	49728	1057	16.6
+claude-opus-5	leaf	sparkle	ad13d6c76d669235	tampered	declaration_removed	50	42	2187983	10074	158.0
+claude-opus-5	leaf	splean	3555823b339bec1c	tampered	declaration_removed	50	45	1533241	40050	517.1
+claude-opus-5	leaf	splean	a537b7a3bcd8844d	tampered	declaration_removed	50	12	158483	7579	124.5
+claude-opus-5	leaf	starkware-formal-proofs	4cd9b2f5ffcdb76d	tampered	declaration_removed	50	45	4854478	17287	236.5
+claude-opus-5	leaf	starkware-formal-proofs	eaa30d2eacaa36db	turn_limit		50	50	0	0	772.8
+claude-opus-5	leaf	symcrust	795efddf6068c29d	tampered	declaration_removed	50	36	3882866	96661	885.4
+claude-opus-5	leaf	symcrust	a70c2c776b07e4e9	pass		50	49	3551771	93696	1071.6
+claude-opus-5	leaf	veil	60061f4b45d47a0e	pass		50	42	568654	5849	104.3
+claude-opus-5	leaf	veil	93697f0d24bb8a8a	pass		50	43	1507859	28887	315.2
+claude-opus-5	leaf	verified-compiler	76bf93194ad33297	pass		50	49	906559	36915	427.7
+claude-opus-5	leaf	verified-compiler	9ec5e6d3c706144c	pass		50	45	855381	28354	308.4
+claude-opus-5	leaf	verified-consensus	05f6b42658ac096e	tampered	declaration_removed	50	43	2199333	29249	285.3
+claude-opus-5	leaf	verified-consensus	b1550740dc7acf5c	tampered	declaration_removed	50	16	616472	4300	78.5
+claude-opus-5	leaf	verity	341609f580358a89	tampered	declaration_removed	50	5	58753	8290	79.1
+claude-opus-5	leaf	verity	4ae1f1695e5d7efa	tampered	declaration_removed	50	11	298199	6737	82.1
+claude-opus-5	leaf	yul-compiler	593caf423a6fed14	error		50	0	0	0	969.5
+claude-opus-5	leaf	yul-compiler	c004d27acd1ee8ac	pass		50	44	1913525	19324	280.6
+claude-opus-5	leaf	yul-semantics	7cb277821546874c	pass		50	6	91947	2522	30.2
+claude-opus-5	leaf	yul-semantics	9e7200cdc6d6cbe2	pass		50	37	2355791	6943	172.3
+claude-opus-5	whole	ArkLib	3eaf7490820eb45f	turn_limit		50	50	0	0	93.8
+claude-opus-5	whole	ArkLib	c8f7852f85b1c244	pass		50	43	1485970	8192	136.1
+claude-opus-5	whole	Clear	6435e1d0534addbb	pass		50	42	1503688	15214	217.6
+claude-opus-5	whole	Clear	801815299db16764	pass		50	35	1961248	35892	419.7
+claude-opus-5	whole	CompPoly	0942fe2ed2dead21	turn_limit		50	50	0	0	97.5
+claude-opus-5	whole	CompPoly	b6c0958faa9b4e50	pass		50	8	111720	2765	35.5
+claude-opus-5	whole	CvxLean	7e72fb53bb7b2c85	pass		50	22	505197	2755	47.9
+claude-opus-5	whole	CvxLean	ab451f34742004c1	turn_limit		50	50	0	0	63.7
+claude-opus-5	whole	FLoPS	8119349c53d69fdf	tampered	declaration_removed	50	49	3808939	5778	102.4
+claude-opus-5	whole	FLoPS	e1636d84d45168d3	tampered	declaration_removed	50	43	4431282	32072	348.6
+claude-opus-5	whole	FVIntmax	90336b1db31181a3	tampered	declaration_removed	50	43	739226	12167	176.3
+claude-opus-5	whole	FVIntmax	a6980f1a1d6f7fd4	tampered	statement_weakened	50	17	915806	19859	416.8
+claude-opus-5	whole	Foundation	03368880f2abd6e9	tampered	declaration_removed	50	42	2486615	12037	169.2
+claude-opus-5	whole	Foundation	ed7f94e1f237638c	error		50	0	0	0	846.1
+claude-opus-5	whole	LNSym	4a823a81a8028fc9	pass		50	42	675389	6970	110.1
+claude-opus-5	whole	LNSym	6011b971e91f0d3a	pass		50	45	2546423	67861	670.3
+claude-opus-5	whole	Lentil	17de49f70e7d5d1e	pass		50	3	35730	3319	37.3
+claude-opus-5	whole	Lentil	540a0ff7d3ae7a19	pass		50	19	488778	10609	116.3
+claude-opus-5	whole	LeroyCompilerVerificationCourse	7d115958af5c1d1e	turn_limit		50	50	0	0	310.7
+claude-opus-5	whole	LeroyCompilerVerificationCourse	d8f33a913429b46e	turn_limit		50	50	0	0	320.3
+claude-opus-5	whole	SampCert	26c4eaeee8c6ce58	pass		50	45	1021338	18611	235.7
+claude-opus-5	whole	SampCert	68918926206d7fc4	tampered	declaration_removed	50	50	0	0	835.4
+claude-opus-5	whole	SizzLean	5cd1ea3baef5200a	pass		50	3	37461	7285	68.6
+claude-opus-5	whole	SizzLean	83f97f349caa71e9	pass		50	41	2741126	8610	141.9
+claude-opus-5	whole	TTBFL	28a3d1dccdb83b0a	tampered	declaration_removed	50	44	1802033	15583	211.7
+claude-opus-5	whole	TTBFL	6f689fa4d6606e04	tampered	declaration_removed	50	13	238936	3232	49.0
+claude-opus-5	whole	TensorLib	11e0ea962fc2c31d	tampered	declaration_removed	50	9	133537	7129	74.9
+claude-opus-5	whole	TensorLib	502c8803cf78d1a4	turn_limit		50	50	0	0	293.8
+claude-opus-5	whole	TorchLean	8dd8cec9f03d72a7	pass		50	44	4538839	48619	489.0
+claude-opus-5	whole	TorchLean	bb506cf047659a6e	pass		50	3	45729	8863	78.2
+claude-opus-5	whole	VCV-io	9f31dffd2bc2975a	tampered	declaration_removed	50	42	2270683	14262	204.0
+claude-opus-5	whole	VCV-io	c14999a9673608e5	tampered	declaration_removed	50	21	1094868	23451	250.3
+claude-opus-5	whole	adler-proofs	b464691a882d0e3c	pass		50	48	1871486	49118	509.1
+claude-opus-5	whole	adler-proofs	bb165801ff15e632	pass		50	19	641926	18185	210.4
+claude-opus-5	whole	aeneas	65c6eaf0933ac3bc	pass		50	42	2528902	15883	180.8
+claude-opus-5	whole	aeneas	c59817dd14d2eb89	tampered	declaration_removed	50	18	631147	9134	120.3
+claude-opus-5	whole	apc-optimizer	19fe8265c1e6f2c2	error		50	0	0	0	655.2
+claude-opus-5	whole	apc-optimizer	bc557726c0c45489	error		50	0	0	0	910.9
+claude-opus-5	whole	btc-verified	813d77ef0033bd15	pass		50	5	90819	9248	87.9
+claude-opus-5	whole	btc-verified	929a50d0b6a01c2e	tampered	declaration_removed	50	45	2063837	22226	259.9
+claude-opus-5	whole	capless-lean	1f7dcc7181ec615c	pass		50	43	2191957	4992	105.5
+claude-opus-5	whole	capless-lean	abe14cc5c66753fb	pass		50	37	1668088	6206	123.5
+claude-opus-5	whole	cedar-spec	4ca75d6e5031c6d9	pass		50	10	261324	6320	64.7
+claude-opus-5	whole	cedar-spec	bd1dec8fef9ca817	tampered	declaration_removed	50	30	2331274	4438	87.5
+claude-opus-5	whole	clean	2c92b4267395fb49	pass		50	50	1634294	84183	783.3
+claude-opus-5	whole	clean	7331a8bd16838470	pass		50	31	1165309	9389	128.3
+claude-opus-5	whole	cslib	03f9877b6b7c5816	tampered	declaration_removed	50	5	104360	6767	65.9
+claude-opus-5	whole	cslib	a4ce553d6553ca3a	tampered	declaration_removed	50	3	30552	2841	34.9
+claude-opus-5	whole	curve25519-dalek-lean-verify	2092154f552b6444	pass		50	50	1840547	16678	245.6
+claude-opus-5	whole	curve25519-dalek-lean-verify	b62bdabff93ea603	turn_limit		50	50	0	0	112.2
+claude-opus-5	whole	dolev-yao	92d5feb5271286db	tampered	declaration_removed	50	4	21583	883	24.0
+claude-opus-5	whole	evm-asm	7b7626fc3b093a25	tampered	declaration_removed	50	5	125009	7773	78.1
+claude-opus-5	whole	evm-asm	cbadd5a663aa3f7a	tampered	declaration_removed	50	8	339636	1901	33.2
+claude-opus-5	whole	formal-snarks-project	54b29208d59e384a	pass		50	16	1357487	43968	426.1
+claude-opus-5	whole	formal-snarks-project	a52a412058f32352	tampered	declaration_removed	50	29	3005067	12665	171.8
+claude-opus-5	whole	hax-proof-libs-lean	5a4b0ee657d13463	pass		50	6	261528	60190	473.9
+claude-opus-5	whole	hax-proof-libs-lean	645b573e4662a040	tampered	declaration_removed	50	50	0	0	1977.5
+claude-opus-5	whole	hex-dev	0733ea13aaaae37a	pass		50	36	1216990	18143	223.5
+claude-opus-5	whole	hex-dev	7f5a6a8a46a36844	tampered	declaration_removed	50	7	219762	4843	67.2
+claude-opus-5	whole	iris-lean	4475f0da376e5ef9	error		50	0	0	0	1002.1
+claude-opus-5	whole	iris-lean	73cf11986048d1e2	turn_limit		50	50	0	0	1275.4
+claude-opus-5	whole	jolt-tla	99dd9f11041170de	pass		50	43	1194624	10619	148.4
+claude-opus-5	whole	jolt-tla	b63ffa5aac5b5e34	pass		50	4	15490	1553	21.7
+claude-opus-5	whole	juvix-lean	9ec8a7a07defdcb6	pass		50	44	2580444	27622	324.6
+claude-opus-5	whole	juvix-lean	a6be38abcec14ea7	tampered	declaration_removed	50	40	2768935	13119	176.0
+claude-opus-5	whole	lean-formal-reasoning-program	9cb5056f3dd2ef88	pass		50	3	10447	760	8.4
+claude-opus-5	whole	lean-formal-reasoning-program	af161070ba37dd94	tampered	declaration_removed	50	43	1190570	5572	83.3
+claude-opus-5	whole	lean-mlir	34e263561f91d923	malformed		50	0	0	0	5.5
+claude-opus-5	whole	lean-mlir	a20e18f35e8b43e4	malformed		50	0	0	0	0.4
+claude-opus-5	whole	lean-yjs	94b181719a4a8688	turn_limit		50	50	0	0	444.2
+claude-opus-5	whole	lean-yjs	d2c087aa9bbebfa7	pass		50	50	1741825	28643	314.5
+claude-opus-5	whole	lean-zip	5847e2d920b6041e	pass		50	19	757058	21866	223.8
+claude-opus-5	whole	lean-zip	5e51e92feada77de	pass		50	47	1922933	15105	203.2
+claude-opus-5	whole	lean4lean	9d29ef4dc342e3f9	tampered	declaration_removed	50	49	2896160	79050	817.3
+claude-opus-5	whole	lean4lean	e605b051b91ee2cc	pass		50	42	563507	3732	91.3
+claude-opus-5	whole	leanda	0a5f78f39912afa0	tampered	declaration_removed	50	50	2126911	13769	190.9
+claude-opus-5	whole	leanda	be744f333456203c	tampered	declaration_removed	50	45	1752777	23381	269.4
+claude-opus-5	whole	loom	9586b73159c4f2e8	tampered	declaration_removed	50	48	5127527	37082	421.4
+claude-opus-5	whole	loom	acee1f355e4ebad9	tampered	declaration_removed	50	7	131033	4127	55.8
+claude-opus-5	whole	nickelean	562f4fffaa14159e	tampered	declaration_removed	50	7	110045	2112	40.0
+claude-opus-5	whole	nickelean	91ec2fac1890db47	pass		50	37	1321221	5638	108.0
+claude-opus-5	whole	posix-parsing	68a3168be1d7a904	tampered	statement_weakened	50	42	1851999	30216	334.8
+claude-opus-5	whole	posix-parsing	779a3ae2765e6e45	tampered	declaration_removed	50	47	994096	11239	186.5
+claude-opus-5	whole	posix-submatching	1fbd99eb5aaf285f	pass		50	42	1021154	10320	144.7
+claude-opus-5	whole	posix-submatching	92aa2b1733897d5a	turn_limit		50	50	0	0	85.8
+claude-opus-5	whole	proven-zk	9ba6e1c09e92b1d1	pass		50	3	27281	3421	37.6
+claude-opus-5	whole	proven-zk	dbdd64157b7d7426	pass		50	50	0	0	607.5
+claude-opus-5	whole	ryu-lean4	5bac3500a6bab4b4	tampered	declaration_removed	50	4	35640	611	12.9
+claude-opus-5	whole	ryu-lean4	89a4ee7e159a40d6	tampered	declaration_removed	50	45	974052	14353	223.4
+claude-opus-5	whole	shortest-decimal	10171d84a7f98c0f	tampered	declaration_removed	50	6	58879	3587	60.8
+claude-opus-5	whole	shortest-decimal	b703264a818fcd5e	tampered	declaration_removed	50	42	3006833	19044	229.7
+claude-opus-5	whole	sparkle	6a458f2f159b083b	pass		50	3	32338	1041	15.0
+claude-opus-5	whole	sparkle	ad13d6c76d669235	tampered	declaration_removed	50	3	45336	4874	49.0
+claude-opus-5	whole	splean	3555823b339bec1c	tampered	declaration_removed	50	33	1059075	29957	392.0
+claude-opus-5	whole	splean	a537b7a3bcd8844d	tampered	declaration_removed	50	15	311271	20980	281.2
+claude-opus-5	whole	starkware-formal-proofs	4cd9b2f5ffcdb76d	tampered	declaration_removed	50	44	4526561	14208	219.9
+claude-opus-5	whole	starkware-formal-proofs	eaa30d2eacaa36db	turn_limit		50	50	0	0	732.7
+claude-opus-5	whole	symcrust	795efddf6068c29d	tampered	declaration_removed	50	42	4616437	76294	718.1
+claude-opus-5	whole	symcrust	a70c2c776b07e4e9	pass		50	49	3090974	55357	807.6
+claude-opus-5	whole	veil	60061f4b45d47a0e	pass		50	42	784603	4808	104.2
+claude-opus-5	whole	veil	93697f0d24bb8a8a	tampered	statement_weakened	50	43	1373784	28912	290.9
+claude-opus-5	whole	verified-compiler	76bf93194ad33297	pass		50	43	606016	10772	179.9
+claude-opus-5	whole	verified-compiler	9ec5e6d3c706144c	pass		50	49	1150351	56393	567.7
+claude-opus-5	whole	verified-consensus	05f6b42658ac096e	tampered	declaration_removed	50	44	2687564	42918	420.5
+claude-opus-5	whole	verified-consensus	b1550740dc7acf5c	tampered	declaration_removed	50	10	196961	3861	62.3
+claude-opus-5	whole	verity	341609f580358a89	tampered	declaration_removed	50	6	71932	8393	80.2
+claude-opus-5	whole	verity	4ae1f1695e5d7efa	tampered	declaration_removed	50	10	248359	6781	80.7
+claude-opus-5	whole	yul-compiler	593caf423a6fed14	error		50	0	0	0	981.2
+claude-opus-5	whole	yul-compiler	c004d27acd1ee8ac	pass		50	47	2583271	52129	550.9
+claude-opus-5	whole	yul-semantics	7cb277821546874c	pass		50	4	50573	3079	33.4
+claude-opus-5	whole	yul-semantics	9e7200cdc6d6cbe2	pass		50	43	2042230	6318	149.4
 claude-sonnet-5	leaf	ArkLib	3eaf7490820eb45f	pass		50	43	2715022	8495	178.3
 claude-sonnet-5	leaf	ArkLib	c8f7852f85b1c244	pass		50	43	2894718	7834	187.0
 claude-sonnet-5	leaf	Clear	6435e1d0534addbb	fail		50	50	2361540	112433	1032.9
@@ -14,7 +236,7 @@ claude-sonnet-5	leaf	FVIntmax	a6980f1a1d6f7fd4	error		50	0	0	0	301.7
 claude-sonnet-5	leaf	Foundation	03368880f2abd6e9	tampered	declaration_removed	50	44	2470205	19696	250.8
 claude-sonnet-5	leaf	Foundation	ed7f94e1f237638c	error		50	0	0	0	541.6
 claude-sonnet-5	leaf	LNSym	4a823a81a8028fc9	pass		50	2	15041	3435	33.2
-claude-sonnet-5	leaf	LNSym	6011b971e91f0d3a	malformed		50	0	0	0	0.9
+claude-sonnet-5	leaf	LNSym	6011b971e91f0d3a	fail		50	50	3711060	112469	855.4
 claude-sonnet-5	leaf	Lentil	17de49f70e7d5d1e	pass		50	45	2355003	24574	302.3
 claude-sonnet-5	leaf	Lentil	540a0ff7d3ae7a19	pass		50	50	1726625	33419	365.5
 claude-sonnet-5	leaf	LeroyCompilerVerificationCourse	7d115958af5c1d1e	fail		50	49	2021602	86424	793.8
@@ -92,12 +314,12 @@ claude-sonnet-5	leaf	ryu-lean4	5bac3500a6bab4b4	tampered	declaration_removed	50	
 claude-sonnet-5	leaf	ryu-lean4	89a4ee7e159a40d6	tampered	declaration_removed	50	32	955732	37823	438.0
 claude-sonnet-5	leaf	shortest-decimal	10171d84a7f98c0f	tampered	declaration_removed	50	5	41546	3398	37.9
 claude-sonnet-5	leaf	shortest-decimal	b703264a818fcd5e	tampered	declaration_removed	50	49	5413408	56761	556.2
-claude-sonnet-5	leaf	sparkle	6a458f2f159b083b	malformed		50	0	0	0	0.3
+claude-sonnet-5	leaf	sparkle	6a458f2f159b083b	pass		50	9	185731	7910	68.3
 claude-sonnet-5	leaf	sparkle	ad13d6c76d669235	tampered	declaration_removed	50	46	2821765	10214	168.0
 claude-sonnet-5	leaf	splean	3555823b339bec1c	fail		50	50	3878006	86682	982.2
 claude-sonnet-5	leaf	splean	a537b7a3bcd8844d	tampered	declaration_removed	50	42	2106958	9091	197.0
-claude-sonnet-5	leaf	starkware-formal-proofs	4cd9b2f5ffcdb76d	malformed		50	0	0	0	3.1
-claude-sonnet-5	leaf	starkware-formal-proofs	eaa30d2eacaa36db	malformed		50	0	0	0	0.1
+claude-sonnet-5	leaf	starkware-formal-proofs	4cd9b2f5ffcdb76d	turn_limit		50	50	0	0	138.4
+claude-sonnet-5	leaf	starkware-formal-proofs	eaa30d2eacaa36db	fail		50	20	549250	1904	34.0
 claude-sonnet-5	leaf	symcrust	795efddf6068c29d	fail		50	50	4856309	51387	658.5
 claude-sonnet-5	leaf	symcrust	a70c2c776b07e4e9	fail		50	50	3159191	59522	701.6
 claude-sonnet-5	leaf	veil	60061f4b45d47a0e	turn_limit		50	50	0	0	609.3
@@ -106,8 +328,8 @@ claude-sonnet-5	leaf	verified-compiler	76bf93194ad33297	pass		50	46	1139579	2300
 claude-sonnet-5	leaf	verified-compiler	9ec5e6d3c706144c	fail		50	50	1143549	54781	513.6
 claude-sonnet-5	leaf	verified-consensus	05f6b42658ac096e	turn_limit		50	50	0	0	714.7
 claude-sonnet-5	leaf	verified-consensus	b1550740dc7acf5c	tampered	declaration_removed	50	7	107026	3500	67.9
-claude-sonnet-5	leaf	verity	341609f580358a89	malformed		50	0	0	0	0.2
-claude-sonnet-5	leaf	verity	4ae1f1695e5d7efa	malformed		50	0	0	0	3.3
+claude-sonnet-5	leaf	verity	341609f580358a89	tampered	declaration_removed	50	10	209634	13004	96.1
+claude-sonnet-5	leaf	verity	4ae1f1695e5d7efa	tampered	declaration_removed	50	42	2681887	9512	101.5
 claude-sonnet-5	leaf	yul-compiler	593caf423a6fed14	error		50	0	0	0	645.1
 claude-sonnet-5	leaf	yul-compiler	c004d27acd1ee8ac	fail		50	50	2788807	60605	744.7
 claude-sonnet-5	leaf	yul-semantics	7cb277821546874c	pass		50	6	85378	3210	51.5
@@ -127,7 +349,7 @@ claude-sonnet-5	whole	FVIntmax	a6980f1a1d6f7fd4	fail		50	50	4105335	152109	1994.
 claude-sonnet-5	whole	Foundation	03368880f2abd6e9	tampered	declaration_removed	50	43	1627006	11118	183.4
 claude-sonnet-5	whole	Foundation	ed7f94e1f237638c	turn_limit		50	50	0	0	574.0
 claude-sonnet-5	whole	LNSym	4a823a81a8028fc9	tampered	statement_weakened	50	9	139066	13396	112.0
-claude-sonnet-5	whole	LNSym	6011b971e91f0d3a	malformed		50	0	0	0	1.0
+claude-sonnet-5	whole	LNSym	6011b971e91f0d3a	fail		50	50	2931729	45358	428.8
 claude-sonnet-5	whole	Lentil	17de49f70e7d5d1e	pass		50	5	74846	3457	41.0
 claude-sonnet-5	whole	Lentil	540a0ff7d3ae7a19	turn_limit		50	50	0	0	932.9
 claude-sonnet-5	whole	LeroyCompilerVerificationCourse	7d115958af5c1d1e	fail		50	49	1933256	47996	433.5
@@ -205,12 +427,12 @@ claude-sonnet-5	whole	ryu-lean4	5bac3500a6bab4b4	tampered	declaration_removed	50
 claude-sonnet-5	whole	ryu-lean4	89a4ee7e159a40d6	fail		50	50	1710531	43404	408.5
 claude-sonnet-5	whole	shortest-decimal	10171d84a7f98c0f	tampered	declaration_removed	50	10	109260	3737	51.0
 claude-sonnet-5	whole	shortest-decimal	b703264a818fcd5e	tampered	declaration_removed	50	47	3460410	51058	445.5
-claude-sonnet-5	whole	sparkle	6a458f2f159b083b	malformed		50	0	0	0	0.4
+claude-sonnet-5	whole	sparkle	6a458f2f159b083b	pass		50	4	67294	1772	18.9
 claude-sonnet-5	whole	sparkle	ad13d6c76d669235	tampered	declaration_removed	50	49	3871387	10012	191.0
 claude-sonnet-5	whole	splean	3555823b339bec1c	turn_limit		50	50	0	0	1062.3
 claude-sonnet-5	whole	splean	a537b7a3bcd8844d	tampered	declaration_removed	50	42	2210515	9273	179.9
-claude-sonnet-5	whole	starkware-formal-proofs	4cd9b2f5ffcdb76d	malformed		50	0	0	0	3.1
-claude-sonnet-5	whole	starkware-formal-proofs	eaa30d2eacaa36db	malformed		50	0	0	0	0.1
+claude-sonnet-5	whole	starkware-formal-proofs	4cd9b2f5ffcdb76d	tampered	declaration_removed	50	45	3891965	9131	111.6
+claude-sonnet-5	whole	starkware-formal-proofs	eaa30d2eacaa36db	gave_up		50	23	1727408	1984	38.1
 claude-sonnet-5	whole	symcrust	795efddf6068c29d	turn_limit		50	50	0	0	787.3
 claude-sonnet-5	whole	symcrust	a70c2c776b07e4e9	fail		50	50	5377467	60035	1085.4
 claude-sonnet-5	whole	veil	60061f4b45d47a0e	pass		50	43	1153408	9298	151.3
@@ -219,8 +441,8 @@ claude-sonnet-5	whole	verified-compiler	76bf93194ad33297	turn_limit		50	50	0	0	4
 claude-sonnet-5	whole	verified-compiler	9ec5e6d3c706144c	turn_limit		50	50	0	0	186.0
 claude-sonnet-5	whole	verified-consensus	05f6b42658ac096e	tampered	statement_weakened	50	43	2036081	29053	290.1
 claude-sonnet-5	whole	verified-consensus	b1550740dc7acf5c	tampered	declaration_removed	50	45	2096617	6253	154.6
-claude-sonnet-5	whole	verity	341609f580358a89	malformed		50	0	0	0	0.2
-claude-sonnet-5	whole	verity	4ae1f1695e5d7efa	malformed		50	0	0	0	4.2
+claude-sonnet-5	whole	verity	341609f580358a89	tampered	declaration_removed	50	43	1678631	7258	84.6
+claude-sonnet-5	whole	verity	4ae1f1695e5d7efa	tampered	declaration_removed	50	39	1668208	8921	93.7
 claude-sonnet-5	whole	yul-compiler	593caf423a6fed14	fail		50	45	5944713	3156	214.7
 claude-sonnet-5	whole	yul-compiler	c004d27acd1ee8ac	fail		50	14	402893	7991	115.3
 claude-sonnet-5	whole	yul-semantics	7cb277821546874c	pass		50	6	76536	3178	34.2
@@ -240,7 +462,7 @@ mistral:labs-leanstral-1-5	leaf	FVIntmax	a6980f1a1d6f7fd4	error		50	0	0	0	833.9
 mistral:labs-leanstral-1-5	leaf	Foundation	03368880f2abd6e9	tampered	declaration_removed	50	18	598092	19359	1683.9
 mistral:labs-leanstral-1-5	leaf	Foundation	ed7f94e1f237638c	error		50	0	0	0	17.1
 mistral:labs-leanstral-1-5	leaf	LNSym	4a823a81a8028fc9	pass		50	4	31579	5392	65.8
-mistral:labs-leanstral-1-5	leaf	LNSym	6011b971e91f0d3a	malformed		50	0	0	0	0.7
+mistral:labs-leanstral-1-5	leaf	LNSym	6011b971e91f0d3a	turn_limit		50	50	0	0	1141.1
 mistral:labs-leanstral-1-5	leaf	Lentil	17de49f70e7d5d1e	pass		50	13	396406	13388	165.9
 mistral:labs-leanstral-1-5	leaf	Lentil	540a0ff7d3ae7a19	tampered	statement_weakened	50	33	1102805	54617	637.3
 mistral:labs-leanstral-1-5	leaf	LeroyCompilerVerificationCourse	7d115958af5c1d1e	context_exceeded		50	0	0	0	2835.3
@@ -318,11 +540,11 @@ mistral:labs-leanstral-1-5	leaf	ryu-lean4	5bac3500a6bab4b4	tampered	declaration_
 mistral:labs-leanstral-1-5	leaf	ryu-lean4	89a4ee7e159a40d6	tampered	declaration_removed	50	22	759430	48551	576.4
 mistral:labs-leanstral-1-5	leaf	shortest-decimal	10171d84a7f98c0f	tampered	declaration_removed	50	5	66105	3865	315.7
 mistral:labs-leanstral-1-5	leaf	shortest-decimal	b703264a818fcd5e	error		50	0	0	0	42.1
-mistral:labs-leanstral-1-5	leaf	sparkle	6a458f2f159b083b	malformed		50	0	0	0	0.3
+mistral:labs-leanstral-1-5	leaf	sparkle	6a458f2f159b083b	pass		50	19	505668	10947	89.2
 mistral:labs-leanstral-1-5	leaf	sparkle	ad13d6c76d669235	error		50	0	0	0	258.1
 mistral:labs-leanstral-1-5	leaf	splean	3555823b339bec1c	tampered	declaration_removed	50	22	1391030	60829	836.6
 mistral:labs-leanstral-1-5	leaf	splean	a537b7a3bcd8844d	tampered	declaration_removed	50	27	676315	13687	1350.4
-mistral:labs-leanstral-1-5	leaf	starkware-formal-proofs	4cd9b2f5ffcdb76d	malformed		50	0	0	0	3.0
+mistral:labs-leanstral-1-5	leaf	starkware-formal-proofs	4cd9b2f5ffcdb76d	tampered	declaration_removed	50	44	3548202	19058	220.9
 mistral:labs-leanstral-1-5	leaf	starkware-formal-proofs	eaa30d2eacaa36db	malformed		50	0	0	0	0.1
 mistral:labs-leanstral-1-5	leaf	symcrust	795efddf6068c29d	context_exceeded		50	0	0	0	4222.7
 mistral:labs-leanstral-1-5	leaf	symcrust	a70c2c776b07e4e9	fail		50	39	3872132	108862	11620.9
@@ -332,8 +554,8 @@ mistral:labs-leanstral-1-5	leaf	verified-compiler	76bf93194ad33297	turn_limit		5
 mistral:labs-leanstral-1-5	leaf	verified-compiler	9ec5e6d3c706144c	error		50	0	0	0	566.1
 mistral:labs-leanstral-1-5	leaf	verified-consensus	05f6b42658ac096e	error		50	0	0	0	221.8
 mistral:labs-leanstral-1-5	leaf	verified-consensus	b1550740dc7acf5c	tampered	declaration_removed	50	11	191567	11658	565.7
-mistral:labs-leanstral-1-5	leaf	verity	341609f580358a89	malformed		50	0	0	0	0.2
-mistral:labs-leanstral-1-5	leaf	verity	4ae1f1695e5d7efa	malformed		50	0	0	0	4.0
+mistral:labs-leanstral-1-5	leaf	verity	341609f580358a89	tampered	declaration_removed	50	16	474603	26441	212.7
+mistral:labs-leanstral-1-5	leaf	verity	4ae1f1695e5d7efa	tampered	declaration_removed	50	11	177222	5195	41.2
 mistral:labs-leanstral-1-5	leaf	yul-compiler	593caf423a6fed14	error		50	0	0	0	7305.0
 mistral:labs-leanstral-1-5	leaf	yul-compiler	c004d27acd1ee8ac	turn_limit		50	50	0	0	2183.1
 mistral:labs-leanstral-1-5	leaf	yul-semantics	7cb277821546874c	pass		50	7	97977	9935	98.5
@@ -353,7 +575,7 @@ mistral:labs-leanstral-1-5	whole	FVIntmax	a6980f1a1d6f7fd4	error		50	0	0	0	340.8
 mistral:labs-leanstral-1-5	whole	Foundation	03368880f2abd6e9	turn_limit		50	50	0	0	1274.3
 mistral:labs-leanstral-1-5	whole	Foundation	ed7f94e1f237638c	error		50	0	0	0	628.4
 mistral:labs-leanstral-1-5	whole	LNSym	4a823a81a8028fc9	pass		50	25	704149	34038	385.8
-mistral:labs-leanstral-1-5	whole	LNSym	6011b971e91f0d3a	malformed		50	0	0	0	0.8
+mistral:labs-leanstral-1-5	whole	LNSym	6011b971e91f0d3a	fail		50	48	1767369	32337	278.2
 mistral:labs-leanstral-1-5	whole	Lentil	17de49f70e7d5d1e	pass		50	14	227938	11324	251.7
 mistral:labs-leanstral-1-5	whole	Lentil	540a0ff7d3ae7a19	pass		50	15	391790	33613	757.5
 mistral:labs-leanstral-1-5	whole	LeroyCompilerVerificationCourse	7d115958af5c1d1e	context_exceeded		50	0	0	0	2810.1
@@ -431,12 +653,12 @@ mistral:labs-leanstral-1-5	whole	ryu-lean4	5bac3500a6bab4b4	tampered	declaration
 mistral:labs-leanstral-1-5	whole	ryu-lean4	89a4ee7e159a40d6	error		50	0	0	0	222.2
 mistral:labs-leanstral-1-5	whole	shortest-decimal	10171d84a7f98c0f	tampered	declaration_removed	50	5	72326	7372	107.7
 mistral:labs-leanstral-1-5	whole	shortest-decimal	b703264a818fcd5e	context_exceeded		50	0	0	0	2041.8
-mistral:labs-leanstral-1-5	whole	sparkle	6a458f2f159b083b	malformed		50	0	0	0	0.3
+mistral:labs-leanstral-1-5	whole	sparkle	6a458f2f159b083b	pass		50	26	820663	8723	79.2
 mistral:labs-leanstral-1-5	whole	sparkle	ad13d6c76d669235	tampered	declaration_removed	50	8	112731	15420	254.7
 mistral:labs-leanstral-1-5	whole	splean	3555823b339bec1c	tampered	declaration_removed	50	33	2940232	150878	2588.3
 mistral:labs-leanstral-1-5	whole	splean	a537b7a3bcd8844d	tampered	declaration_removed	50	18	739454	27408	393.2
-mistral:labs-leanstral-1-5	whole	starkware-formal-proofs	4cd9b2f5ffcdb76d	malformed		50	0	0	0	2.3
-mistral:labs-leanstral-1-5	whole	starkware-formal-proofs	eaa30d2eacaa36db	malformed		50	0	0	0	0.1
+mistral:labs-leanstral-1-5	whole	starkware-formal-proofs	4cd9b2f5ffcdb76d	tampered	declaration_removed	50	39	2997086	36684	391.2
+mistral:labs-leanstral-1-5	whole	starkware-formal-proofs	eaa30d2eacaa36db	turn_limit		50	50	0	0	1166.6
 mistral:labs-leanstral-1-5	whole	symcrust	795efddf6068c29d	error		50	0	0	0	19.2
 mistral:labs-leanstral-1-5	whole	symcrust	a70c2c776b07e4e9	error		50	0	0	0	139.1
 mistral:labs-leanstral-1-5	whole	veil	60061f4b45d47a0e	pass		50	6	80373	4718	73.1
@@ -445,8 +667,8 @@ mistral:labs-leanstral-1-5	whole	verified-compiler	76bf93194ad33297	pass		50	46	
 mistral:labs-leanstral-1-5	whole	verified-compiler	9ec5e6d3c706144c	error		50	0	0	0	1623.1
 mistral:labs-leanstral-1-5	whole	verified-consensus	05f6b42658ac096e	error		50	0	0	0	120.5
 mistral:labs-leanstral-1-5	whole	verified-consensus	b1550740dc7acf5c	tampered	declaration_removed	50	20	449346	24890	414.4
-mistral:labs-leanstral-1-5	whole	verity	341609f580358a89	malformed		50	0	0	0	0.2
-mistral:labs-leanstral-1-5	whole	verity	4ae1f1695e5d7efa	malformed		50	0	0	0	3.4
+mistral:labs-leanstral-1-5	whole	verity	341609f580358a89	tampered	declaration_removed	50	18	660445	24867	201.7
+mistral:labs-leanstral-1-5	whole	verity	4ae1f1695e5d7efa	tampered	declaration_removed	50	14	353705	4719	52.5
 mistral:labs-leanstral-1-5	whole	yul-compiler	593caf423a6fed14	error		50	0	0	0	1201.9
 mistral:labs-leanstral-1-5	whole	yul-compiler	c004d27acd1ee8ac	error		50	0	0	0	209.0
 mistral:labs-leanstral-1-5	whole	yul-semantics	7cb277821546874c	pass		50	5	66667	5818	92.2
@@ -466,7 +688,7 @@ openai:gpt-5.6-sol	leaf	FVIntmax	a6980f1a1d6f7fd4	tampered	statement_weakened	50
 openai:gpt-5.6-sol	leaf	Foundation	03368880f2abd6e9	tampered	declaration_removed	50	4	44136	11767	115.4
 openai:gpt-5.6-sol	leaf	Foundation	ed7f94e1f237638c	tampered	declaration_removed	50	8	422402	4117	99.9
 openai:gpt-5.6-sol	leaf	LNSym	4a823a81a8028fc9	pass		50	2	9093	2398	25.2
-openai:gpt-5.6-sol	leaf	LNSym	6011b971e91f0d3a	malformed		50	0	0	0	1.2
+openai:gpt-5.6-sol	leaf	LNSym	6011b971e91f0d3a	pass		50	10	190123	2615	61.2
 openai:gpt-5.6-sol	leaf	Lentil	17de49f70e7d5d1e	pass		50	4	26948	6709	76.3
 openai:gpt-5.6-sol	leaf	Lentil	540a0ff7d3ae7a19	pass		50	4	37450	4858	55.4
 openai:gpt-5.6-sol	leaf	LeroyCompilerVerificationCourse	7d115958af5c1d1e	pass		50	9	177515	16066	171.7
@@ -544,12 +766,12 @@ openai:gpt-5.6-sol	leaf	ryu-lean4	5bac3500a6bab4b4	tampered	declaration_removed	
 openai:gpt-5.6-sol	leaf	ryu-lean4	89a4ee7e159a40d6	tampered	declaration_removed	50	11	152207	14293	188.8
 openai:gpt-5.6-sol	leaf	shortest-decimal	10171d84a7f98c0f	tampered	declaration_removed	50	4	36043	2360	35.6
 openai:gpt-5.6-sol	leaf	shortest-decimal	b703264a818fcd5e	tampered	declaration_removed	50	8	157763	10382	108.5
-openai:gpt-5.6-sol	leaf	sparkle	6a458f2f159b083b	malformed		50	0	0	0	0.3
+openai:gpt-5.6-sol	leaf	sparkle	6a458f2f159b083b	pass		50	6	48597	2510	44.6
 openai:gpt-5.6-sol	leaf	sparkle	ad13d6c76d669235	tampered	declaration_removed	50	4	30322	5764	62.0
 openai:gpt-5.6-sol	leaf	splean	3555823b339bec1c	tampered	declaration_removed	50	6	114379	18378	263.5
 openai:gpt-5.6-sol	leaf	splean	a537b7a3bcd8844d	tampered	declaration_removed	50	5	88989	7275	139.5
-openai:gpt-5.6-sol	leaf	starkware-formal-proofs	4cd9b2f5ffcdb76d	malformed		50	0	0	0	2.5
-openai:gpt-5.6-sol	leaf	starkware-formal-proofs	eaa30d2eacaa36db	malformed		50	0	0	0	0.1
+openai:gpt-5.6-sol	leaf	starkware-formal-proofs	4cd9b2f5ffcdb76d	tampered	declaration_removed	50	7	102636	3544	49.6
+openai:gpt-5.6-sol	leaf	starkware-formal-proofs	eaa30d2eacaa36db	tampered	declaration_removed	50	9	203450	13434	170.8
 openai:gpt-5.6-sol	leaf	symcrust	795efddf6068c29d	tampered	declaration_removed	50	29	1176428	25902	498.5
 openai:gpt-5.6-sol	leaf	symcrust	a70c2c776b07e4e9	error		50	0	0	0	5126.0
 openai:gpt-5.6-sol	leaf	veil	60061f4b45d47a0e	pass		50	2	5781	1448	20.2
@@ -558,8 +780,8 @@ openai:gpt-5.6-sol	leaf	verified-compiler	76bf93194ad33297	pass		50	5	45498	6983
 openai:gpt-5.6-sol	leaf	verified-compiler	9ec5e6d3c706144c	pass		50	11	200038	24097	253.4
 openai:gpt-5.6-sol	leaf	verified-consensus	05f6b42658ac096e	tampered	declaration_removed	50	6	173323	14020	134.6
 openai:gpt-5.6-sol	leaf	verified-consensus	b1550740dc7acf5c	tampered	declaration_removed	50	6	88238	4339	78.5
-openai:gpt-5.6-sol	leaf	verity	341609f580358a89	malformed		50	0	0	0	0.2
-openai:gpt-5.6-sol	leaf	verity	4ae1f1695e5d7efa	malformed		50	0	0	0	3.1
+openai:gpt-5.6-sol	leaf	verity	341609f580358a89	tampered	declaration_removed	50	7	78721	5686	57.1
+openai:gpt-5.6-sol	leaf	verity	4ae1f1695e5d7efa	tampered	declaration_removed	50	8	112504	3831	46.9
 openai:gpt-5.6-sol	leaf	yul-compiler	593caf423a6fed14	tampered	statement_weakened	50	7	461874	4346	210.8
 openai:gpt-5.6-sol	leaf	yul-compiler	c004d27acd1ee8ac	pass		50	7	206935	25200	374.8
 openai:gpt-5.6-sol	leaf	yul-semantics	7cb277821546874c	pass		50	4	46272	2281	29.0
@@ -579,7 +801,7 @@ openai:gpt-5.6-sol	whole	FVIntmax	a6980f1a1d6f7fd4	tampered	statement_weakened	5
 openai:gpt-5.6-sol	whole	Foundation	03368880f2abd6e9	tampered	declaration_removed	50	4	32870	5941	67.5
 openai:gpt-5.6-sol	whole	Foundation	ed7f94e1f237638c	tampered	declaration_removed	50	6	213703	2653	65.2
 openai:gpt-5.6-sol	whole	LNSym	4a823a81a8028fc9	pass		50	4	26918	6850	76.6
-openai:gpt-5.6-sol	whole	LNSym	6011b971e91f0d3a	malformed		50	0	0	0	0.8
+openai:gpt-5.6-sol	whole	LNSym	6011b971e91f0d3a	pass		50	8	142722	3307	72.5
 openai:gpt-5.6-sol	whole	Lentil	17de49f70e7d5d1e	pass		50	4	27237	6832	72.3
 openai:gpt-5.6-sol	whole	Lentil	540a0ff7d3ae7a19	pass		50	7	106423	10133	118.2
 openai:gpt-5.6-sol	whole	LeroyCompilerVerificationCourse	7d115958af5c1d1e	tampered	statement_weakened	50	9	188970	18295	223.0
@@ -657,12 +879,12 @@ openai:gpt-5.6-sol	whole	ryu-lean4	5bac3500a6bab4b4	tampered	declaration_removed
 openai:gpt-5.6-sol	whole	ryu-lean4	89a4ee7e159a40d6	tampered	declaration_removed	50	5	34529	5767	86.3
 openai:gpt-5.6-sol	whole	shortest-decimal	10171d84a7f98c0f	tampered	declaration_removed	50	5	35720	7943	122.4
 openai:gpt-5.6-sol	whole	shortest-decimal	b703264a818fcd5e	tampered	declaration_removed	50	8	148447	10396	138.9
-openai:gpt-5.6-sol	whole	sparkle	6a458f2f159b083b	malformed		50	0	0	0	0.4
+openai:gpt-5.6-sol	whole	sparkle	6a458f2f159b083b	pass		50	6	64171	3522	42.7
 openai:gpt-5.6-sol	whole	sparkle	ad13d6c76d669235	tampered	declaration_removed	50	3	25307	3233	54.4
 openai:gpt-5.6-sol	whole	splean	3555823b339bec1c	tampered	declaration_removed	50	10	248797	25125	465.5
 openai:gpt-5.6-sol	whole	splean	a537b7a3bcd8844d	tampered	declaration_removed	50	5	84948	9348	184.7
-openai:gpt-5.6-sol	whole	starkware-formal-proofs	4cd9b2f5ffcdb76d	malformed		50	0	0	0	3.0
-openai:gpt-5.6-sol	whole	starkware-formal-proofs	eaa30d2eacaa36db	malformed		50	0	0	0	0.2
+openai:gpt-5.6-sol	whole	starkware-formal-proofs	4cd9b2f5ffcdb76d	tampered	declaration_removed	50	8	126917	1833	36.5
+openai:gpt-5.6-sol	whole	starkware-formal-proofs	eaa30d2eacaa36db	tampered	declaration_removed	50	12	166856	10312	181.1
 openai:gpt-5.6-sol	whole	symcrust	795efddf6068c29d	tampered	statement_weakened	50	7	221421	9816	184.7
 openai:gpt-5.6-sol	whole	symcrust	a70c2c776b07e4e9	pass		50	49	2379881	35693	2379.2
 openai:gpt-5.6-sol	whole	veil	60061f4b45d47a0e	pass		50	2	5663	1343	21.9
@@ -671,8 +893,8 @@ openai:gpt-5.6-sol	whole	verified-compiler	76bf93194ad33297	pass		50	7	73378	104
 openai:gpt-5.6-sol	whole	verified-compiler	9ec5e6d3c706144c	pass		50	16	479676	44705	503.3
 openai:gpt-5.6-sol	whole	verified-consensus	05f6b42658ac096e	tampered	declaration_removed	50	9	393997	27034	283.8
 openai:gpt-5.6-sol	whole	verified-consensus	b1550740dc7acf5c	tampered	declaration_removed	50	6	93132	6149	129.2
-openai:gpt-5.6-sol	whole	verity	341609f580358a89	malformed		50	0	0	0	0.5
-openai:gpt-5.6-sol	whole	verity	4ae1f1695e5d7efa	malformed		50	0	0	0	5.4
+openai:gpt-5.6-sol	whole	verity	341609f580358a89	tampered	declaration_removed	50	9	111216	13600	121.8
+openai:gpt-5.6-sol	whole	verity	4ae1f1695e5d7efa	tampered	declaration_removed	50	6	73857	3738	42.9
 openai:gpt-5.6-sol	whole	yul-compiler	593caf423a6fed14	tampered	statement_weakened	50	6	403885	3450	213.0
 openai:gpt-5.6-sol	whole	yul-compiler	c004d27acd1ee8ac	pass		50	10	247382	32524	458.6
 openai:gpt-5.6-sol	whole	yul-semantics	7cb277821546874c	pass		50	3	30132	2273	29.1
