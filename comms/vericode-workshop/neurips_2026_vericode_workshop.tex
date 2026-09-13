@@ -75,6 +75,8 @@ LeanDojo \citep{yang2023leandojo} and LeanStep \citep{han2022proof} use Mathlib 
 
 SWE-bench \citep{jimenez2024swebench} and its descendants provide a related setting for repository-level software repair. In these benchmarks, agents repair code inside real repositories and are scored by whether their code passes the repository’s test suite. Our oracle differs in rigor. It’s possible to have a false positive in a unit test suite. A patch can satisfy all tests and still be wrong. By contrast, with a proof kernel, false positives are not a concern. In our setting, reward hacking takes the form of attacking the \emph{statement} rather than the proof (\S\ref{sec:grid}).
 
+Verina \citep{ye2026verina} moves from mathematics to verifiable code generation, asking models to jointly produce a Lean~4 implementation, its formal specification, and a proof that the two agree, across 189 hand-curated tasks; proof generation is the weakest leg by a wide margin, with the best model closing under 5\% of goals. Its tasks are small, self-contained and written for the benchmark, whereas our challenges are mined from 57 existing Lean~4 repositories, so the proof a solver must reconstruct sits inside the dependency structure of a real development rather than beside a purpose-written specification.
+
 VeriSoftBench \citep{xin2026verisoftbench} provides 500 Lean~4 proof obligations from 23 software-verification repositories, with valid reference proofs, compilable holed files, and curated or full-repository context. It characterizes difficulty using proof length and dependency structure and reports correlations with solver success, but does not report a calibrated predictive difficulty model. While its leakage controls exclude target-proof information from evaluation prompts, it does not report an empirical analysis of pretraining contamination. ProofAblate deletes a supporting declaration and holes its downstream proof sites. Our leaf split alone contains 21{,}692 challenges, over $40\times$ as many as VeriSoftBench. The full benchmark includes 43{,}410 challenges across both holing strategies from 57 repositories. We additionally analyze statement tampering, lemma introduction dates, and sensitivity to deletion depth.
 
 Our contamination analysis (\S\ref{sec:contamination}) uses temporal comparisons, as in LiveCodeBench \citep{jain2025livecodebench} and GSM1K \citep{zhang2024careful}, perturbation testing, as in GSM-Symbolic \citep{mirzadeh2025gsmsymbolic}, and verbatim-recall probing \citep{golchin2024timetravel}.
@@ -429,10 +431,16 @@ Anandkumar, A.\ (2023) LeanDojo: Theorem proving with retrieval-augmented langua
 {\it Advances in Neural Information Processing Systems (NeurIPS) Datasets and Benchmarks Track}.
 \arxiv{2306.15626}.
 
+\bibitem{ye2026verina}
+Ye, Z., Yan, Z., He, J., Kasriel, T., Yang, K.\ \& Song, D.\ (2026) Verina: Benchmarking
+verifiable code generation. In {\it International Conference on Learning Representations (ICLR)}.
+\arxiv{2505.23135}.
+
 \bibitem{zhang2024careful}
-Zhang, H., Da, J., Lee, D., Robinson, V., Wu, C., Song, W., Zhao, T., Raja, P., Slack, D., Lyu,
-Q., Hendryx, S., Kaplan, R., Lunati, M.\ \& Yue, S.\ (2024) A careful examination of large
-language model performance on grade school arithmetic.
+Zhang, H., Da, J., Lee, D., Robinson, V., Wu, C., Song, W., Zhao, T., Raja, P., Zhuang, C.,
+Slack, D., Lyu, Q., Hendryx, S., Kaplan, R., Lunati, M.\ \& Yue, S.\ (2024) A careful
+examination of large language model performance on grade school arithmetic. In {\it Advances in
+Neural Information Processing Systems (NeurIPS) Datasets and Benchmarks Track}.
 \arxiv{2405.00332}.
 
 \bibitem{zheng2022minif2f}
