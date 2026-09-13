@@ -229,13 +229,61 @@ One might expect tamper rates to rise with turn budget; the full curve in Figure
 
 For each agent, we calibrate a difficulty model. Features are computed \emph{inside} the ablator, so they are visible in the released rows rather than being a post-hoc artifact of our analysis code: size and shape (line count, tactic count, cyclomatic complexity, fan-in of the deleted lemma), what the proof \emph{does} (counts of automation, rewriting and structural steps, an automation-only flag, maximum nesting depth), and what the corollary rests on (direct and transitive dependency counts). Size alone cannot distinguish a one-line \texttt{simp} call from a forty-line induction with the same step count, and that distinction is what mostly decides whether a lemma can be rederived.
 
-Each agent's model is trained on that agent's own outcomes from the grid of \S\ref{sec:grid} and evaluated on a \textbf{disjoint} second sample of challenges drawn from repositories and files the training sample does not touch. Difficulty is model-dependent (below), so a panel pooled across agents would predict an average solver rather than a particular one; per-agent models are what the quantity means. We report held-out ROC-AUC for discrimination and the Brier score with the Murphy decomposition (reliability, resolution, uncertainty) plus a decile reliability diagram for calibration, and the per-feature coefficients, since “fan-in and tactic count predict difficulty, file size does not” is a more useful statement to this audience than an AUC.
+Each agent's model is trained on that agent's own outcomes from the grid of \S\ref{sec:grid} and evaluated on a \textbf{disjoint} second sample of challenges drawn from repositories and files the training sample does not touch. Difficulty is model-dependent (below), so a panel pooled across agents would predict an average solver rather than a particular one; per-agent models are what the quantity means. We report held-out ROC-AUC for discrimination, the Brier score with its Murphy decomposition for calibration, and the fitted coefficients, since which features carry the signal is a more useful statement to this audience than an AUC.
 
-We note the labels are \emph{model}-dependent in a way the grid from \S\ref{sec:grid} makes concrete. We found that the whole-body ablation is harder than leaf ablation for two models and easier for a third.
+The labels are \emph{model}-dependent in a way the grid of \S\ref{sec:grid} makes concrete: the same challenge is a pass for one agent and a tamper for another, and the agents' held-out models below differ by more than a tenth of an AUC. They are not, however, strategy-dependent in the way we first supposed --- leaf and whole-body holing are statistically indistinguishable for all four agents (\S\ref{sec:grid}), so a model calibrated on leaf outcomes is not thereby calibrated on an easier task.
 
 There are two caveats the numbers carry. First, the labels are budget-dependent: this is difficulty \emph{at budget $B$}. Second, the scorer counts \texttt{tampered} and \texttt{turn\_limit} as failures while dropping  \texttt{trivial} and \texttt{context\_exceeded}, matching Table~\ref{tab:outcome-predicates}; since roughly half of \texttt{gpt-5.6-sol}’s attempts are tampers, the model is in part predicting where a solver will choose to cheat.
 
-\todo{Held-out ROC/AUC, Brier with Murphy decomposition, reliability diagram (Fig.~7), feature coefficients; cross-mode transfer (train on leaf, score whole-body) attempted or explicitly deferred with a reason}
+Table~\ref{tab:difficulty} gives the result. The held-out sample is 110 leaf challenges mined
+from repositories and files the grid sample never touches; three are \texttt{malformed} for
+every agent and a few were still in flight at submission, leaving 103 scored by all three
+agents, which is the set reported. Discrimination is well above chance for every agent and
+varies with the agent (ROC-AUC 0.897, 0.851, 0.774), which is the model-dependence above made
+quantitative. Reliability error is small in every case --- the models are close to calibrated,
+and most of the Brier improvement over the uncertainty term comes from resolution rather than
+from being confidently wrong.
+
+The coefficients tell a simpler story than we expected. One quantity dominates: the fan-in of
+the deleted lemma, at $-3.1$ to $-4.3$ across agents, four to six times the weight of anything
+else. In this single-deletion regime that quantity is not distinguishable from two others --- a
+lemma with fan-in $k$ produces exactly $k$ holes and $k$ hole leaves, so those columns are
+numerically identical and a regularized fit splits one effect across three names. We report
+them merged; reporting them separately would present one piece of evidence three times. After
+fan-in, the size and shape of the \emph{holed} proofs matter (line count, tactic count,
+cyclomatic complexity, each around $-0.5$ to $-0.8$), and properties of the corollary carry
+small positive weight. Raw file size, which we added to the predictor set precisely so that the
+claim could be tested, is negligible and does not agree in sign across agents ($+0.008$,
+$-0.230$, $-0.304$). How many places a deletion must be repaired, not how much text surrounds
+them, is what predicts whether an agent closes the goal.
+
+Two pieces of the planned analysis are not here. A decile reliability diagram would add a
+figure without adding a claim the Murphy decomposition does not already carry, and we omit it
+for space. Cross-mode transfer --- train on leaf outcomes, score whole-body --- cannot be
+evaluated on this sample at all: the held-out set is leaf-only, so there are no whole-body
+labels to score against. Building a whole-body held-out sample is the natural next step and is
+not a small one, since it requires a second disjoint mining pass. \texttt{leanstral-1-5} is
+absent from Table~\ref{tab:difficulty} for a mundane reason: its provider rate-limits large
+requests hard enough that the held-out arm was still running at submission.
+
+\begin{table}[h]
+  \caption{Held-out difficulty models, one per agent, trained on that agent's 109 scorable leaf
+  outcomes from the grid and evaluated on 103 challenges from repositories the training sample
+  never touches. Brier decomposes as reliability $-$ resolution $+$ uncertainty; lower
+  reliability is better, higher resolution is better.}
+  \label{tab:difficulty}
+  \centering
+  \small
+  \begin{tabular}{lrrrrrr}
+    \toprule
+    Agent & Held-out $n$ & PASS & ROC-AUC & Brier & rel.\ & res.\ \\
+    \midrule
+    \texttt{gpt-5.6-sol}     & 103 & 47.6\% & 0.897 & 0.138 & 0.025 & 0.134 \\
+    \texttt{claude-opus-5}   & 103 & 46.6\% & 0.851 & 0.159 & 0.035 & 0.122 \\
+    \texttt{claude-sonnet-5} & 103 & 35.0\% & 0.774 & 0.196 & 0.032 & 0.062 \\
+    \bottomrule
+  \end{tabular}
+\end{table}
 
 \subsection{Contamination}
 \label{sec:contamination}

@@ -75,3 +75,6 @@ node_modules/
 
 # wave-3 experiment scratch trees (distilled results go to docs/ + pipeline/ via PRs)
 /scratch-wave3/
+
+# submission bundle (derived; rebuild from git-tracked sources)
+comms/vericode-workshop/proofablate-supplementary.zip
