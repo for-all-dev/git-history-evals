@@ -208,7 +208,7 @@ The corpus is heavily concentrated. The largest repository contributes 33.8\% of
 \subsection{Setup}
 \label{sec:setup}
 
-The solver is a ReAct-style agent \cite{yao2023react} with five tools: (1) list the proof files in the work copy, (2) read a file range, (3) search the repository, (4) submit a candidate solution, and (5) give up. When the agent submits a candidate solution, the system returns the compilation result, providing a feedback loop. Every tool result also reports the remaining request budget.
+The solver is a ReAct-style agent \cite{yao2023react} with five tools: (1) list the proof files in the work copy, (2) read a file range, (3) search the repository, (4) submit a candidate solution, and (5) give up. When the agent submits a candidate solution, the system returns the compilation result, providing a feedback loop. Every tool result also reports the remaining request budget. Full tool schemas and the scoring-compile procedure are in Appendix~\ref{app:solver}.
 
 We evaluate four models: \texttt{gpt-5.6-sol} (OpenAI), \texttt{claude-opus-5} and \texttt{claude-sonnet-5} (Anthropic), and \texttt{leanstral-1-5} (Mistral). Leanstral is a Lean-specialized model; the other three are general-purpose frontier models, and the two Anthropic models let us separate capability from lab. The problem set is a matched sample: for each of the 57 repositories, we draw up to two \texttt{challenge\_id}s present in \emph{both} splits under a fixed seed, giving 113 pairs (56 repositories contribute two, one contributes one). Four of the 113 pairs are \texttt{malformed} on both sides for every model and are excluded from both, leaving 109 scorable pairs. Two come from a repository whose package we cannot build without compiling a pinned fork of Mathlib from source, and two from a repository whose own \texttt{leanOptions} our scorer does not apply, so no model can close them legitimately (\S\ref{sec:limitations}, L3). Per-model exclusions reduce this further for \texttt{leanstral-1-5} alone, to 102 leaf and 106 whole-body. We run every model over both holing strategies on this same identifier set with a 50-turn budget. PASS rates are over scorable problems, with bootstrap 95\% intervals over problems.
 
@@ -217,7 +217,7 @@ The eight runs consumed 704.5M input and 14.0M output tokens and 113.6 hours of 
 \subsection{Main results}
 \label{sec:grid}
 
-The pass rates are given in Table~\ref{tab:grid}. Table~\ref{tab:mix} shows the full outcome composition; Figure~\ref{fig:mix} shows the same composition as shares of the scorable attempts.
+The pass rates are given in Table~\ref{tab:grid}, with a per-repository breakdown in Appendix~\ref{app:perrepo}. Table~\ref{tab:mix} shows the full outcome composition; Figure~\ref{fig:mix} shows the same composition as shares of the scorable attempts.
 
 The four models fall into two groups. \texttt{gpt-5.6-sol} and \texttt{claude-opus-5} pass 48.6\% and 45.9\% of leaf problems; \texttt{leanstral-1-5} and \texttt{claude-sonnet-5} pass 30.4\% and 28.4\%. The gap between the groups is larger than any gap within them, and the two leaders' intervals overlap almost entirely, so we do not read an ordering between them. No model is near the ceiling or floor. That \texttt{leanstral-1-5} matches \texttt{claude-sonnet-5} is a real result for a much smaller, Lean-specialized model, and it is understated here: 23 of its leaf attempts and 29 of its whole-body attempts failed in transport rather than at the proof, and are counted against it (\S\ref{sec:limitations}, L7).
 
@@ -308,7 +308,8 @@ from repositories and files the grid sample never touches; three are \texttt{mal
 every agent and a few were still in flight at submission, leaving 103 scored by all three
 agents, which is the set reported. Discrimination is well above chance for every agent and
 varies with the agent (ROC-AUC 0.897, 0.851, 0.774), which is the model-dependence above made
-quantitative. Reliability error is small in every case --- the models are close to calibrated,
+quantitative; the curves behind these numbers are in Appendix~\ref{app:difficulty}
+(Figure~\ref{fig:difficulty-roc}). Reliability error is small in every case --- the models are close to calibrated,
 and most of the Brier improvement over the uncertainty term comes from resolution rather than
 from being confidently wrong.
 
@@ -325,10 +326,11 @@ claim could be tested, is negligible and does not agree in sign across agents ($
 $-0.230$, $-0.304$). How many places a deletion must be repaired, not how much text surrounds
 them, is what predicts whether an agent closes the goal.
 
-Two pieces of the planned analysis are not here. A decile reliability diagram would add a
-figure without adding a claim the Murphy decomposition does not already carry, and we omit it
-for space. Cross-mode transfer --- train on leaf outcomes, score whole-body --- cannot be
-evaluated on this sample at all: the held-out set is leaf-only, so there are no whole-body
+The decile reliability diagram adds no claim the Murphy decomposition above does not already
+carry, so we keep it out of the main text and place it in Appendix~\ref{app:difficulty}
+(Figure~\ref{fig:difficulty-reliability}) instead. One piece of the planned analysis is not
+here at all: cross-mode transfer --- train on leaf outcomes, score whole-body --- cannot be
+evaluated on this sample: the held-out set is leaf-only, so there are no whole-body
 labels to score against. Building a whole-body held-out sample is the natural next step and is
 not a small one, since it requires a second disjoint mining pass. \texttt{leanstral-1-5} is
 absent from Table~\ref{tab:difficulty} for a mundane reason: its provider rate-limits large
@@ -1059,6 +1061,38 @@ the constructed agent, not transcribed.
 The strongest model is also by far the cheapest: \texttt{gpt-5.6-sol} uses a fifth of the turns
 and a seventh of the input tokens of \texttt{claude-sonnet-5}, which is consistent with
 \S\ref{sec:grid} --- an attempt that ends by deleting the target statement ends early.
+
+\section{Difficulty model diagnostics}
+\label{app:difficulty}
+
+Table~\ref{tab:difficulty} reports each agent's held-out ROC-AUC and Brier/Murphy
+decomposition as scalars; Figure~\ref{fig:difficulty-roc} and
+Figure~\ref{fig:difficulty-reliability} show the curves those scalars summarize, computed
+from the identical held-out predictions (103 leaf challenges scored by all three agents,
+\S\ref{sec:difficulty}). We omit the decile reliability diagram from the main text for
+space (\S\ref{sec:difficulty}); it is here rather than dropped, since the small held-out
+$n$ makes the noise at the high-confidence deciles worth seeing rather than only
+summarizing through the Brier reliability term.
+
+\begin{figure}[h]
+  \centering
+  \includegraphics{difficulty-roc.pdf}
+  \caption{Held-out ROC curves for the three per-agent difficulty models of
+  Table~\ref{tab:difficulty}. \texttt{leanstral-1-5} is absent for the reason given there
+  (provider rate limits left its held-out arm incomplete at submission).}
+  \label{fig:difficulty-roc}
+\end{figure}
+
+\begin{figure}[h]
+  \centering
+  \includegraphics{difficulty-reliability.pdf}
+  \caption{Decile reliability diagram for the same three held-out models: mean predicted
+  P(pass) against observed pass rate within each decile bin, marker size proportional to
+  bin count. The high-confidence deciles carry few held-out problems, so their scatter
+  around the diagonal is sampling noise, not evidence against calibration; the aggregate
+  reliability term in Table~\ref{tab:difficulty} is the more reliable read.}
+  \label{fig:difficulty-reliability}
+\end{figure}
 
 \section{Contamination: methods and additional results}
 \label{app:contamination}
