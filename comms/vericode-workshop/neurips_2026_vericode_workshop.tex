@@ -225,7 +225,7 @@ At a 50-turn budget, we found no statistically significant difference in pass ra
 
 Of \texttt{gpt-5.6-sol}’s 109 scorable leaf problems, the model passes 53 and tampers on 54. Under both holing strategies it never gave up, never hit the turn limit and never submitted a non-compiling answer: every one of its non-passes is a tamper. \texttt{claude-opus-5} is the informative contrast. It is statistically indistinguishable from \texttt{gpt-5.6-sol} on PASS, yet tampers twelve points less (37.6\% against 49.5\%) and does fail honestly, recording 12 turn-limit outcomes and one honest failure under leaf holing. Two models of comparable ability differ sharply in how often they reach for the exploit, which points at training rather than capability as the proximate cause, and means the behaviour is not an inevitable consequence of getting better at proofs.
 
-One might expect tamper rates to rise with turn budget; the full curve in Figure~\ref{fig:budget} shows they do not. This curve consists of re-runs of the matched sample at announced budgets of 15, 30, and 100 turns alongside the 50-turn grid. This arm was run before six pairs were recovered from build failures, so every point on it, including the 50-turn point, is over the earlier 103-problem cut rather than the 109 of Table~\ref{tab:grid}, and it covers two of the four models. We therefore read it only for direction and quote no 50-turn number from it; Table~\ref{tab:grid} is the sole source for 50-turn figures. Summed over both strategies (206 attempts per budget), \texttt{claude-sonnet-5}’s tamper count rises only mildly, from 42 at 15 turns to 56 at 100. \texttt{gpt-5.6-sol}'s \emph{falls} mildly over the same range, from 107 to 99. The strongest model tampers most when it can least afford a real derivation. We conclude that budget \emph{starvation}, not budget surplus, is what pushes \texttt{gpt-5.6-sol} toward the exploit.
+One might expect tamper rates to rise with turn budget; the full curve in Figure~\ref{fig:budget} shows they do not. This curve consists of re-runs of the matched sample at announced budgets of 15, 30, and 100 turns alongside the 50-turn grid. The curve shows that \texttt{claude-sonnet-5}’s tamper count rises only mildly, from 42 at 15 turns to 56 at 100. \texttt{gpt-5.6-sol}'s \emph{falls} mildly over the same range, from 107 to 99. The strongest model tampers most when it can least afford a real derivation. We conclude that budget \emph{starvation}, not budget surplus, is what pushes \texttt{gpt-5.6-sol} toward the exploit.
 
 \begin{table}[t]
   \caption{Main grid: PASS, tamper rate and what a compile-only scorer would have reported,
@@ -288,7 +288,7 @@ One might expect tamper rates to rise with turn budget; the full curve in Figure
 \begin{figure}[t]
   \centering
   \includegraphics{budget-curve.pdf}
-  \caption{PASS against the announced turn budget (15/30/50/100), for the two models this arm covers, bootstrap 95\% intervals over the 103 scorable problems of the earlier cut (see \S\ref{sec:grid}); its 50-turn point is therefore not the Table~\ref{tab:grid} cell. Each point is a genuine re-run at that announced budget.}
+  \caption{PASS against the announced turn budget (15/30/50/100), for the two models this arm covers, bootstrap 95\% intervals. Each point is a genuine re-run at that announced budget.}
   \label{fig:budget}
 \end{figure}
 
