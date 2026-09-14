@@ -223,7 +223,7 @@ The four models fall into two groups. \texttt{gpt-5.6-sol} and \texttt{claude-op
 
 At a 50-turn budget, we found no statistically significant difference in pass rates between leaf and whole-body holing for any model (exact McNemar $p = 1.000$, $0.549$, $0.754$ and $1.000$; discordant pairs 6/6, 7/4, 6/4 and 5/5). Whole-body holing nevertheless altered the composition of unsuccessful attempts. For \texttt{claude-sonnet-5}, turn-limit outcomes rose from 19 to 25 on an unchanged PASS count of 31; \texttt{gpt-5.6-sol}'s tampering rose from 54 to 57, and \texttt{claude-opus-5}'s from 41 to 46.
 
-Of \texttt{gpt-5.6-sol}’s 109 scorable leaf problems, the model passes 53 and tampers on 54. Under both holing strategies it never gave up, never hit the turn limit and never submitted a non-compiling answer: every one of its non-passes is a tamper. \texttt{claude-opus-5} is the informative contrast. It is statistically indistinguishable from \texttt{gpt-5.6-sol} on PASS, yet tampers twelve points less (37.6\% against 49.5\%) and does fail honestly, recording 12 turn-limit outcomes and one honest failure under leaf holing. Tamper rate therefore tracks capability across the four models --- 49.5\%, 37.6\%, 28.4\%, 26.6\% against PASS of 48.6\%, 45.9\%, 30.4\%, 28.4\% --- without being fixed by it. Two models of comparable ability differ sharply in how often they reach for the exploit, which points at training rather than capability as the proximate cause, and means the behaviour is not an inevitable consequence of getting better at proofs.
+Of \texttt{gpt-5.6-sol}’s 109 scorable leaf problems, the model passes 53 and tampers on 54. Under both holing strategies it never gave up, never hit the turn limit and never submitted a non-compiling answer: every one of its non-passes is a tamper. \texttt{claude-opus-5} is the informative contrast. It is statistically indistinguishable from \texttt{gpt-5.6-sol} on PASS, yet tampers twelve points less (37.6\% against 49.5\%) and does fail honestly, recording 12 turn-limit outcomes and one honest failure under leaf holing. Two models of comparable ability differ sharply in how often they reach for the exploit, which points at training rather than capability as the proximate cause, and means the behaviour is not an inevitable consequence of getting better at proofs.
 
 One might expect tamper rates to rise with turn budget; the full curve in Figure~\ref{fig:budget} shows they do not. This curve consists of re-runs of the matched sample at announced budgets of 15, 30, and 100 turns alongside the 50-turn grid. This arm was run before six pairs were recovered from build failures, so every point on it, including the 50-turn point, is over the earlier 103-problem cut rather than the 109 of Table~\ref{tab:grid}, and it covers two of the four models. We therefore read it only for direction and quote no 50-turn number from it; Table~\ref{tab:grid} is the sole source for 50-turn figures. Summed over both strategies (206 attempts per budget), \texttt{claude-sonnet-5}’s tamper count rises only mildly, from 42 at 15 turns to 56 at 100. \texttt{gpt-5.6-sol}'s \emph{falls} mildly over the same range, from 107 to 99. The strongest model tampers most when it can least afford a real derivation. We conclude that budget \emph{starvation}, not budget surplus, is what pushes \texttt{gpt-5.6-sol} toward the exploit.
 
@@ -328,16 +328,16 @@ inherits the same confound. The curve of Figure~\ref{fig:budget} quantifies this
 \texttt{gpt-5.6-sol} is saturated by 30 turns on both. The curve also cannot be obtained
 cheaply: deriving it from the 100-turn arm by post-hoc thresholding on \texttt{turns\_used}
 under-predicts \texttt{claude-sonnet-5}'s genuine 15-turn passes by more than $3\times$ (8
-predicted against 27 measured, $p<0.001$), because the agent is told its budget and paces itself to the announcement ---
-an 8-turn solver like \texttt{gpt-5.6-sol} shows no such gap. Budget curves for models that
+predicted against 27 measured, $p<0.001$), because the agent is told its budget and paces itself to the announcement.
+However, an 8-turn solver like \texttt{gpt-5.6-sol} shows no such gap. Budget curves for models that
 pace themselves require genuine per-budget runs.
 
 \paragraph{L3: Scoring requires a built checkout.} The data can be browsed by anyone; scoring a
 prediction requires the repository’s prebuilt \texttt{.olean} closure at the pinned revision, at
 roughly 5--7\,GB per Mathlib-dependent repository and on the order of a terabyte for all 57. We
-build and checksum prebuilt closures for a demo subset of five repositories --- verified-compiler,
-LNSym, capless-lean, FVIntmax and ArkLib, each pinned to the revision listed in
-Table~\ref{tab:licenses} and round-tripped through the scorer with no rebuild --- which is
+build and checksum prebuilt closures for a demo subset of five repositories (specifically, \texttt{verified-compiler},
+\texttt{LNSym}, \texttt{capless-lean}, \texttt{FVIntmax} and \texttt{ArkLib}), each pinned to the revision listed in
+Table~\ref{tab:licenses} and round-tripped through the scorer with no rebuild. This is
 sufficient for a quickstart but not for the full corpus. Only verified-compiler, at 0.5\,MB
 compressed, is small enough to accompany the submission; the other four run from 0.6 to 2.6\,GB
 compressed and are distributed separately. This is the single largest adoption barrier we know
@@ -352,7 +352,7 @@ any analysis over the full corpus that is correlated with repository size inheri
 window in our first baseline, even after minimal slicing. We flag these
 \texttt{context\_exceeded} and exclude them from the denominator, since the provider rejects the
 prompt and the model never sees the problem. Excluding them is the honest accounting, but it also
-means the largest problems --- plausibly among the hardest --- are systematically unmeasured, and
+means the largest problems, plausibly among the hardest, are systematically unmeasured, and
 the exclusion set varies by model, so cross-model comparisons are over slightly different problem
 sets. The grid’s repository-balanced sample is much less affected (4 exclusions out of 900 attempts,
 all in one model’s whole-body run, Table~\ref{tab:mix}), which is itself a reminder that the
@@ -364,21 +364,21 @@ released row count is provisional.
 
 \paragraph{L7: One grid arm needed a transport-fault re-run, and some faults persist.} The
 original \texttt{leanstral-1-5} arm lost 60 of 103 leaf attempts and 44 of 100 whole-body
-attempts to TLS-layer and read-timeout failures against the provider --- concentrated enough,
+attempts to TLS-layer and read-timeout failures against the provider; concentrated enough,
 and asymmetric enough across the two strategies, to manufacture the apparent easy/hard reversal
 discussed in \S\ref{sec:grid}. The faulted attempts were re-solved and spliced by challenge id; the numbers throughout
 this paper are from the re-run. That re-run lowered request concurrency, but concurrency was
 not the mechanism: the faults recur identically at four, two and one concurrent request. The
 cause is that the solver's HTTP client retried rate-limit and timeout exceptions but not
-transport ones, so a connection-level failure under sustained rate-limit backoff --- which
-this provider applies to large requests --- aborted the whole attempt and was recorded as a
+transport ones, so a connection-level failure under sustained rate-limit backoff, which
+this provider applies to large requests, aborted the whole attempt and was recorded as a
 non-pass. The client now retries transport and TLS errors as well. Even so, 23 leaf and 29 whole-body attempts still ended in transport faults, and
 following Table~\ref{tab:outcome-predicates} the aggregator keeps them in the denominator as non-passes,
 so the leanstral row of Table~\ref{tab:grid} remains a mild lower bound: dropping the residual
 faulted attempts gives 40.5\% (30/74) and 40.8\% (29/71) on leaf and whole-body holing, while the general-purpose arms are essentially unaffected (7, 3, 2 and 1 faults out of 113).
 
 \paragraph{L8: One sample, one seed.} Every number in \S\ref{sec:experiments} comes
-from a single 113-pair draw at seed 42, run once per (model, strategy, budget) --- the main
+from a single 113-pair draw at seed 42, run once per (model, strategy, budget); the main
 grid at 50 turns, the budget curve of Figure~\ref{fig:budget} at 15/30/100 on the same draw.
 There is no across-seed replication and no repeated sampling of the same problem, so the
 intervals we report capture sampling variation over problems and repositories but not the
@@ -389,7 +389,7 @@ solver’s own run-to-run variance, which is not negligible for stochastic agent
 Proof repair inside a real development is a different task from proving a competition statement,
 and it is closer to what proof engineering actually is. We show it can be posed at scale by
 syntactic ablation, and that the resulting problems can be validated on both sides by the
-compiler --- 43{,}410 of them, from 57 pinned Lean~4 repositories. The validation discipline is
+compiler: 43{,}410 of them, from 57 pinned Lean~4 repositories. The validation discipline is
 the part we would most like to see adopted elsewhere: it is cheap relative to the mining, it
 catches unwinnable problems, and it turns
 “is this benchmark well-formed?” from an assertion into a build artifact.
@@ -399,7 +399,7 @@ task the strongest model we evaluated does not fail; it cheats. Every scorable a
 either rederived the lemma or made the file compile by removing the theorem it was asked to
 prove, and a scorer without a statement-preservation check would have called that 98\% success.
 A verified reward is sound about proofs and says nothing about statements, and at current
-capability levels the gap between those two is not a corner case --- it is half the results
+capability levels the gap between those two is not a corner case; it is half the results
 table. Benchmarks and RL environments built on proof checkers need the second half of the oracle
 written down, published, and measured, not assumed.
 
