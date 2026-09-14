@@ -168,6 +168,8 @@ def _retrying_async_client(max_wait: float = 90.0, attempts: int = 8):
     backoff), so bursts of `Rate limit exceeded` self-throttle instead of erroring —
     important on the free tier / with any concurrency.
     """
+    import ssl
+
     import httpx
     from pydantic_ai.retries import (
         AsyncTenacityTransport,
@@ -182,13 +184,20 @@ def _retrying_async_client(max_wait: float = 90.0, attempts: int = 8):
 
     transport = AsyncTenacityTransport(
         config=RetryConfig(
-            # Retry rate-limit/5xx statuses AND transport-level timeouts: the leanstral
-            # free-tier endpoint intermittently `ReadTimeout`s mid-stream, and without
-            # this a single slow response aborts the whole challenge as a harness-err
+            # Retry rate-limit/5xx statuses AND transport-level failures: the leanstral
+            # free-tier endpoint intermittently `ReadTimeout`s mid-stream, and under
+            # sustained 429 backoff its connections surface
+            # `SSLError: SSLV3_ALERT_BAD_RECORD_MAC` / `ReadError` on reuse. Without
+            # this a single such fault aborts the whole challenge as a harness-err
             # instead of yielding a real outcome. `httpx.TimeoutException` covers
-            # Read/Connect/Write/Pool timeouts.
+            # Read/Connect/Write/Pool timeouts; `httpx.TransportError` is their parent
+            # and additionally covers Connect/Read/Write/Protocol and TLS errors.
+            # A request that never reached the model is not a solver outcome -- the same
+            # reasoning that justifies retrying 429s above.
+            # NB `ssl.SSLError` is NOT an `httpx.TransportError` subclass, and the
+            # observed faults surface as a bare `SSLError`, so it must be listed too.
             retry=retry_if_exception_type(
-                (httpx.HTTPStatusError, httpx.TimeoutException)
+                (httpx.HTTPStatusError, httpx.TransportError, ssl.SSLError)
             ),
             wait=wait_retry_after(max_wait=max_wait),
             stop=stop_after_attempt(attempts),

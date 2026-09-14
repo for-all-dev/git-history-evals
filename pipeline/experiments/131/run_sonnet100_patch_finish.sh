@@ -4,14 +4,19 @@
 # or short (per-repo re-run granularity — completed repos are not re-paid), then runs the
 # original splice + aggregate + budget-curve tail from run_sonnet100_patch.sh.
 set -uo pipefail
-WT=/home/q/Documents/Work/safeguarded/forall/git-history-evals/.claude/worktrees/wf_fb82a8e0-b56-1
+# Resolve the MAIN checkout, never a worktree: this experiment's first run kept its
+# per-problem rows in a worktree's gitignored scratch-wave3/, and cleaning up the worktree
+# destroyed them permanently (an ignored file never becomes a git object, so nothing was
+# recoverable from a branch, the object store or the bucket).
+WT="$(cd "$(git rev-parse --git-common-dir)/.." && pwd)"
 PATCH="$WT/scratch-wave3/sonnet100-patch"
 FIN="$PATCH/hard-finish"
 cd "$WT"; set -a; source .env; set +a
 
 python3 - <<'PY'
 import json, pathlib, shutil
-PATCH = pathlib.Path("/home/q/Documents/Work/safeguarded/forall/git-history-evals/.claude/worktrees/wf_fb82a8e0-b56-1/scratch-wave3/sonnet100-patch")
+PATCH = pathlib.Path(__import__("subprocess").run(["git","rev-parse","--git-common-dir"],
+    capture_output=True,text=True,check=True).stdout.strip()).resolve().parent / "scratch-wave3" / "sonnet100-patch"
 FIN = PATCH / "hard-finish"
 if FIN.exists():
     shutil.rmtree(FIN)
@@ -40,7 +45,7 @@ done
 # ---- original tail: splice fresh rows into budget-100 tree, re-aggregate, rebuild curve
 python3 - <<'PY'
 import json, glob, pathlib
-WT = pathlib.Path("/home/q/Documents/Work/safeguarded/forall/git-history-evals/.claude/worktrees/wf_fb82a8e0-b56-1")
+WT = pathlib.Path(__import__("subprocess").run(["git","rev-parse","--git-common-dir"],capture_output=True,text=True,check=True).stdout.strip()).resolve().parent
 TREE = WT / "scratch-wave3/budget-100-claude-sonnet-5"
 PATCH = WT / "scratch-wave3/sonnet100-patch"
 for m, lbl in (("easy", "leaves"), ("hard", "whole")):

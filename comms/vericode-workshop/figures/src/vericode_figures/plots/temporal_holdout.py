@@ -14,6 +14,7 @@ from matplotlib.lines import Line2D
 
 from ..data import load_temporal_holdout
 from ..style import (
+    MODE_LABELS,
     MODEL_COLORS,
     MODEL_LABELS,
     MODEL_ORDER,
@@ -46,7 +47,10 @@ def render(pipeline_dir: Path, out_dir: Path) -> list[Path]:
             tsv_name = _TSV_NAME_BY_CANONICAL[model]
             color = MODEL_COLORS[model]
             for c_idx, cutoff in enumerate(cutoffs):
-                row = by_key[(tsv_name, mode, cutoff)]
+                key = (tsv_name, mode, cutoff)
+                if key not in by_key:
+                    continue  # model absent from the TSV (e.g. a newly added arm)
+                row = by_key[key]
                 x = c_idx + offsets[i]
                 pre_pct = row["pre_macro"] * 100
                 post_pct = row["post_macro"] * 100
@@ -72,7 +76,7 @@ def render(pipeline_dir: Path, out_dir: Path) -> list[Path]:
                     markersize=4,
                     zorder=3,
                 )
-        ax.set_ylabel(f"{mode}\nmacro PASS (%)")
+        ax.set_ylabel(f"{MODE_LABELS.get(mode, mode)}\nPASS (%)")
         ax.set_ylim(0, 100)
 
     tick_labels = []
@@ -121,9 +125,7 @@ def render(pipeline_dir: Path, out_dir: Path) -> list[Path]:
         handlelength=1.4,
         fontsize=6.5,
     )
-    fig.suptitle(
-        "temporal holdout: pre- vs post-cutoff macro PASS", y=1.16, fontsize=8.5
-    )
+    fig.suptitle("temporal holdout: pre- vs post-cutoff PASS", y=1.16, fontsize=8.5)
     fig.tight_layout()
 
     return save_figure(fig, out_dir / "temporal-holdout")

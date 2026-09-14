@@ -54,6 +54,6 @@ def render(data_dir: Path, out_dir: Path) -> list[Path]:
     ax.set_ylabel("tampered / scorable (%)")
     ax.set_ylim(0, 100)
     ax.legend(loc="upper right")
-    ax.set_title("tamper rate by model and mode")
+    ax.set_title("tamper rate by model and holing strategy")
 
     return save_figure(fig, out_dir / "tamper-by-model")

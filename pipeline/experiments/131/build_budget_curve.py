@@ -9,7 +9,24 @@ import pathlib
 import subprocess
 import sys
 
-WT = pathlib.Path("/home/q/Documents/Work/safeguarded/forall/git-history-evals/.claude/worktrees/wf_fb82a8e0-b56-1")
+def _main_repo() -> pathlib.Path:
+    """The MAIN checkout, even when called from inside a worktree.
+
+    This experiment originally wrote its per-problem rows into a /dispatch worktree's own
+    gitignored `scratch-wave3/`; cleaning up that worktree destroyed them permanently, since
+    an ignored file never becomes a git object and so cannot be recovered from a branch, the
+    object store or the bucket. Only the aggregated TSV survived. `--git-common-dir` points
+    at the main repo's .git from anywhere, so output always lands in the durable tree.
+    """
+    import subprocess
+
+    out = subprocess.run(
+        ["git", "rev-parse", "--git-common-dir"], capture_output=True, text=True, check=True
+    ).stdout.strip()
+    return pathlib.Path(out).resolve().parent
+
+
+WT = _main_repo()
 SCRATCH = WT / "scratch-wave3"
 MAIN_SCRATCH = pathlib.Path("/home/q/Documents/Work/safeguarded/forall/git-history-evals/scratch-wave3")
 TAMPER_SCRIPT = SCRATCH / "tamper_breakdown.py"

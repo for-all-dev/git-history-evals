@@ -36,31 +36,41 @@ OKABE_ITO = {
 # bars, so a reader can track a model by color across the whole figure set.
 MODEL_ORDER = [
     "claude-sonnet-5",
+    "claude-opus-5",
     "openai:gpt-5.6-sol",
     "mistral:labs-leanstral-1-5",
 ]
 
 MODEL_LABELS = {
     "claude-sonnet-5": "Claude Sonnet 5",
+    "claude-opus-5": "Claude Opus 5",
     "openai:gpt-5.6-sol": "GPT-5.6-sol",
     "mistral:labs-leanstral-1-5": "Leanstral 1.5",
 }
 
 MODEL_COLORS = {
     "claude-sonnet-5": OKABE_ITO["blue"],
+    "claude-opus-5": OKABE_ITO["sky_blue"],
     "openai:gpt-5.6-sol": OKABE_ITO["vermillion"],
     "mistral:labs-leanstral-1-5": OKABE_ITO["bluish_green"],
 }
 
 # --- Mode identity: the aggregate JSON's "leaves"/"whole" are the paper's easy/hard ----
 MODE_ORDER = ["leaves", "whole"]
-MODE_LABELS = {"leaves": "easy", "whole": "hard"}
+MODE_LABELS = {
+    "leaves": "leaf",
+    "whole": "whole",
+    # pipeline TSVs spell the modes easy/hard; map them onto the same paper terms.
+    "easy": "leaf",
+    "hard": "whole",
+}
 
 # pipeline/temporal_holdout.tsv spells model names without the pydantic-ai provider
 # prefix (e.g. "gpt-5.6-sol", not "openai:gpt-5.6-sol"). Map those onto the canonical
 # MODEL_ORDER keys so every figure shares one color/label per model.
 TSV_MODEL_ALIASES = {
     "claude-sonnet-5": "claude-sonnet-5",
+    "claude-opus-5": "claude-opus-5",
     "gpt-5.6-sol": "openai:gpt-5.6-sol",
     "leanstral-1-5": "mistral:labs-leanstral-1-5",
 }

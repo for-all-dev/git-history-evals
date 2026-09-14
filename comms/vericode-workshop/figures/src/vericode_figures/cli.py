@@ -18,6 +18,8 @@ from .paths import data_dir, find_repo_root, out_dir, pipeline_dir
 from .plots import (
     budget_curve,
     deletion_curve,
+    difficulty_reliability,
+    difficulty_roc,
     grid_pass,
     outcome_composition,
     tamper_by_model,
@@ -45,6 +47,8 @@ def main() -> int:
         ("temporal-holdout", lambda: temporal_holdout.render(p_dir, o_dir)),
         ("budget-curve", lambda: budget_curve.render(p_dir, o_dir)),
         ("deletion-curve", lambda: deletion_curve.render(p_dir, o_dir)),
+        ("difficulty-roc", lambda: difficulty_roc.render(p_dir, o_dir)),
+        ("difficulty-reliability", lambda: difficulty_reliability.render(p_dir, o_dir)),
     ]
 
     written: list[Path] = []

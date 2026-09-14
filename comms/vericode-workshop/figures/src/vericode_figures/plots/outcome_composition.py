@@ -1,9 +1,12 @@
 """Figure (b): per model x mode stacked bars over the outcome taxonomy.
 
-pass/tampered/turn_limit/gave_up/error/fail stack to `scorable`'s share of `total`.
-malformed (plus, if present, dry_run/trivial/context_exceeded — all excluded-from-
-denominator outcomes) stacks on top, hatched, so the bar always sums to 100% of `total`
-and the excluded slice reads as visually distinct from a real outcome.
+`malformed` rows are harness/environment noise (the same pre-flight failures in every
+bar), so they are dropped from the figure entirely: the denominator is
+`total - malformed`. pass/tampered/turn_limit/gave_up/error/fail stack to `scorable`'s
+share of that denominator; the remaining excluded-from-denominator outcomes that are
+solver behaviour (dry_run/trivial/context_exceeded) stack on top, hatched, so the bar
+always sums to 100% and the excluded slice reads as visually distinct from a real
+outcome.
 """
 
 from __future__ import annotations
@@ -55,14 +58,14 @@ def render(data_dir: Path, out_dir: Path) -> list[Path]:
     for model in MODEL_ORDER:
         for mode in MODE_ORDER:
             rec = aggregates[model][mode]
-            total = rec["total"]
             outcomes = rec["outcomes"]
+            denom = rec["total"] - outcomes.get("malformed", 0)
             x = positions[pos_idx]
             pos_idx += 1
 
             bottom = 0.0
             for outcome in OUTCOME_ORDER:
-                frac = outcomes.get(outcome, 0) / total
+                frac = outcomes.get(outcome, 0) / denom
                 label = OUTCOME_LABELS[outcome] if outcome not in seen_labels else None
                 ax.bar(
                     x,
@@ -76,10 +79,8 @@ def render(data_dir: Path, out_dir: Path) -> list[Path]:
                 seen_labels.add(outcome)
                 bottom += frac
 
-            excluded = outcomes.get("malformed", 0) + sum(
-                outcomes.get(k, 0) for k in _OTHER_EXCLUDED_KEYS
-            )
-            excluded_frac = excluded / total
+            excluded = sum(outcomes.get(k, 0) for k in _OTHER_EXCLUDED_KEYS)
+            excluded_frac = excluded / denom
             ax.bar(
                 x,
                 excluded_frac * 100,
@@ -89,7 +90,7 @@ def render(data_dir: Path, out_dir: Path) -> list[Path]:
                 hatch=EXCLUDED_HATCH,
                 edgecolor="white",
                 linewidth=0.3,
-                label="excluded (malformed, …)" if not excluded_labeled else None,
+                label="excluded (context, …)" if not excluded_labeled else None,
             )
             excluded_labeled = True
 

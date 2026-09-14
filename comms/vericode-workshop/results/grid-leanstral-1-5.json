@@ -5,26 +5,26 @@
     "max_turns": 50,
     "total": 113,
     "outcomes": {
-      "pass": 30,
+      "pass": 31,
       "dry_run": 0,
       "trivial": 0,
-      "malformed": 10,
+      "malformed": 5,
       "context_exceeded": 6,
-      "tampered": 26,
+      "tampered": 29,
       "gave_up": 1,
-      "turn_limit": 16,
+      "turn_limit": 17,
       "error": 23,
       "fail": 1
     },
-    "scorable": 97,
-    "micro_pass": 30,
-    "micro_rate": 0.30927835051546393,
-    "micro_ci_lo": 0.21649484536082475,
-    "micro_ci_hi": 0.41237113402061853,
-    "macro_n_repos": 52,
-    "macro_rate": 0.3076923076923077,
-    "macro_ci_lo": 0.25961538461538464,
-    "macro_ci_hi": 0.36538461538461536,
+    "scorable": 102,
+    "micro_pass": 31,
+    "micro_rate": 0.30392156862745096,
+    "micro_ci_lo": 0.21568627450980393,
+    "micro_ci_hi": 0.4019607843137255,
+    "macro_n_repos": 54,
+    "macro_rate": 0.2962962962962963,
+    "macro_ci_lo": 0.24074074074074073,
+    "macro_ci_hi": 0.35185185185185186,
     "per_repo": {
       "ArkLib": {
         "total": 2,
@@ -70,9 +70,9 @@
       },
       "LNSym": {
         "total": 2,
-        "scorable": 1,
+        "scorable": 2,
         "pass": 1,
-        "rate": 1.0
+        "rate": 0.5
       },
       "Lentil": {
         "total": 2,
@@ -310,9 +310,9 @@
       },
       "sparkle": {
         "total": 2,
-        "scorable": 1,
-        "pass": 0,
-        "rate": 0.0
+        "scorable": 2,
+        "pass": 1,
+        "rate": 0.5
       },
       "splean": {
         "total": 2,
@@ -322,7 +322,7 @@
       },
       "starkware-formal-proofs": {
         "total": 2,
-        "scorable": 0,
+        "scorable": 1,
         "pass": 0,
         "rate": 0.0
       },
@@ -352,7 +352,7 @@
       },
       "verity": {
         "total": 2,
-        "scorable": 0,
+        "scorable": 2,
         "pass": 0,
         "rate": 0.0
       },
@@ -376,26 +376,26 @@
     "max_turns": 50,
     "total": 113,
     "outcomes": {
-      "pass": 29,
+      "pass": 30,
       "dry_run": 0,
       "trivial": 0,
-      "malformed": 10,
+      "malformed": 4,
       "context_exceeded": 3,
-      "tampered": 22,
+      "tampered": 25,
       "gave_up": 2,
-      "turn_limit": 18,
+      "turn_limit": 19,
       "error": 29,
-      "fail": 0
+      "fail": 1
     },
-    "scorable": 100,
-    "micro_pass": 29,
-    "micro_rate": 0.29,
-    "micro_ci_lo": 0.2,
-    "micro_ci_hi": 0.39,
-    "macro_n_repos": 53,
-    "macro_rate": 0.2830188679245283,
-    "macro_ci_lo": 0.22641509433962265,
-    "macro_ci_hi": 0.33962264150943394,
+    "scorable": 106,
+    "micro_pass": 30,
+    "micro_rate": 0.2830188679245283,
+    "micro_ci_lo": 0.19811320754716982,
+    "micro_ci_hi": 0.36792452830188677,
+    "macro_n_repos": 55,
+    "macro_rate": 0.2727272727272727,
+    "macro_ci_lo": 0.21818181818181817,
+    "macro_ci_hi": 0.32727272727272727,
     "per_repo": {
       "ArkLib": {
         "total": 2,
@@ -441,9 +441,9 @@
       },
       "LNSym": {
         "total": 2,
-        "scorable": 1,
+        "scorable": 2,
         "pass": 1,
-        "rate": 1.0
+        "rate": 0.5
       },
       "Lentil": {
         "total": 2,
@@ -681,9 +681,9 @@
       },
       "sparkle": {
         "total": 2,
-        "scorable": 1,
-        "pass": 0,
-        "rate": 0.0
+        "scorable": 2,
+        "pass": 1,
+        "rate": 0.5
       },
       "splean": {
         "total": 2,
@@ -693,7 +693,7 @@
       },
       "starkware-formal-proofs": {
         "total": 2,
-        "scorable": 0,
+        "scorable": 2,
         "pass": 0,
         "rate": 0.0
       },
@@ -723,7 +723,7 @@
       },
       "verity": {
         "total": 2,
-        "scorable": 0,
+        "scorable": 2,
         "pass": 0,
         "rate": 0.0
       },

@@ -29,7 +29,7 @@ bullet in §1, and discharged by exactly one experiment issue.
 | C2 | Reward hacking under a **verified** reward, measured: tamper rate ranks with capability and reaches ~50% of scorable attempts for the strongest model; a compile-only oracle would have reported 98.1% instead of 49.5%. | §5.3, Table 5 (was Fig. 8) | **#129/#130** grid (landed); **#131/#136** for the budget curve | **Landed at 50 turns**; budget curve pending |
 | C3 | Two holing strategies, **measured** rather than assumed: leaf-step vs whole-body, on a matched problem set sharing `challenge_id`. Result is a **null** on pass rate for both generalists, a composition + turn-cost shift, and a (weak, confounded) reversal for the specialist. | §5.4, Fig. 3 | **#129** | **Landed** |
 | C4 | A contamination argument that is **measured**, structured by the instance- vs knowledge-level memorization distinction. | §5.5, Tables 6–7, Figs. 4, 6 | **#137** membership (landed), **#132** temporal holdout (landed), **#133** deletion-count sweep, **#134** recall probe | **2 of 4 landed** |
-| C5 | A **calibrated** difficulty model — held-out ROC-AUC, Brier, Murphy decomposition, reliability diagram, feature coefficients. Rare in benchmark papers. | §5.6, Fig. 7 | **#135** (labels now exist from #130) | Blocked on run |
+| C5 | A **calibrated** difficulty model — held-out ROC-AUC, Brier, Murphy decomposition, reliability diagram, feature coefficients. Rare in benchmark papers. | §5.3 (sec:difficulty), Table~\ref{tab:difficulty}, App.~F Figs. 4–5 | **#135** | **Landed** — measured 2026-09-13 (commit d28bdbc6); ROC curve + reliability diagram added as Appendix F figures 2026-09-13 |
 
 Claim ordering changed once results landed: what was C5 (reward hacking) is now the paper's
 strongest sentence and leads the results section, and what was C2 (the holing comparison) is a
@@ -189,13 +189,13 @@ Source data for everything marked **Ready (data committed)** lives in
 
 | Float | Content | Produced by | Ready? |
 |---|---|---|---|
-| **Fig. 1** | Pipeline schematic: repo @ pinned revision → corollary closure → delete + hole → two-sided compile validation → split. | none (schematic) | Ready to draw |
+| **Fig. 1** | Pipeline schematic: repo @ pinned revision → corollary closure → delete + hole → two-sided compile validation → split, plus the solve → oracle → outcome row sharing the same `.olean` closure. | none (schematic) | **Drawn** — inline TikZ, `fig:pipeline`, opens §2 so it floats to the top of page 2 |
 | **Fig. 2** | Worked example: one file, the same deletion under leaf vs whole-body holing, side by side. Makes §3.2 concrete in one glance. | none (corpus excerpt) | Ready to draw |
 | **Fig. 3** | Stacked outcome mix per (model, strategy) — 6 bars, PASS / tampered / fail / turn-limit / gave-up / harness. This is the figure that *shows* the reward-hacking finding, and it is now the single highest-value float in the paper. Currently in the text as Table 5. | **#129/#130** | **Ready (data committed)** — `results/outcomes.tsv` |
 | **Fig. 4** | Deletion-count decay curve, `--count` ∈ {1,2,3,5}, CIs, problem distribution held fixed across depths. The shape is the finding. | **#133** | Pending |
 | ~~**Fig. 5**~~ | Temporal holdout as a figure. **Demoted to Table 7**: with a 10–19-problem pre-side, a bar chart with error bars would imply precision the data does not have. | **#132** | **Landed as a table** — `pipeline/temporal_holdout.tsv` |
 | **Fig. 6** | Recall-vs-solve: verbatim recall score against solve outcome on the same problems, per split. | **#134** | Pending |
-| **Fig. 7** | Reliability diagram (deciles) + held-out AUC/Brier inset; companion bar of feature coefficients. | **#135** | Pending |
+| **Fig. 7** | Reliability diagram (deciles) + held-out AUC/Brier inset; companion bar of feature coefficients. | **#135** | **Superseded** — split into two Appendix~F figures instead: a held-out ROC curve (`figures/out/difficulty-roc.pdf`) and a decile reliability diagram (`figures/out/difficulty-reliability.pdf`); AUC/Brier stay in Table~\ref{tab:difficulty} rather than an inset, and the feature-coefficient bar was dropped in favor of the prose coefficient discussion already in §5.3 |
 | **Fig. 8** | Tamper rate vs turn budget, stacked by tamper reason (declaration removed vs statement weakened). | **#131/#136** | **Partial** — the 50-turn point and its reason split are committed (`results/derived.md`); 15-turn verified but not committed here; 100-turn in flight |
 | **Table 1** | Corpus composition: repos, mined, validated, per strategy; top-3 share. | none | **Ready** |
 | **Table 2** | Outcome taxonomy: each outcome, its meaning, in/out of the PASS denominator. **Amended**: `harness_err` is *in* the denominator, which the original table had backwards relative to the aggregator. | none | **Ready** |

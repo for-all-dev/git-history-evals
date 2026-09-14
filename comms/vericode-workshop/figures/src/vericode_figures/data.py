@@ -19,6 +19,7 @@ from .style import MODEL_ORDER
 
 AGGREGATE_FILENAMES = {
     "claude-sonnet-5": "aggregate-claude-sonnet-5.json",
+    "claude-opus-5": "aggregate-claude-opus-5.json",
     "openai:gpt-5.6-sol": "aggregate-gpt-5.6-sol.json",
     "mistral:labs-leanstral-1-5": "aggregate-leanstral-1-5.json",
 }
