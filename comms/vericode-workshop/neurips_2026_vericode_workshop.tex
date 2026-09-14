@@ -362,32 +362,9 @@ exclusion rate is a property of the sampling scheme and not of the corpus.
 \S\ref{app:licensing} pending an explicit keep-or-drop decision. Until that is settled, the exact
 released row count is provisional.
 
-\paragraph{L7: One grid arm needed a transport-fault re-run, and some faults persist.} The
-original \texttt{leanstral-1-5} arm lost 60 of 103 leaf attempts and 44 of 100 whole-body
-attempts to TLS-layer and read-timeout failures against the provider; concentrated enough,
-and asymmetric enough across the two strategies, to manufacture the apparent easy/hard reversal
-discussed in \S\ref{sec:grid}. The faulted attempts were re-solved and spliced by challenge id; the numbers throughout
-this paper are from the re-run. That re-run lowered request concurrency, but concurrency was
-not the mechanism: the faults recur identically at four, two and one concurrent request. The
-cause is that the solver's HTTP client retried rate-limit and timeout exceptions but not
-transport ones, so a connection-level failure under sustained rate-limit backoff, which
-this provider applies to large requests, aborted the whole attempt and was recorded as a
-non-pass. The client now retries transport and TLS errors as well. Even so, 23 leaf and 29 whole-body attempts still ended in transport faults, and
-following Table~\ref{tab:outcome-predicates} the aggregator keeps them in the denominator as non-passes,
-so the leanstral row of Table~\ref{tab:grid} remains a mild lower bound: dropping the residual
-faulted attempts gives 40.5\% (30/74) and 40.8\% (29/71) on leaf and whole-body holing, while the general-purpose arms are essentially unaffected (7, 3, 2 and 1 faults out of 113).
+\paragraph{L7: One grid arm needed a transport-fault re-run, and some faults persist.} The original \texttt{leanstral-1-5} arm lost 60 leaf attempts and 44 whole-body attempts to TLS-layer and read-timeout failures against the provider; concentrated enough, and asymmetric enough across the two strategies, to manufacture the apparent easy/hard reversal discussed in \S\ref{sec:grid}. The faulted attempts were re-solved and spliced by challenge id; the numbers throughout this paper are from the re-run. That re-run lowered request concurrency, but concurrency was not the mechanism: the faults recur identically at four, two and one concurrent request. The cause is that the solver's HTTP client retried rate-limit and timeout exceptions but not transport ones, so a connection-level failure under sustained rate-limit backoff, which this provider applies to large requests, aborted the whole attempt and was recorded as a non-pass. The client now retries transport and TLS errors as well. Even so, 23 leaf and 29 whole-body attempts still ended in transport faults, and following Table~\ref{tab:outcome-predicates} the aggregator keeps them in the denominator as non-passes, so the leanstral row of Table~\ref{tab:grid} remains a mild lower bound: dropping the residual faulted attempts gives 40.5\% (30/74) and 40.8\% (29/71) on leaf and whole-body holing, while the general-purpose arms are essentially unaffected (7, 3, 2 and 1 faults out of 113).
 
-\paragraph{L8: One sample, one seed.} Every number in \S\ref{sec:experiments} comes
-from a single 113-pair draw at seed 42, run once per (model, strategy, budget); the main
-grid at 50 turns, the budget curve of Figure~\ref{fig:budget} at 15/30/100 on the same draw.
-The budget curve is additionally on an earlier cut of that draw: it was run while six pairs
-were still unscorable for build reasons (103 scorable rather than the grid's 109), and its
-per-problem rows were lost afterwards, so those six pairs cannot be added without re-running
-the arm, which we did not have time to do. Its points are therefore not comparable to the
-grid table problem for problem, and \S\ref{sec:grid} reads it for direction only.
-There is no across-seed replication and no repeated sampling of the same problem, so the
-intervals we report capture sampling variation over problems and repositories but not the
-solver’s own run-to-run variance, which is not negligible for stochastic agentic solvers.
+\paragraph{L8: One sample, one seed.} Every number in \S\ref{sec:experiments} comes from a single 113-pair draw at seed 42, run once per (model, strategy, budget); the main grid at 50 turns, the budget curve of Figure~\ref{fig:budget} at 15/30/100 on the same draw. The budget curve is additionally on an earlier cut of that draw: it was run while six pairs were still unscorable for build reasons (103 scorable rather than the grid's 109), so those six pairs cannot be added without re-running the arm. Its points are therefore not comparable to the grid table problem for problem, and the tamper counts quoted for it in \S\ref{sec:grid} are sums over both strategies on that cut (206 attempts per budget). There is no across-seed replication and no repeated sampling of the same problem, so the intervals we report capture sampling variation over problems and repositories but not the solver’s own run-to-run variance, which is not negligible for stochastic agentic solvers.
 
 \section{Conclusion}
 
