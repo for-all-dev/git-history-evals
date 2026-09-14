@@ -380,6 +380,11 @@ faulted attempts gives 40.5\% (30/74) and 40.8\% (29/71) on leaf and whole-body 
 \paragraph{L8: One sample, one seed.} Every number in \S\ref{sec:experiments} comes
 from a single 113-pair draw at seed 42, run once per (model, strategy, budget); the main
 grid at 50 turns, the budget curve of Figure~\ref{fig:budget} at 15/30/100 on the same draw.
+The budget curve is additionally on an earlier cut of that draw: it was run while six pairs
+were still unscorable for build reasons (103 scorable rather than the grid's 109), and its
+per-problem rows were lost afterwards, so those six pairs cannot be added without re-running
+the arm, which we did not have time to do. Its points are therefore not comparable to the
+grid table problem for problem, and \S\ref{sec:grid} reads it for direction only.
 There is no across-seed replication and no repeated sampling of the same problem, so the
 intervals we report capture sampling variation over problems and repositories but not the
 solver’s own run-to-run variance, which is not negligible for stochastic agentic solvers.
