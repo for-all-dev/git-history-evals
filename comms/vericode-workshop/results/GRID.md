@@ -1,3 +1,8 @@
+> **Status (2026-09-13).** `outcomes.tsv`, `derived.md` and the `grid-*.{json,md}` files now hold the
+> four-model cut the paper reports: six pairs recovered from build failures (109 scorable, not 103) and a
+> `claude-opus-5` arm added. The notes below are the original three-model run record and are kept as history;
+> their 103-based counts are superseded by `outcomes.tsv`.
+
 # #129 / #130 results — three-model grid on the paired sample (2026-08-21/22)
 
 Sample: 113 paired easy/hard problems (shared challenge_id), 53 repos scoring, seed 42, 50-turn budget.
